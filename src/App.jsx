@@ -388,8 +388,8 @@ export default function App() {
             onError={e => e.target.style.display="none"} />
         </div>
         <p style={{ fontSize:12, color:T.textMuted, lineHeight:1.6 }}>
-          RUNSA Legislative Parliamentary Summit 2026 · 29th April · Sapetro Lecture Theatre, RUN
-          <br />© Redeemers' University Students' Association — Legislative Council
+          RUNSA Legislative Summit 2026 · 29th April, 2026 · Redeemer's University Nigeria
+          <br />© Redeemer's University Students' Association — Legislative Council
         </p>
       </footer>
 
@@ -567,7 +567,7 @@ function RegisterView({ onRegister, T }) {
           color:BRAND.gold, padding:"5px 18px", borderRadius:20,
           fontSize:11, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:18,
           background: T.dark ? "rgba(201,146,10,0.08)" : "rgba(201,146,10,0.06)",
-        }}>29th April 2026 · Sapetro Lecture Theatre, RUN</div>
+        }}>29th April 2026 · Sapetro Lecture Theatre, Redeemer's University Nigeria</div>
         <h1 style={{
           fontFamily:"'Cinzel', serif", fontSize:"clamp(26px, 5vw, 54px)",
           fontWeight:900, lineHeight:1.1,
@@ -603,7 +603,7 @@ function RegisterView({ onRegister, T }) {
           <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:20, marginBottom:28 }}>
             <FormField label="Full Name" error={errors.name} T={T}>
               <input style={inputStyle(T, !!errors.name)}
-                placeholder="e.g. Oluwafemi Ibukunoluwa" value={form.name}
+                placeholder="e.g. John Doe" value={form.name}
                 onChange={e => { set("name", e.target.value); clrErr("name"); }} />
             </FormField>
             <FormField label="Tertiary Institution" error={errors.institution} T={T}>
