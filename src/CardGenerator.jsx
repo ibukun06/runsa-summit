@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef } from "react";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const REG_SITE = "https://legislative-summit-registration.vercel.app";
@@ -8,6 +8,7 @@ const FIREBASE_CONFIG = {
   projectId: "runsa-summit",
 };
 const COLLECTION = "delegates";
+const CW = 1080, CH = 1920; // 9:16 portrait — universal story format
 
 // ─── FIREBASE ─────────────────────────────────────────────────────────────────
 let db = null;
@@ -29,844 +30,15 @@ function loadScript(src) {
 }
 async function fetchDelegate(id) {
   try {
-    const db = await initFirebase();
-    const snap = await db.collection(COLLECTION).doc(id.toUpperCase()).get();
+    const d = await initFirebase();
+    const snap = await d.collection(COLLECTION).doc(id.toUpperCase()).get();
     if (!snap.exists) return null;
     return { id: snap.id, ...snap.data() };
-  } catch (e) {
-    console.error(e);
-    return null;
-  }
+  } catch (e) { console.error(e); return null; }
 }
 
-// ─── STYLES ───────────────────────────────────────────────────────────────────
-const G = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Space+Grotesk:wght@300;400;500;600;700&family=Cinzel:wght@400;600;700&family=Bebas+Neue&display=swap');
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --navy: #050d1e;
-    --navy2: #0d1f3c;
-    --navy3: #1a3a6b;
-    --gold: #c9920a;
-    --gold2: #e8b84b;
-    --gold3: #f5d57a;
-    --cream: #f5f0e8;
-    --red: #c0392b;
-    --green: #27ae60;
-    --glass: rgba(255,255,255,0.04);
-    --glass2: rgba(255,255,255,0.08);
-    --border: rgba(201,146,10,0.2);
-  }
-
-  html, body { min-height: 100vh; }
-
-  body {
-    background: var(--navy);
-    color: var(--cream);
-    font-family: 'Space Grotesk', sans-serif;
-    overflow-x: hidden;
-  }
-
-  /* Grain texture overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 0;
-    opacity: 0.6;
-  }
-
-  .page {
-    position: relative;
-    z-index: 1;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* Header */
-  .site-header {
-    padding: 20px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-    background: rgba(5,13,30,0.8);
-    backdrop-filter: blur(16px);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-
-  .header-brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .header-logo {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 1.5px solid var(--gold);
-    object-fit: cover;
-  }
-
-  .header-title {
-    font-family: 'Cinzel', serif;
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--gold2);
-    line-height: 1.1;
-  }
-
-  .header-sub {
-    font-size: 10px;
-    color: rgba(245,240,232,0.45);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
-  .header-link {
-    font-size: 12px;
-    color: var(--gold);
-    text-decoration: none;
-    border: 1px solid var(--border);
-    padding: 7px 14px;
-    border-radius: 6px;
-    transition: all 0.2s;
-    font-weight: 500;
-  }
-
-  .header-link:hover {
-    background: var(--glass2);
-    border-color: var(--gold);
-  }
-
-  /* Hero */
-  .hero {
-    padding: 60px 24px 40px;
-    text-align: center;
-    max-width: 700px;
-    margin: 0 auto;
-  }
-
-  .hero-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 16px;
-    border: 1px solid rgba(201,146,10,0.4);
-    border-radius: 100px;
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--gold2);
-    background: rgba(201,146,10,0.06);
-    margin-bottom: 24px;
-  }
-
-  .hero-badge::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--gold2);
-    animation: pulse-dot 2s infinite;
-  }
-
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.7); }
-  }
-
-  .hero-title {
-    font-family: 'Playfair Display', serif;
-    font-size: clamp(32px, 7vw, 64px);
-    font-weight: 900;
-    line-height: 1.05;
-    margin-bottom: 16px;
-    background: linear-gradient(135deg, var(--gold3) 0%, var(--gold2) 40%, #fff 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .hero-sub {
-    font-size: clamp(14px, 2vw, 17px);
-    color: rgba(245,240,232,0.55);
-    line-height: 1.7;
-    max-width: 500px;
-    margin: 0 auto 40px;
-  }
-
-  /* Steps */
-  .steps {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    margin-bottom: 48px;
-    flex-wrap: wrap;
-  }
-
-  .step {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: rgba(245,240,232,0.45);
-  }
-
-  .step-num {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    border: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--gold);
-    flex-shrink: 0;
-  }
-
-  .step-active .step-num {
-    background: var(--gold);
-    color: var(--navy);
-    border-color: var(--gold);
-  }
-
-  .step-done .step-num {
-    background: var(--green);
-    color: #fff;
-    border-color: var(--green);
-  }
-
-  .step-sep {
-    width: 24px;
-    height: 1px;
-    background: var(--border);
-  }
-
-  /* Main content */
-  .main {
-    flex: 1;
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 24px 80px;
-    width: 100%;
-  }
-
-  /* Input panel */
-  .panel {
-    background: var(--glass);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    overflow: hidden;
-    margin-bottom: 32px;
-  }
-
-  .panel-head {
-    background: linear-gradient(135deg, rgba(13,31,60,0.8), rgba(26,58,107,0.4));
-    border-bottom: 1px solid var(--border);
-    padding: 20px 28px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .panel-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    background: rgba(201,146,10,0.15);
-    border: 1px solid rgba(201,146,10,0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-  }
-
-  .panel-title {
-    font-family: 'Cinzel', serif;
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--gold2);
-    letter-spacing: 0.04em;
-  }
-
-  .panel-desc {
-    font-size: 12px;
-    color: rgba(245,240,232,0.45);
-    margin-top: 2px;
-  }
-
-  .panel-body {
-    padding: 28px;
-  }
-
-  /* Ticket input */
-  .ticket-row {
-    display: flex;
-    gap: 10px;
-  }
-
-  .ticket-input {
-    flex: 1;
-    padding: 14px 18px;
-    background: rgba(255,255,255,0.05);
-    border: 1.5px solid var(--border);
-    border-radius: 10px;
-    color: var(--cream);
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 15px;
-    letter-spacing: 0.05em;
-    outline: none;
-    transition: border-color 0.2s;
-    text-transform: uppercase;
-  }
-
-  .ticket-input:focus {
-    border-color: var(--gold);
-  }
-
-  .ticket-input::placeholder {
-    text-transform: none;
-    color: rgba(245,240,232,0.25);
-    letter-spacing: 0;
-  }
-
-  .btn-fetch {
-    padding: 14px 24px;
-    background: linear-gradient(135deg, var(--gold), var(--navy3));
-    border: none;
-    border-radius: 10px;
-    color: #fff;
-    font-family: 'Cinzel', serif;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: opacity 0.2s;
-  }
-
-  .btn-fetch:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .delegate-card {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 16px;
-    background: rgba(39,174,96,0.06);
-    border: 1px solid rgba(39,174,96,0.25);
-    border-radius: 12px;
-    margin-top: 16px;
-    animation: fadeUp 0.3s ease both;
-  }
-
-  .delegate-avatar {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: rgba(201,146,10,0.15);
-    border: 2px solid var(--gold);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    flex-shrink: 0;
-  }
-
-  .delegate-name {
-    font-family: 'Cinzel', serif;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--cream);
-    margin-bottom: 3px;
-  }
-
-  .delegate-meta {
-    font-size: 12px;
-    color: rgba(245,240,232,0.5);
-  }
-
-  .delegate-id {
-    margin-left: auto;
-    font-family: monospace;
-    font-size: 12px;
-    color: var(--gold);
-    letter-spacing: 0.08em;
-    flex-shrink: 0;
-  }
-
-  .err-msg {
-    margin-top: 12px;
-    padding: 12px 16px;
-    background: rgba(192,57,43,0.08);
-    border: 1px solid rgba(192,57,43,0.3);
-    border-radius: 8px;
-    color: #e74c3c;
-    font-size: 13px;
-  }
-
-  /* Photo upload */
-  .upload-zone {
-    border: 2px dashed var(--border);
-    border-radius: 14px;
-    padding: 40px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .upload-zone:hover, .upload-zone.drag-over {
-    border-color: var(--gold);
-    background: rgba(201,146,10,0.04);
-  }
-
-  .upload-zone input {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-    width: 100%;
-    height: 100%;
-  }
-
-  .upload-icon { font-size: 40px; margin-bottom: 12px; }
-
-  .upload-title {
-    font-family: 'Cinzel', serif;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--gold2);
-    margin-bottom: 6px;
-  }
-
-  .upload-sub {
-    font-size: 12px;
-    color: rgba(245,240,232,0.4);
-  }
-
-  .photo-preview {
-    position: relative;
-    display: inline-block;
-    margin-top: 16px;
-  }
-
-  .photo-preview img {
-    width: 120px;
-    height: 120px;
-    object-fit: cover;
-    border-radius: 12px;
-    border: 2px solid var(--gold);
-    display: block;
-  }
-
-  .photo-remove {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: var(--red);
-    border: none;
-    color: #fff;
-    font-size: 12px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  /* Generate button */
-  .btn-generate {
-    width: 100%;
-    padding: 18px;
-    background: linear-gradient(135deg, var(--gold) 0%, var(--navy3) 120%);
-    border: none;
-    border-radius: 14px;
-    color: #fff;
-    font-family: 'Cinzel', serif;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    cursor: pointer;
-    box-shadow: 0 8px 32px rgba(201,146,10,0.3);
-    transition: all 0.2s;
-    margin-top: 8px;
-  }
-
-  .btn-generate:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 40px rgba(201,146,10,0.4);
-  }
-
-  .btn-generate:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  /* Card preview area */
-  .preview-wrap {
-    text-align: center;
-    animation: fadeUp 0.5s ease both;
-  }
-
-  .preview-label {
-    font-family: 'Cinzel', serif;
-    font-size: 12px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--gold);
-    margin-bottom: 20px;
-  }
-
-  .card-outer {
-    display: inline-block;
-    border-radius: 24px;
-    overflow: hidden;
-    box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(201,146,10,0.2);
-    max-width: 420px;
-    width: 100%;
-  }
-
-  /* THE ACTUAL CARD — fixed aspect ratio for sharing */
-  .summit-card {
-    width: 420px;
-    height: 560px;
-    position: relative;
-    background: var(--navy);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    font-family: 'Space Grotesk', sans-serif;
-  }
-
-  .card-bg-photo {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 65%;
-    object-fit: cover;
-    object-position: center top;
-  }
-
-  .card-photo-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      to bottom,
-      rgba(5,13,30,0.1) 0%,
-      rgba(5,13,30,0.2) 30%,
-      rgba(5,13,30,0.7) 55%,
-      rgba(5,13,30,1) 72%
-    );
-  }
-
-  /* Gold corner accents */
-  .card-corner {
-    position: absolute;
-    width: 32px;
-    height: 32px;
-    border-color: var(--gold);
-    border-style: solid;
-    opacity: 0.7;
-  }
-
-  .card-corner-tl { top: 16px; left: 16px; border-width: 2px 0 0 2px; }
-  .card-corner-tr { top: 16px; right: 16px; border-width: 2px 2px 0 0; }
-  .card-corner-bl { bottom: 16px; left: 16px; border-width: 0 0 2px 2px; }
-  .card-corner-br { bottom: 16px; right: 16px; border-width: 0 2px 2px 0; }
-
-  .card-top-bar {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    padding: 16px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    z-index: 10;
-  }
-
-  .card-logo {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 1.5px solid rgba(232,184,75,0.6);
-  }
-
-  .card-top-text {
-    font-family: 'Cinzel', serif;
-    font-size: 8.5px;
-    font-weight: 700;
-    color: rgba(232,184,75,0.9);
-    letter-spacing: 0.12em;
-    text-align: right;
-    line-height: 1.4;
-    text-transform: uppercase;
-  }
-
-  .card-bottom {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 20px 22px 18px;
-    z-index: 10;
-  }
-
-  .card-attending-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(201,146,10,0.15);
-    border: 1px solid rgba(201,146,10,0.5);
-    border-radius: 100px;
-    padding: 4px 12px;
-    font-size: 9px;
-    letter-spacing: 0.12em;
-    color: var(--gold2);
-    text-transform: uppercase;
-    font-weight: 600;
-    margin-bottom: 10px;
-  }
-
-  .card-attending-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--gold2);
-  }
-
-  .card-name {
-    font-family: 'Playfair Display', serif;
-    font-size: 28px;
-    font-weight: 900;
-    color: #fff;
-    line-height: 1.1;
-    margin-bottom: 6px;
-    text-shadow: 0 2px 12px rgba(0,0,0,0.5);
-  }
-
-  .card-position {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--gold2);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 3px;
-  }
-
-  .card-institution {
-    font-size: 12px;
-    color: rgba(245,240,232,0.6);
-    margin-bottom: 14px;
-  }
-
-  .card-divider {
-    height: 1px;
-    background: linear-gradient(90deg, var(--gold), transparent);
-    margin-bottom: 12px;
-    opacity: 0.4;
-  }
-
-  .card-event-row {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-  }
-
-  .card-event-name {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 18px;
-    color: var(--gold3);
-    letter-spacing: 0.04em;
-    line-height: 1;
-  }
-
-  .card-event-detail {
-    font-size: 9px;
-    color: rgba(245,240,232,0.45);
-    letter-spacing: 0.05em;
-    line-height: 1.5;
-    margin-top: 2px;
-  }
-
-  .card-ticket-id {
-    font-family: monospace;
-    font-size: 10px;
-    color: rgba(201,146,10,0.6);
-    letter-spacing: 0.1em;
-    text-align: right;
-  }
-
-  .card-url {
-    font-size: 8px;
-    color: rgba(245,240,232,0.3);
-    letter-spacing: 0.05em;
-    text-align: right;
-    margin-top: 2px;
-  }
-
-  /* No-photo fallback gradient */
-  .card-bg-gradient {
-    position: absolute;
-    inset: 0;
-    height: 65%;
-    background: linear-gradient(135deg, #1a3a6b 0%, #0d1f3c 50%, #c9920a22 100%);
-  }
-
-  .card-initials {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-family: 'Playfair Display', serif;
-    font-size: 80px;
-    font-weight: 900;
-    color: rgba(201,146,10,0.2);
-    line-height: 1;
-    letter-spacing: -4px;
-    white-space: nowrap;
-    max-width: 100%;
-  }
-
-  /* Action buttons */
-  .action-row {
-    display: flex;
-    gap: 12px;
-    margin-top: 24px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  .btn-download {
-    padding: 14px 28px;
-    background: linear-gradient(135deg, var(--gold), var(--navy3));
-    border: none;
-    border-radius: 10px;
-    color: #fff;
-    font-family: 'Cinzel', serif;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    cursor: pointer;
-    box-shadow: 0 4px 20px rgba(201,146,10,0.3);
-    transition: all 0.2s;
-  }
-
-  .btn-download:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 28px rgba(201,146,10,0.4);
-  }
-
-  .btn-reset {
-    padding: 14px 28px;
-    background: transparent;
-    border: 1.5px solid var(--border);
-    border-radius: 10px;
-    color: rgba(245,240,232,0.6);
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-reset:hover {
-    border-color: var(--gold);
-    color: var(--gold);
-  }
-
-  /* Share caption */
-  .share-caption {
-    margin-top: 20px;
-    padding: 16px 20px;
-    background: var(--glass);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    max-width: 420px;
-    margin-left: auto;
-    margin-right: auto;
-    text-align: left;
-  }
-
-  .share-caption-label {
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--gold);
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-
-  .share-caption-text {
-    font-size: 13px;
-    color: rgba(245,240,232,0.7);
-    line-height: 1.6;
-    user-select: all;
-  }
-
-  .btn-copy {
-    margin-top: 10px;
-    padding: 8px 16px;
-    background: var(--glass2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--gold2);
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-family: 'Space Grotesk', sans-serif;
-  }
-
-  .btn-copy:hover { background: rgba(201,146,10,0.1); }
-
-  /* Animations */
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes shimmer {
-    from { background-position: -200% center; }
-    to { background-position: 200% center; }
-  }
-
-  .loading-shimmer {
-    background: linear-gradient(90deg, var(--navy2) 25%, var(--navy3) 50%, var(--navy2) 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    border-radius: 6px;
-    height: 16px;
-  }
-
-  /* Responsive */
-  @media (max-width: 480px) {
-    .summit-card { width: 340px; height: 453px; }
-    .card-name { font-size: 22px; }
-    .card-event-name { font-size: 15px; }
-    .ticket-row { flex-direction: column; }
-  }
-`;
-
-// ─── CARD CANVAS RENDERER ─────────────────────────────────────────────────────
-// ─── QR CODE GENERATOR ────────────────────────────────────────────────────────
-async function generateQRCanvas(text, size) {
+// ─── QR GENERATOR ─────────────────────────────────────────────────────────────
+async function generateQRImage(text, size) {
   await loadScript("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
   return new Promise((resolve) => {
     const div = document.createElement("div");
@@ -886,265 +58,389 @@ async function generateQRCanvas(text, size) {
       img.onload = () => resolve(img);
       img.onerror = () => resolve(null);
       img.src = src;
-    }, 500);
+    }, 600);
   });
 }
 
-async function renderCardToCanvas(delegate, photoUrl) {
-  const W = 840, H = 1120;
-  const canvas = document.createElement("canvas");
-  canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext("2d");
-
-  const loadImg = (src) => new Promise((res, rej) => {
-    const img = new Image(); img.crossOrigin = "anonymous";
-    img.onload = () => res(img); img.onerror = rej; img.src = src;
-  });
-
-  // Pre-generate QR code
-  const checkinURL = delegate.qrURL || `${REG_SITE}?checkin=${delegate.id}`;
-  const qrImg = await generateQRCanvas(checkinURL, 220);
-
-  // Background
-  ctx.fillStyle = "#050d1e";
-  ctx.fillRect(0, 0, W, H);
-
-  // Photo or gradient
-  if (photoUrl) {
-    try {
-      const photo = await loadImg(photoUrl);
-      const photoH = H * 0.65;
-      ctx.drawImage(photo, 0, 0, W, photoH);
-      // Overlay gradient
-      const grad = ctx.createLinearGradient(0, 0, 0, H);
-      grad.addColorStop(0, "rgba(5,13,30,0.1)");
-      grad.addColorStop(0.35, "rgba(5,13,30,0.25)");
-      grad.addColorStop(0.58, "rgba(5,13,30,0.75)");
-      grad.addColorStop(0.72, "rgba(5,13,30,1)");
-      grad.addColorStop(1, "rgba(5,13,30,1)");
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, W, H);
-    } catch {}
-  } else {
-    // Gradient bg
-    const grad = ctx.createLinearGradient(0, 0, W, H * 0.65);
-    grad.addColorStop(0, "#1a3a6b");
-    grad.addColorStop(0.5, "#0d1f3c");
-    grad.addColorStop(1, "#15304a");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H * 0.65);
-    // Initials
-    const initials = delegate.name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
-    ctx.font = "bold 180px 'Playfair Display', serif";
-    ctx.fillStyle = "rgba(201,146,10,0.12)";
-    ctx.textAlign = "center";
-    ctx.fillText(initials, W / 2, H * 0.38);
-    // Fade to dark
-    const grad2 = ctx.createLinearGradient(0, H * 0.4, 0, H * 0.72);
-    grad2.addColorStop(0, "rgba(5,13,30,0)");
-    grad2.addColorStop(1, "rgba(5,13,30,1)");
-    ctx.fillStyle = grad2;
-    ctx.fillRect(0, H * 0.4, W, H * 0.35);
-  }
-
-  // Solid bottom
-  ctx.fillStyle = "#050d1e";
-  ctx.fillRect(0, H * 0.72, W, H * 0.28);
-
-  // Corner accents
-  ctx.strokeStyle = "rgba(201,146,10,0.6)";
-  ctx.lineWidth = 3;
-  const cs = 64; // corner size
-  const cm = 32; // margin
-  // TL
-  ctx.beginPath(); ctx.moveTo(cm, cm + cs); ctx.lineTo(cm, cm); ctx.lineTo(cm + cs, cm); ctx.stroke();
-  // TR
-  ctx.beginPath(); ctx.moveTo(W - cm - cs, cm); ctx.lineTo(W - cm, cm); ctx.lineTo(W - cm, cm + cs); ctx.stroke();
-  // BL
-  ctx.beginPath(); ctx.moveTo(cm, H - cm - cs); ctx.lineTo(cm, H - cm); ctx.lineTo(cm + cs, H - cm); ctx.stroke();
-  // BR
-  ctx.beginPath(); ctx.moveTo(W - cm - cs, H - cm); ctx.lineTo(W - cm, H - cm); ctx.lineTo(W - cm, H - cm - cs); ctx.stroke();
-
-  // Top bar — logo + text
-  try {
-    const logo = await loadImg("/legislative-council-logo.jpg");
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(64, 64, 32, 0, Math.PI * 2);
-    ctx.closePath();
-    ctx.clip();
-    ctx.drawImage(logo, 32, 32, 64, 64);
-    ctx.restore();
-    // Gold ring
-    ctx.strokeStyle = "rgba(232,184,75,0.6)";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(64, 64, 32, 0, Math.PI * 2); ctx.stroke();
-  } catch {}
-
-  ctx.textAlign = "right";
-  ctx.font = "700 17px 'Cinzel', serif";
-  ctx.fillStyle = "rgba(232,184,75,0.9)";
-  ctx.fillText("RUNSA LEGISLATIVE COUNCIL", W - 40, 54);
-  ctx.font = "400 14px 'Space Grotesk', sans-serif";
-  ctx.fillStyle = "rgba(245,240,232,0.45)";
-  ctx.fillText("REDEEMER'S UNIVERSITY STUDENTS' ASSOCIATION", W - 40, 76);
-
-  // --- BOTTOM CONTENT ---
-  const bY = H * 0.67; // start of bottom content
-
-  // Attending badge
-  ctx.textAlign = "left";
-  const badgeX = 44, badgeY = bY;
-  const badgeW = 200, badgeH = 32;
-  ctx.fillStyle = "rgba(201,146,10,0.12)";
-  ctx.strokeStyle = "rgba(201,146,10,0.45)";
-  ctx.lineWidth = 1.5;
-  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 16);
-  ctx.fill(); ctx.stroke();
-  // dot
-  ctx.fillStyle = "#e8b84b";
-  ctx.beginPath(); ctx.arc(badgeX + 16, badgeY + badgeH / 2, 5, 0, Math.PI * 2); ctx.fill();
-  ctx.font = "600 13px 'Space Grotesk', sans-serif";
-  ctx.fillStyle = "#e8b84b";
-  ctx.fillText("I'M ATTENDING", badgeX + 28, badgeY + badgeH / 2 + 5);
-
-  // Name
-  ctx.font = "900 64px 'Playfair Display', serif";
-  ctx.fillStyle = "#ffffff";
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = 20;
-  const name = delegate.name;
-  // Wrap name if long
-  const nameLines = wrapText(ctx, name, W - 88, 64);
-  nameLines.forEach((line, i) => {
-    ctx.fillText(line, 44, bY + 60 + i * 68);
-  });
-  ctx.shadowBlur = 0;
-
-  const nameBottom = bY + 60 + nameLines.length * 68;
-
-  // Position
-  ctx.font = "600 20px 'Space Grotesk', sans-serif";
-  ctx.fillStyle = "#e8b84b";
-  ctx.fillText(delegate.position.toUpperCase(), 44, nameBottom + 10);
-
-  // Institution
-  ctx.font = "400 18px 'Space Grotesk', sans-serif";
-  ctx.fillStyle = "rgba(245,240,232,0.55)";
-  ctx.fillText(delegate.institution, 44, nameBottom + 38);
-
-  // Divider line
-  const divY = nameBottom + 60;
-  const divGrad = ctx.createLinearGradient(44, divY, W - 44, divY);
-  divGrad.addColorStop(0, "rgba(201,146,10,0.5)");
-  divGrad.addColorStop(1, "rgba(201,146,10,0)");
-  ctx.strokeStyle = divGrad;
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(44, divY); ctx.lineTo(W - 44, divY); ctx.stroke();
-
-  // Event name
-  ctx.font = "400 40px 'Bebas Neue', sans-serif";
-  ctx.fillStyle = "#f5d57a";
-  ctx.textAlign = "left";
-  ctx.fillText("LEGISLATIVE SUMMIT 2026", 44, divY + 44);
-
-  // Location + date
-  ctx.font = "400 16px 'Space Grotesk', sans-serif";
-  ctx.fillStyle = "rgba(245,240,232,0.4)";
-  ctx.fillText("@ Redeemer's University, Ede  ·  29th April, 2026", 44, divY + 68);
-
-  // QR code block (bottom right)
-  const qrSize = 160;
-  const qrX = W - 44 - qrSize;
-  const qrY = divY + 14;
-
-  if (qrImg) {
-    // White bg for QR
-    ctx.fillStyle = "#ffffff";
-    roundRect(ctx, qrX - 8, qrY - 8, qrSize + 16, qrSize + 16, 10);
-    ctx.fill();
-    // Gold border
-    ctx.strokeStyle = "rgba(201,146,10,0.5)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    // Draw QR
-    ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
-    // "Scan to enter" label
-    ctx.textAlign = "center";
-    ctx.font = "600 11px 'Space Grotesk', sans-serif";
-    ctx.fillStyle = "rgba(201,146,10,0.6)";
-    ctx.fillText("SCAN TO ENTER", qrX + qrSize / 2, qrY + qrSize + 22);
-  }
-
-  // Ticket ID below event name (left side)
-  ctx.textAlign = "left";
-  ctx.font = "400 15px monospace";
-  ctx.fillStyle = "rgba(201,146,10,0.5)";
-  ctx.fillText(delegate.id, 44, divY + 68);
-
-  // Registration URL (small, bottom left)
-  ctx.font = "400 12px 'Space Grotesk', sans-serif";
-  ctx.fillStyle = "rgba(245,240,232,0.2)";
-  ctx.fillText(REG_SITE, 44, H - 36);
-
-  return canvas;
-}
-
-function roundRect(ctx, x, y, w, h, r) {
+// ─── CANVAS HELPERS ───────────────────────────────────────────────────────────
+function rrect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
   ctx.closePath();
 }
 
-function wrapText(ctx, text, maxW, fontSize) {
+function wrapText(ctx, text, maxW) {
   const words = text.split(" ");
-  const lines = [];
-  let cur = "";
+  const lines = []; let cur = "";
   for (const word of words) {
     const test = cur ? cur + " " + word : word;
-    if (ctx.measureText(test).width > maxW && cur) {
-      lines.push(cur);
-      cur = word;
-    } else cur = test;
+    if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = word; }
+    else cur = test;
   }
   if (cur) lines.push(cur);
   return lines;
 }
 
-// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-export default function CardGenerator() {
-  const [ticketId, setTicketId] = useState("");
-  const [delegate, setDelegate] = useState(null);
-  const [fetching, setFetching] = useState(false);
-  const [fetchErr, setFetchErr] = useState("");
-  const [photo, setPhoto] = useState(null); // dataURL
-  const [drag, setDrag] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [cardDataUrl, setCardDataUrl] = useState(null);
-  const [copied, setCopied] = useState(false);
-  const fileRef = useRef(null);
-  const cardRef = useRef(null);
+function loadImg(src) {
+  return new Promise((res, rej) => {
+    const img = new Image(); img.crossOrigin = "anonymous";
+    img.onload = () => res(img); img.onerror = rej; img.src = src;
+  });
+}
 
-  const step = !delegate ? 1 : !cardDataUrl ? 2 : 3;
+// Smart cover: fill zone, centre horizontally, bias top for faces
+function drawSmartCover(ctx, img, x, y, w, h) {
+  const imgAr = img.width / img.height;
+  const zoneAr = w / h;
+  let sw, sh, sx, sy;
+  if (imgAr > zoneAr) {
+    sh = img.height; sw = img.height * zoneAr;
+    sx = (img.width - sw) / 2; sy = 0;
+  } else {
+    sw = img.width; sh = img.width / zoneAr;
+    sx = 0; sy = Math.max(0, Math.min(img.height * 0.04, img.height - sh));
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+}
+
+// ─── CARD RENDERER ────────────────────────────────────────────────────────────
+async function renderCard(delegate, photoDataUrl, mode) {
+  const dark = mode === "dark";
+  const BG     = dark ? "#050d1e" : "#f0ece3";
+  const GOLD   = "#c9920a";
+  const GOLD2  = "#e8b84b";
+  const GOLD3  = "#f5d57a";
+  const NAVY   = "#050d1e";
+  const TEXT   = dark ? "#f5f0e8" : "#050d1e";
+  const MUTED  = dark ? "rgba(245,240,232,0.52)" : "rgba(5,13,30,0.42)";
+  const EVTCOL = dark ? GOLD3 : NAVY;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = CW; canvas.height = CH;
+  const ctx = canvas.getContext("2d");
+
+  // ── BASE ──────────────────────────────────────────────────────────────────
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, CW, CH);
+
+  const PHOTO_H = Math.round(CH * 0.60); // top 60%
+  const PAD = 72;
+
+  // ── PHOTO ZONE ────────────────────────────────────────────────────────────
+  if (photoDataUrl) {
+    const photo = await loadImg(photoDataUrl);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, CW, PHOTO_H);
+    ctx.clip();
+    drawSmartCover(ctx, photo, 0, 0, CW, PHOTO_H);
+    ctx.restore();
+
+    // Gradient: top vignette (for logo readability)
+    const topV = ctx.createLinearGradient(0, 0, 0, 260);
+    topV.addColorStop(0, "rgba(0,0,0,0.52)");
+    topV.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = topV;
+    ctx.fillRect(0, 0, CW, 260);
+
+    // Gradient: bottom fade into card background
+    const botV = ctx.createLinearGradient(0, PHOTO_H * 0.48, 0, PHOTO_H);
+    botV.addColorStop(0, "rgba(0,0,0,0)");
+    botV.addColorStop(0.55, dark ? "rgba(5,13,30,0.62)" : "rgba(240,236,227,0.55)");
+    botV.addColorStop(1,   dark ? "rgba(5,13,30,0.98)" : "rgba(240,236,227,0.98)");
+    ctx.fillStyle = botV;
+    ctx.fillRect(0, PHOTO_H * 0.48, CW, PHOTO_H * 0.52);
+  } else {
+    // No photo — rich gradient bg
+    const grad = ctx.createLinearGradient(0, 0, CW * 0.7, PHOTO_H);
+    grad.addColorStop(0, dark ? "#1a3a6b" : "#ddd5c2");
+    grad.addColorStop(0.5, dark ? "#0d1f3c" : "#e8e0d0");
+    grad.addColorStop(1, dark ? "#080f1e" : "#cfc5af");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, CW, PHOTO_H);
+    // Big monogram art
+    const initials = delegate.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+    ctx.font = "900 500px Georgia, serif";
+    ctx.fillStyle = dark ? "rgba(201,146,10,0.07)" : "rgba(5,13,30,0.05)";
+    ctx.textAlign = "center";
+    ctx.fillText(initials, CW / 2, PHOTO_H * 0.72);
+    // Bottom fade
+    const fade = ctx.createLinearGradient(0, PHOTO_H * 0.55, 0, PHOTO_H);
+    fade.addColorStop(0, "rgba(0,0,0,0)");
+    fade.addColorStop(1, dark ? "rgba(5,13,30,0.92)" : "rgba(240,236,227,0.92)");
+    ctx.fillStyle = fade;
+    ctx.fillRect(0, PHOTO_H * 0.55, CW, PHOTO_H * 0.45);
+    // Top vignette
+    const topV = ctx.createLinearGradient(0, 0, 0, 250);
+    topV.addColorStop(0, "rgba(0,0,0,0.38)");
+    topV.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = topV;
+    ctx.fillRect(0, 0, CW, 250);
+  }
+
+  // ── TOP BAR ───────────────────────────────────────────────────────────────
+  // Logo
+  try {
+    const logo = await loadImg("/legislative-council-logo.jpg");
+    ctx.save();
+    ctx.beginPath(); ctx.arc(PAD + 50, 82, 50, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
+    ctx.drawImage(logo, PAD, 32, 100, 100);
+    ctx.restore();
+    ctx.strokeStyle = "rgba(232,184,75,0.75)";
+    ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.arc(PAD + 50, 82, 50, 0, Math.PI * 2); ctx.stroke();
+  } catch {}
+
+  // Org text top-right
+  ctx.textAlign = "right";
+  ctx.font = "700 30px Arial, sans-serif";
+  ctx.fillStyle = "rgba(232,184,75,0.92)";
+  ctx.fillText("RUNSA LEGISLATIVE COUNCIL", CW - PAD, 66);
+  ctx.font = "400 22px Arial, sans-serif";
+  ctx.fillStyle = "rgba(245,240,232,0.48)";
+  ctx.fillText("REDEEMER'S UNIVERSITY STUDENTS' ASSOCIATION", CW - PAD, 102);
+
+  // ── ATTENDING BADGE ───────────────────────────────────────────────────────
+  const BADGE_Y = PHOTO_H - 130;
+  const bW = 330, bH = 64;
+  ctx.fillStyle = "rgba(201,146,10,0.18)";
+  ctx.strokeStyle = "rgba(201,146,10,0.6)";
+  ctx.lineWidth = 2.5;
+  rrect(ctx, PAD, BADGE_Y, bW, bH, 32);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = GOLD2;
+  ctx.beginPath(); ctx.arc(PAD + 26, BADGE_Y + bH / 2, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.textAlign = "left";
+  ctx.font = "700 24px Arial, sans-serif";
+  ctx.fillStyle = GOLD2;
+  ctx.fillText("I'M ATTENDING", PAD + 46, BADGE_Y + bH / 2 + 9);
+
+  // ── INFO SECTION ──────────────────────────────────────────────────────────
+  const INFO_START = PHOTO_H + 56;
+
+  // NAME — large, primary text
+  ctx.font = "900 110px Georgia, serif";
+  ctx.fillStyle = TEXT;
+  ctx.textAlign = "left";
+  ctx.shadowColor = dark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.08)";
+  ctx.shadowBlur = 16;
+  const nameLines = wrapText(ctx, delegate.name, CW - PAD * 2);
+  const NLH = 118;
+  nameLines.forEach((line, i) => ctx.fillText(line, PAD, INFO_START + i * NLH));
+  ctx.shadowBlur = 0;
+  const NAME_BOT = INFO_START + nameLines.length * NLH;
+
+  // POSITION
+  ctx.font = "700 40px Arial, sans-serif";
+  ctx.fillStyle = dark ? GOLD2 : GOLD;
+  ctx.fillText(delegate.position.toUpperCase(), PAD, NAME_BOT + 52);
+
+  // INSTITUTION
+  ctx.font = "400 36px Arial, sans-serif";
+  ctx.fillStyle = MUTED;
+  ctx.fillText(delegate.institution, PAD, NAME_BOT + 104);
+
+  // ── DIVIDER ───────────────────────────────────────────────────────────────
+  const DIV_Y = NAME_BOT + 148;
+  const dg = ctx.createLinearGradient(PAD, DIV_Y, CW - PAD, DIV_Y);
+  dg.addColorStop(0, dark ? "rgba(201,146,10,0.55)" : "rgba(5,13,30,0.18)");
+  dg.addColorStop(0.7, dark ? "rgba(201,146,10,0.12)" : "rgba(5,13,30,0.04)");
+  dg.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.strokeStyle = dg; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(PAD, DIV_Y); ctx.lineTo(CW - PAD, DIV_Y); ctx.stroke();
+
+  // ── EVENT + QR ROW ────────────────────────────────────────────────────────
+  const EV_Y = DIV_Y + 50;
+  const QR_SIZE = 240;
+  const QR_X = CW - PAD - QR_SIZE - 20;
+  const TEXT_MAX = QR_X - PAD - 36;
+
+  // Event title
+  ctx.font = "700 62px Arial, sans-serif";
+  ctx.fillStyle = EVTCOL;
+  ctx.textAlign = "left";
+  const evLines = wrapText(ctx, "LEGISLATIVE SUMMIT 2026", TEXT_MAX);
+  evLines.forEach((l, i) => ctx.fillText(l, PAD, EV_Y + 62 + i * 74));
+  const EV_BOT = EV_Y + evLines.length * 74 + 62;
+
+  // Location
+  ctx.font = "400 30px Arial, sans-serif";
+  ctx.fillStyle = MUTED;
+  ctx.fillText("@ Redeemer's University, Ede", PAD, EV_BOT + 18);
+  ctx.fillText("29th April, 2026", PAD, EV_BOT + 58);
+
+  // ── QR CODE ───────────────────────────────────────────────────────────────
+  const qrURL = delegate.qrURL || `${REG_SITE}?checkin=${delegate.id}`;
+  const qrImg = await generateQRImage(qrURL, 320);
+  if (qrImg) {
+    const QR_Y = EV_Y - 8;
+    const CARD_W = QR_SIZE + 44;
+    const CARD_H = QR_SIZE + 64;
+    // White card
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = dark ? "rgba(201,146,10,0.38)" : "rgba(5,13,30,0.12)";
+    ctx.lineWidth = 2;
+    rrect(ctx, QR_X - 4, QR_Y, CARD_W, CARD_H, 18);
+    ctx.fill(); ctx.stroke();
+    // QR image
+    ctx.drawImage(qrImg, QR_X + 18, QR_Y + 12, QR_SIZE, QR_SIZE);
+    // Label
+    ctx.textAlign = "center";
+    ctx.font = "600 19px Arial, sans-serif";
+    ctx.fillStyle = "rgba(201,146,10,0.85)";
+    ctx.fillText("SCAN TO ENTER", QR_X + CARD_W / 2, QR_Y + CARD_H - 14);
+  }
+
+  // ── TICKET ID (bottom-left) ────────────────────────────────────────────────
+  ctx.textAlign = "left";
+  ctx.font = "400 24px monospace";
+  ctx.fillStyle = dark ? "rgba(201,146,10,0.38)" : "rgba(5,13,30,0.22)";
+  ctx.fillText(delegate.id, PAD, CH - 60);
+
+  // ── CORNER ACCENTS ────────────────────────────────────────────────────────
+  ctx.strokeStyle = dark ? "rgba(201,146,10,0.38)" : "rgba(5,13,30,0.12)";
+  ctx.lineWidth = 5;
+  const CS = 100, CM = 44;
+  ctx.beginPath(); ctx.moveTo(CM, CM + CS); ctx.lineTo(CM, CM); ctx.lineTo(CM + CS, CM); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CW-CM-CS, CM); ctx.lineTo(CW-CM, CM); ctx.lineTo(CW-CM, CM+CS); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CM, CH-CM-CS); ctx.lineTo(CM, CH-CM); ctx.lineTo(CM+CS, CH-CM); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CW-CM-CS, CH-CM); ctx.lineTo(CW-CM, CH-CM); ctx.lineTo(CW-CM, CH-CM-CS); ctx.stroke();
+
+  return canvas;
+}
+
+// ─── STYLES ───────────────────────────────────────────────────────────────────
+const CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Space+Grotesk:wght@300;400;500;600;700&family=Cinzel:wght@400;600;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy:#050d1e; --navy2:#0d1f3c; --navy3:#1a3a6b;
+    --gold:#c9920a; --gold2:#e8b84b; --cream:#f5f0e8;
+    --glass:rgba(255,255,255,0.04); --border:rgba(201,146,10,0.2);
+  }
+  html, body { min-height: 100vh; }
+  body { background: var(--navy); color: var(--cream); font-family: 'Space Grotesk', sans-serif; overflow-x: hidden; }
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  }
+  .page { position:relative; z-index:1; min-height:100vh; display:flex; flex-direction:column; }
+
+  .hdr { padding:18px 24px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); background:rgba(5,13,30,.88); backdrop-filter:blur(16px); position:sticky; top:0; z-index:100; }
+  .hdr-brand { display:flex; align-items:center; gap:10px; }
+  .hdr-logo { width:34px; height:34px; border-radius:50%; border:1.5px solid var(--gold); object-fit:cover; }
+  .hdr-title { font-family:'Cinzel',serif; font-size:13px; font-weight:700; color:var(--gold2); line-height:1.1; }
+  .hdr-sub { font-size:10px; color:rgba(245,240,232,.4); letter-spacing:.06em; text-transform:uppercase; }
+  .hdr-reg { font-size:12px; color:var(--gold); text-decoration:none; border:1px solid var(--border); padding:7px 14px; border-radius:6px; font-weight:500; transition:all .2s; }
+  .hdr-reg:hover { background:rgba(201,146,10,.08); border-color:var(--gold); }
+
+  .hero { padding:52px 24px 36px; text-align:center; max-width:680px; margin:0 auto; }
+  .badge { display:inline-flex; align-items:center; gap:8px; padding:6px 16px; border:1px solid rgba(201,146,10,.4); border-radius:100px; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold2); background:rgba(201,146,10,.06); margin-bottom:22px; }
+  .badge::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--gold2); animation:blink 2s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .hero h1 { font-family:'Playfair Display',serif; font-size:clamp(30px,7vw,60px); font-weight:900; line-height:1.05; background:linear-gradient(135deg,#f5d57a 0%,#e8b84b 45%,#fff 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; margin-bottom:14px; }
+  .hero p { font-size:clamp(13px,2vw,16px); color:rgba(245,240,232,.5); line-height:1.7; max-width:480px; margin:0 auto 36px; }
+
+  .steps { display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:44px; flex-wrap:wrap; }
+  .step { display:flex; align-items:center; gap:8px; }
+  .step-n { width:26px; height:26px; border-radius:50%; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--gold); flex-shrink:0; }
+  .step.active .step-n { background:var(--gold); color:var(--navy); border-color:var(--gold); }
+  .step.done .step-n { background:#27ae60; color:#fff; border-color:#27ae60; font-size:13px; }
+  .step-lbl { font-size:12px; color:rgba(245,240,232,.4); }
+  .step.active .step-lbl, .step.done .step-lbl { color:rgba(245,240,232,.8); }
+  .step-line { width:28px; height:1px; background:var(--border); }
+
+  .main { flex:1; max-width:960px; margin:0 auto; padding:0 24px 80px; width:100%; }
+
+  .panel { background:var(--glass); border:1px solid var(--border); border-radius:20px; overflow:hidden; margin-bottom:24px; }
+  .phead { background:linear-gradient(135deg,rgba(13,31,60,.85),rgba(26,58,107,.35)); border-bottom:1px solid var(--border); padding:18px 26px; display:flex; align-items:center; gap:12px; }
+  .picon { width:36px; height:36px; border-radius:10px; background:rgba(201,146,10,.14); border:1px solid rgba(201,146,10,.3); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+  .ptitle { font-family:'Cinzel',serif; font-size:14px; font-weight:700; color:var(--gold2); letter-spacing:.04em; }
+  .pdesc { font-size:12px; color:rgba(245,240,232,.4); margin-top:2px; }
+  .pbody { padding:26px; }
+
+  .tick-row { display:flex; gap:10px; }
+  .tick-in { flex:1; padding:14px 18px; background:rgba(255,255,255,.05); border:1.5px solid var(--border); border-radius:10px; color:var(--cream); font-family:'Space Grotesk',sans-serif; font-size:15px; letter-spacing:.05em; outline:none; transition:border-color .2s; text-transform:uppercase; }
+  .tick-in:focus { border-color:var(--gold); }
+  .tick-in::placeholder { text-transform:none; color:rgba(245,240,232,.25); letter-spacing:0; }
+  .btn-fetch { padding:14px 22px; background:linear-gradient(135deg,var(--gold),var(--navy3)); border:none; border-radius:10px; color:#fff; font-family:'Cinzel',serif; font-size:13px; font-weight:700; letter-spacing:.04em; cursor:pointer; white-space:nowrap; transition:opacity .2s; }
+  .btn-fetch:disabled { opacity:.45; cursor:not-allowed; }
+
+  .del-card { display:flex; align-items:center; gap:14px; padding:16px; background:rgba(39,174,96,.07); border:1px solid rgba(39,174,96,.25); border-radius:12px; margin-top:14px; animation:fadeUp .3s ease both; }
+  .del-av { width:44px; height:44px; border-radius:50%; background:rgba(201,146,10,.15); border:2px solid var(--gold); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+  .del-name { font-family:'Cinzel',serif; font-size:14px; font-weight:700; color:var(--cream); margin-bottom:3px; }
+  .del-meta { font-size:12px; color:rgba(245,240,232,.5); }
+  .del-id { margin-left:auto; font-family:monospace; font-size:12px; color:var(--gold); letter-spacing:.08em; flex-shrink:0; }
+  .err { margin-top:12px; padding:12px 16px; background:rgba(192,57,43,.08); border:1px solid rgba(192,57,43,.3); border-radius:8px; color:#e74c3c; font-size:13px; }
+
+  .mode-toggle { display:flex; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:20px; }
+  .mode-btn { flex:1; padding:12px; border:none; cursor:pointer; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; transition:all .2s; background:transparent; color:rgba(245,240,232,.4); }
+  .mode-btn.dk { background:var(--navy2); color:var(--gold2); }
+  .mode-btn.lt { background:#f5f0e8; color:#050d1e; }
+
+  .upload-zone { border:2px dashed var(--border); border-radius:14px; padding:36px 20px; text-align:center; cursor:pointer; transition:all .2s; position:relative; overflow:hidden; }
+  .upload-zone:hover, .upload-zone.drag { border-color:var(--gold); background:rgba(201,146,10,.04); }
+  .upload-zone input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+  .up-icon { font-size:36px; margin-bottom:10px; }
+  .up-title { font-family:'Cinzel',serif; font-size:14px; font-weight:700; color:var(--gold2); margin-bottom:5px; }
+  .up-sub { font-size:12px; color:rgba(245,240,232,.4); }
+  .photo-row { display:flex; align-items:center; gap:16px; }
+  .photo-row img { width:110px; height:110px; object-fit:cover; border-radius:12px; border:2px solid var(--gold); display:block; flex-shrink:0; }
+  .photo-rm { padding:6px 14px; background:#c0392b; border:none; color:#fff; border-radius:6px; font-size:12px; cursor:pointer; font-family:'Space Grotesk',sans-serif; }
+  .photo-info { font-size:13px; color:rgba(245,240,232,.5); line-height:1.7; }
+
+  .btn-gen { width:100%; padding:17px; margin-top:20px; background:linear-gradient(135deg,var(--gold) 0%,var(--navy3) 120%); border:none; border-radius:14px; color:#fff; font-family:'Cinzel',serif; font-size:15px; font-weight:700; letter-spacing:.06em; cursor:pointer; box-shadow:0 8px 28px rgba(201,146,10,.28); transition:all .2s; }
+  .btn-gen:hover { transform:translateY(-2px); box-shadow:0 12px 36px rgba(201,146,10,.38); }
+  .btn-gen:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+
+  .preview { text-align:center; animation:fadeUp .5s ease both; }
+  .preview-lbl { font-family:'Cinzel',serif; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); margin-bottom:18px; }
+  .card-wrap { display:inline-block; max-width:340px; width:100%; border-radius:20px; overflow:hidden; box-shadow:0 28px 72px rgba(0,0,0,.65),0 0 0 1px rgba(201,146,10,.18); }
+  .card-wrap img { width:100%; display:block; }
+
+  .act-row { display:flex; gap:12px; margin-top:22px; justify-content:center; flex-wrap:wrap; }
+  .btn-dl { padding:14px 28px; background:linear-gradient(135deg,var(--gold),var(--navy3)); border:none; border-radius:10px; color:#fff; font-family:'Cinzel',serif; font-size:13px; font-weight:700; letter-spacing:.04em; cursor:pointer; box-shadow:0 4px 18px rgba(201,146,10,.3); transition:all .2s; }
+  .btn-dl:hover { transform:translateY(-2px); }
+  .btn-sec { padding:14px 28px; background:transparent; border:1.5px solid var(--border); border-radius:10px; color:rgba(245,240,232,.6); font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:500; cursor:pointer; transition:all .2s; }
+  .btn-sec:hover { border-color:var(--gold); color:var(--gold); }
+
+  .cap-box { margin:22px auto 0; padding:18px 22px; background:var(--glass); border:1px solid var(--border); border-radius:14px; max-width:420px; text-align:left; }
+  .cap-lbl { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); font-weight:600; margin-bottom:10px; }
+  .cap-txt { font-size:13px; color:rgba(245,240,232,.7); line-height:1.65; user-select:all; white-space:pre-line; }
+  .btn-copy { margin-top:12px; padding:8px 18px; background:rgba(255,255,255,.05); border:1px solid var(--border); border-radius:6px; color:var(--gold2); font-size:12px; cursor:pointer; transition:all .2s; font-family:'Space Grotesk',sans-serif; }
+  .btn-copy:hover { background:rgba(201,146,10,.1); }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+  @media(max-width:480px) { .tick-row{flex-direction:column} .del-id{display:none} }
+`;
+
+// ─── APP ──────────────────────────────────────────────────────────────────────
+export default function CardGenerator() {
+  const [ticketId, setTicketId]     = useState("");
+  const [delegate, setDelegate]     = useState(null);
+  const [fetching, setFetching]     = useState(false);
+  const [fetchErr, setFetchErr]     = useState("");
+  const [photo, setPhoto]           = useState(null);
+  const [drag, setDrag]             = useState(false);
+  const [cardMode, setCardMode]     = useState("dark");
+  const [generating, setGenerating] = useState(false);
+  const [cardUrl, setCardUrl]       = useState(null);
+  const [copied, setCopied]         = useState(false);
+  const fileRef = useRef(null);
+
+  const step = !delegate ? 1 : !cardUrl ? 2 : 3;
 
   const handleFetch = async () => {
     if (!ticketId.trim()) return;
-    setFetching(true); setFetchErr(""); setDelegate(null); setCardDataUrl(null);
+    setFetching(true); setFetchErr(""); setDelegate(null); setCardUrl(null);
     const d = await fetchDelegate(ticketId.trim());
     setFetching(false);
-    if (!d) {
-      setFetchErr("Ticket not found. Check the ID and try again.");
-    } else {
-      setDelegate(d);
-    }
+    if (!d) setFetchErr("Ticket not found. Double-check your RLS code.");
+    else setDelegate(d);
   };
 
   const handlePhoto = (file) => {
@@ -1158,23 +454,21 @@ export default function CardGenerator() {
     if (!delegate) return;
     setGenerating(true);
     try {
-      const canvas = await renderCardToCanvas(delegate, photo);
-      setCardDataUrl(canvas.toDataURL("image/jpeg", 0.95));
-    } catch (e) {
-      console.error(e);
-    }
+      const canvas = await renderCard(delegate, photo, cardMode);
+      setCardUrl(canvas.toDataURL("image/jpeg", 0.94));
+    } catch (e) { console.error(e); }
     setGenerating(false);
   };
 
   const handleDownload = () => {
     const a = document.createElement("a");
-    a.href = cardDataUrl;
-    a.download = `RUNSA-Summit-${delegate.name.split(" ")[0]}.jpg`;
+    a.href = cardUrl;
+    a.download = `RUNSA-Summit-${delegate.name.split(" ")[0]}-${cardMode}.jpg`;
     a.click();
   };
 
   const caption = delegate
-    ? `🏛️ I'm attending the RUNSA Legislative Summit 2026!\n\n"The Catalyst of Transformation: Legislating the Future for Democratic Leadership"\n\n📍 Redeemer's University, Ede · 29th April, 2026\n\n🎫 Register now: ${REG_SITE}\n\n#RUNSASummit2026 #LegislativeCouncil #RUNSA`
+    ? `🏛️ I'm attending the RUNSA Legislative Summit 2026!\n\n"The Catalyst of Transformation: Legislating the Future for Democratic Leadership"\n\n📍 @ Redeemer's University, Ede\n📅 29th April, 2026\n\n🎫 Register here: ${REG_SITE}\n\n#RUNSASummit2026 #LegislativeCouncil #RUNSA #RUN`
     : "";
 
   const handleCopy = () => {
@@ -1183,46 +477,40 @@ export default function CardGenerator() {
     });
   };
 
+  const steps = [
+    { n: 1, label: "Verify Ticket" },
+    { n: 2, label: "Customise" },
+    { n: 3, label: "Download & Share" },
+  ];
+
   return (
     <>
-      <style dangerouslySetInnerHTML={{ __html: G }} />
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="page">
 
-        {/* Header */}
-        <header className="site-header">
-          <div className="header-brand">
-            <img src="/legislative-council-logo.jpg" alt="" className="header-logo"
+        <header className="hdr">
+          <div className="hdr-brand">
+            <img src="/legislative-council-logo.jpg" alt="" className="hdr-logo"
               onError={e => e.target.style.display = "none"} />
             <div>
-              <div className="header-title">RUNSA · Legislative Council</div>
-              <div className="header-sub">Summit Card Generator</div>
+              <div className="hdr-title">RUNSA · Legislative Council</div>
+              <div className="hdr-sub">Summit Card Generator</div>
             </div>
           </div>
-          <a href={REG_SITE} className="header-link">Register →</a>
+          <a href={REG_SITE} className="hdr-reg">Register →</a>
         </header>
 
-        {/* Hero */}
         <div className="hero">
-          <div className="hero-badge">Summit 2026 · Card Generator</div>
-          <h1 className="hero-title">Show the World You're In.</h1>
-          <p className="hero-sub">
-            Generate your personal attendee card for the RUNSA Legislative Summit 2026.
-            Share it. Let the hype build. 🔥
-          </p>
-          {/* Steps */}
+          <div className="badge">Summit 2026 · Card Generator</div>
+          <h1>Show the World<br />You're In.</h1>
+          <p>Generate your personal attendee card for the RUNSA Legislative Summit 2026. Share it. Let the hype build. 🔥</p>
           <div className="steps">
-            {[
-              { n: 1, label: "Enter Ticket ID" },
-              { n: 2, label: "Add Your Photo" },
-              { n: 3, label: "Download & Share" },
-            ].map((s, i) => (
+            {steps.map((s, i) => (
               <div key={s.n} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {i > 0 && <div className="step-sep" />}
-                <div className={`step ${step === s.n ? "step-active" : step > s.n ? "step-done" : ""}`}>
-                  <div className="step-num">{step > s.n ? "✓" : s.n}</div>
-                  <span style={{ fontSize: 12, color: step === s.n ? "rgba(245,240,232,0.8)" : "rgba(245,240,232,0.35)" }}>
-                    {s.label}
-                  </span>
+                {i > 0 && <div className="step-line" />}
+                <div className={`step ${step === s.n ? "active" : step > s.n ? "done" : ""}`}>
+                  <div className="step-n">{step > s.n ? "✓" : s.n}</div>
+                  <span className="step-lbl">{s.label}</span>
                 </div>
               </div>
             ))}
@@ -1231,118 +519,123 @@ export default function CardGenerator() {
 
         <div className="main">
 
-          {/* Step 1 — Ticket */}
-          {!cardDataUrl && (
+          {/* Step 1 — Verify Ticket */}
+          {!cardUrl && (
             <div className="panel">
-              <div className="panel-head">
-                <div className="panel-icon">🎫</div>
+              <div className="phead">
+                <div className="picon">🎫</div>
                 <div>
-                  <div className="panel-title">Step 1 — Verify Your Ticket</div>
-                  <div className="panel-desc">Enter the RLS code from your registration ticket</div>
+                  <div className="ptitle">Step 1 — Verify Your Ticket</div>
+                  <div className="pdesc">Enter your RLS code from your registration ticket</div>
                 </div>
               </div>
-              <div className="panel-body">
-                <div className="ticket-row">
-                  <input
-                    className="ticket-input"
-                    placeholder="e.g. RLS-AHSXKJ"
+              <div className="pbody">
+                <div className="tick-row">
+                  <input className="tick-in" placeholder="e.g. RLS-AHSXKJ"
                     value={ticketId}
                     onChange={e => { setTicketId(e.target.value); setFetchErr(""); }}
-                    onKeyDown={e => e.key === "Enter" && handleFetch()}
-                  />
-                  <button className="btn-fetch" onClick={handleFetch} disabled={fetching || !ticketId.trim()}>
+                    onKeyDown={e => e.key === "Enter" && handleFetch()} />
+                  <button className="btn-fetch" onClick={handleFetch}
+                    disabled={fetching || !ticketId.trim()}>
                     {fetching ? "Checking…" : "Verify →"}
                   </button>
                 </div>
-                {fetchErr && <div className="err-msg">❌ {fetchErr}</div>}
+                {fetchErr && <div className="err">❌ {fetchErr}</div>}
                 {delegate && (
-                  <div className="delegate-card">
-                    <div className="delegate-avatar">🎓</div>
+                  <div className="del-card">
+                    <div className="del-av">🎓</div>
                     <div>
-                      <div className="delegate-name">{delegate.name}</div>
-                      <div className="delegate-meta">{delegate.position} · {delegate.institution}</div>
+                      <div className="del-name">{delegate.name}</div>
+                      <div className="del-meta">{delegate.position} · {delegate.institution}</div>
                     </div>
-                    <div className="delegate-id">{delegate.id}</div>
+                    <div className="del-id">{delegate.id}</div>
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* Step 2 — Photo */}
-          {delegate && !cardDataUrl && (
-            <div className="panel" style={{ animation: "fadeUp 0.4s ease both" }}>
-              <div className="panel-head">
-                <div className="panel-icon">📸</div>
+          {/* Step 2 — Customise */}
+          {delegate && !cardUrl && (
+            <div className="panel" style={{ animation: "fadeUp .4s ease both" }}>
+              <div className="phead">
+                <div className="picon">🎨</div>
                 <div>
-                  <div className="panel-title">Step 2 — Add Your Photo</div>
-                  <div className="panel-desc">Upload a clear photo of yourself (optional but recommended)</div>
+                  <div className="ptitle">Step 2 — Customise Your Card</div>
+                  <div className="pdesc">Pick your style and upload your photo</div>
                 </div>
               </div>
-              <div className="panel-body">
+              <div className="pbody">
+                <p style={{ fontSize: 12, color: "rgba(245,240,232,.5)", marginBottom: 10 }}>Card Style</p>
+                <div className="mode-toggle">
+                  <button className={`mode-btn ${cardMode === "dark" ? "dk" : ""}`}
+                    onClick={() => setCardMode("dark")}>🌙 Dark Mode</button>
+                  <button className={`mode-btn ${cardMode === "light" ? "lt" : ""}`}
+                    onClick={() => setCardMode("light")}>☀️ Light Mode</button>
+                </div>
+
+                <p style={{ fontSize: 12, color: "rgba(245,240,232,.5)", marginBottom: 10, marginTop: 20 }}>
+                  Your Photo <span style={{ color: "rgba(245,240,232,.3)" }}>(Recommended)</span>
+                </p>
+
                 {!photo ? (
-                  <div
-                    className={`upload-zone ${drag ? "drag-over" : ""}`}
+                  <div className={`upload-zone ${drag ? "drag" : ""}`}
                     onDragOver={e => { e.preventDefault(); setDrag(true); }}
                     onDragLeave={() => setDrag(false)}
                     onDrop={e => { e.preventDefault(); setDrag(false); handlePhoto(e.dataTransfer.files[0]); }}
-                    onClick={() => fileRef.current?.click()}
-                  >
-                    <input ref={fileRef} type="file" accept="image/*" onChange={e => handlePhoto(e.target.files[0])} />
-                    <div className="upload-icon">📷</div>
-                    <div className="upload-title">Tap to upload your photo</div>
-                    <div className="upload-sub">JPG, PNG · Your face will appear on the card</div>
+                    onClick={() => fileRef.current?.click()}>
+                    <input ref={fileRef} type="file" accept="image/*"
+                      onChange={e => handlePhoto(e.target.files[0])} />
+                    <div className="up-icon">📷</div>
+                    <div className="up-title">Tap to upload your photo</div>
+                    <div className="up-sub">JPG or PNG · Front-facing photo works best</div>
                   </div>
                 ) : (
-                  <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-                    <div className="photo-preview">
-                      <img src={photo} alt="Your photo" />
-                      <button className="photo-remove" onClick={() => setPhoto(null)}>✕</button>
-                    </div>
-                    <div style={{ fontSize: 13, color: "rgba(245,240,232,0.5)", lineHeight: 1.6 }}>
-                      ✅ Photo uploaded!<br />
-                      <span style={{ color: "rgba(245,240,232,0.35)", fontSize: 11 }}>
-                        Tap the × to remove and choose a different one.
-                      </span>
+                  <div className="photo-row">
+                    <img src={photo} alt="Preview" />
+                    <div>
+                      <div className="photo-info" style={{ marginBottom: 10 }}>
+                        ✅ Photo uploaded!<br />
+                        <span style={{ fontSize: 11, color: "rgba(245,240,232,.3)" }}>
+                          Remove and re-upload to change it.
+                        </span>
+                      </div>
+                      <button className="photo-rm" onClick={() => setPhoto(null)}>✕ Remove</button>
                     </div>
                   </div>
                 )}
 
-                <button
-                  className="btn-generate"
-                  onClick={handleGenerate}
-                  disabled={generating}
-                  style={{ marginTop: 24 }}
-                >
+                <button className="btn-gen" onClick={handleGenerate} disabled={generating}>
                   {generating ? "✨ Generating your card…" : "✨ Generate My Card →"}
                 </button>
               </div>
             </div>
           )}
 
-          {/* Step 3 — Card preview + download */}
-          {cardDataUrl && (
-            <div className="preview-wrap">
-              <div className="preview-label">✦ Your Attendee Card ✦</div>
-              <div className="card-outer">
-                <img src={cardDataUrl} alt="Your summit card" style={{ width: "100%", display: "block" }} />
+          {/* Step 3 — Preview & Download */}
+          {cardUrl && (
+            <div className="preview">
+              <div className="preview-lbl">✦ Your Attendee Card ✦</div>
+              <div className="card-wrap">
+                <img src={cardUrl} alt="Your summit card" />
               </div>
 
-              <div className="action-row">
-                <button className="btn-download" onClick={handleDownload}>
-                  ⬇ Download Card
-                </button>
-                <button className="btn-reset" onClick={() => {
-                  setCardDataUrl(null); setPhoto(null);
-                  setDelegate(null); setTicketId("");
+              <div className="act-row">
+                <button className="btn-dl" onClick={handleDownload}>⬇ Download Card</button>
+                <button className="btn-sec" onClick={() => {
+                  setCardMode(m => m === "dark" ? "light" : "dark");
+                  setCardUrl(null);
                 }}>
-                  ↺ Start Over
+                  {cardMode === "dark" ? "☀️ Try Light Mode" : "🌙 Try Dark Mode"}
                 </button>
+                <button className="btn-sec" onClick={() => {
+                  setCardUrl(null); setPhoto(null); setDelegate(null); setTicketId("");
+                }}>↺ Start Over</button>
               </div>
 
-              <div className="share-caption" style={{ marginTop: 24 }}>
-                <div className="share-caption-label">📋 Copy This Caption</div>
-                <div className="share-caption-text">{caption}</div>
+              <div className="cap-box">
+                <div className="cap-lbl">📋 Copy This Caption</div>
+                <div className="cap-txt">{caption}</div>
                 <button className="btn-copy" onClick={handleCopy}>
                   {copied ? "✓ Copied!" : "Copy Caption"}
                 </button>
