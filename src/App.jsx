@@ -943,7 +943,63 @@ function ManualCheckin({ regs, onSignIn, T }) {
 
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
 function AdminView({ regs, persist, T }) {
+  const [unlocked, setUnlocked] = useState(false);
+  const [pin, setPin] = useState("");
+  const [pinErr, setPinErr] = useState(false);
   const [search, setSearch] = useState("");
+
+  const unlock = () => {
+    if (pin === ADMIN_PIN) {
+      setUnlocked(true);
+      setPinErr(false);
+      sessionStorage.setItem("runsa_admin_time", Date.now().toString());
+    } else setPinErr(true);
+  };
+
+  // Auto-lock after 1 hour
+  useEffect(() => {
+    if (!unlocked) return;
+    const interval = setInterval(() => {
+      const loginTime = parseInt(sessionStorage.getItem("runsa_admin_time") || "0");
+      if (Date.now() - loginTime > 60 * 60 * 1000) {
+        setUnlocked(false);
+        setPin("");
+        sessionStorage.removeItem("runsa_admin_time");
+      }
+    }, 30000); // checks every 30 seconds
+    return () => clearInterval(interval);
+  }, [unlocked]);
+
+  if (!unlocked) return (
+    <div style={{ maxWidth:1100, margin:"0 auto", padding:"60px 20px", display:"flex",
+      justifyContent:"center" }}>
+      <div style={{ width:"100%", maxWidth:380, background:T.surface,
+        border:`1px solid ${T.border}`, borderRadius:16, padding:"40px 32px",
+        textAlign:"center", boxShadow: T.dark ? "0 20px 60px rgba(0,0,0,0.4)" : "0 8px 32px rgba(13,31,60,0.1)" }}>
+        <div style={{ fontSize:48, marginBottom:16 }}>🔐</div>
+        <h2 style={{ fontFamily:"'Cinzel', serif", fontSize:22, fontWeight:700,
+          color: T.dark ? BRAND.goldLight : BRAND.navyDark, marginBottom:8 }}>Admin Access</h2>
+        <p style={{ fontSize:13, color:T.textMuted, marginBottom:24, lineHeight:1.6 }}>
+          Enter your admin PIN to access the registrations dashboard.
+        </p>
+        <input type="password" style={{ ...inputStyle(T, pinErr), textAlign:"center",
+          letterSpacing:"0.3em", fontSize:20, marginBottom:pinErr ? 8 : 16 }}
+          placeholder="PIN" value={pin}
+          onChange={e => { setPin(e.target.value); setPinErr(false); }}
+          onKeyDown={e => e.key === "Enter" && unlock()} />
+        {pinErr && <p style={{ fontSize:12, color:"#c0392b", marginBottom:12 }}>Incorrect PIN. Try again.</p>}
+        <button onClick={unlock}
+          style={{ width:"100%", padding:"13px", marginTop: pinErr ? 0 : 4,
+            background:`linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})`,
+            color:"#fff", border:"none", borderRadius:10,
+            fontSize:14, fontWeight:600, cursor:"pointer",
+            fontFamily:"'Cinzel', serif", letterSpacing:"0.04em",
+            boxShadow:`0 4px 16px rgba(201,146,10,0.3)` }}>
+          Unlock Dashboard →
+        </button>
+      </div>
+    </div>
+  );
   const [filter, setFilter] = useState("all");
   const [confirmReset, setConfirmReset] = useState(false);
 
