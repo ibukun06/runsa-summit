@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 // ⚠️  Change this to your actual Vercel URL before deploying
-const BASE_URL = "https://runsa-summit.vercel.app";
+const BASE_URL = "https://legislative-summit-registration.vercel.app/";
 const ADMIN_PIN = "LS2026";
 const STORAGE_KEY = "runsa-regs-v3";
 
