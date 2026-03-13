@@ -276,7 +276,7 @@ export default function App() {
         <div style={{ width:44, height:44, border:`3px solid ${T.border}`,
           borderTop:`3px solid ${T.gold}`, borderRadius:"50%", animation:"spin 0.9s linear infinite" }} />
         <p style={{ marginTop:16, color:T.gold, fontFamily:"'Cinzel', serif",
-          fontSize:14, letterSpacing:"0.08em" }}>RUNSA SUMMIT</p>
+          fontSize:14, letterSpacing:"0.08em" }}>RUNSA LEGISLATIVE SUMMIT 2026</p>
       </div>
     </>
   );
