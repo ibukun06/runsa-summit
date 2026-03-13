@@ -226,8 +226,17 @@ export default function App() {
       alert("Registration is now closed. The maximum number of delegates (350) has been reached.");
       return;
     }
-    
     const id = genId();
+    const t = {
+      id, qrURL: checkinURL(id), ...form,
+      registeredAt: new Date().toISOString(), signedIn: false, signedInAt: null
+    };
+    setRegs(prev => [t, ...prev]);
+    setTicket(t);
+    setView("ticket");
+    fbAddReg(t); // background save — no await
+  };
+
   const signIn = async id => {
     const local = regs.find(r => r.id === id);
     if (local && local.signedIn) return { ok: false, reason: "already", delegate: local };
@@ -1040,7 +1049,7 @@ function AdminView({ regs, onReset, T }) {
           <thead>
             <tr style={{ background: T.dark ? "rgba(0,0,0,0.25)" : "rgba(13,31,60,0.04)" }}>
               {["Ticket ID","Name","Institution","Level","Position","Date","Status"].map(h => (
-                <th key={h} style={{ padding:"13px 16px", textAlign:"left", fontSize:11, fontWeight:600,
+                <th key={h} style={{ padding:"12px 16px", fontSize:11, fontWeight:600,
                   color: T.dark ? BRAND.goldLight : BRAND.navy,
                   textTransform:"uppercase", letterSpacing:"0.09em",
                   borderBottom:`1px solid ${T.border}`, whiteSpace:"nowrap" }}>{h}</th>
