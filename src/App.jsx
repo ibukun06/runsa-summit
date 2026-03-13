@@ -881,7 +881,7 @@ function ManualCheckin({ regs, onSignIn, T }) {
           </div>
           <p style={{ fontSize:13, color:T.textMuted, lineHeight:1.7 }}>
             Type a Ticket ID (e.g. <span style={{ fontFamily:"monospace", color:BRAND.gold }}>RLS-A3F7KQ</span>) and press Enter.
-            <br />This is a fallback — phones scanning QR codes sign in automatically.
+            <br />CHECK IN AT VENUE
           </p>
         </div>
 
