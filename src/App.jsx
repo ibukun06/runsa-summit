@@ -562,7 +562,7 @@ function RegisterView({ onRegister, T }) {
           color:BRAND.gold, padding:"5px 18px", borderRadius:20,
           fontSize:11, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:18,
           background: T.dark ? "rgba(201,146,10,0.08)" : "rgba(201,146,10,0.06)",
-        }}>29th April 2026 · Sapetro Lecture Theatre, Redeemer's University Nigeria</div>
+        }}>29th April 2026 · Redeemer's University Nigeria, Ede, Osun state.</div>
         <h1 style={{
           fontFamily:"'Cinzel', serif", fontSize:"clamp(26px, 5vw, 54px)",
           fontWeight:900, lineHeight:1.1,
@@ -715,7 +715,7 @@ function TicketView({ ticket, onBack, T }) {
               <div style={{ fontFamily:"'EB Garamond', serif", fontSize:"clamp(16px,3vw,22px)",
                 fontWeight:600, color:BRAND.cream, marginBottom:4 }}>Legislative Summit 2026</div>
               <div style={{ fontSize:11, color:"rgba(245,240,232,0.55)" }}>
-                29 April 2026 · Sapetro Lecture Theatre, RUN
+                29 April 2026 · Sapetro Lecture Theatre, Redeemer's University Nigeria
               </div>
             </div>
             <img src="/legislative-council-logo.jpg" alt=""
