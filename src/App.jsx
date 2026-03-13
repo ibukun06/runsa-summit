@@ -222,17 +222,12 @@ export default function App() {
   }, []);
 
   const handleRegister = async form => {
+    if (regs.length >= 350) {
+      alert("Registration is now closed. The maximum number of delegates (350) has been reached.");
+      return;
+    }
+    
     const id = genId();
-    const t = {
-      id, qrURL: checkinURL(id), ...form,
-      registeredAt: new Date().toISOString(), signedIn: false, signedInAt: null
-    };
-    setRegs(prev => [t, ...prev]);
-    setTicket(t);
-    setView("ticket");
-    fbAddReg(t); // background save — no await
-  };
-
   const signIn = async id => {
     const local = regs.find(r => r.id === id);
     if (local && local.signedIn) return { ok: false, reason: "already", delegate: local };
@@ -761,7 +756,7 @@ function TicketView({ ticket, onBack, T }) {
 
           <div style={{ background:"#ede8df", borderTop:`1px dashed rgba(0,0,0,0.12)`,
             padding:"10px clamp(20px,4vw,32px)", fontSize:10, color:"#999", textAlign:"center" }}>
-            This ticket is non-transferable · Present QR code at the entrance · RUNSA Parliamentary Summit 2026
+            This ticket is non-transferable · Present QR code at the entrance · RUNSA Legislative Summit 2026
           </div>
         </div>
 
@@ -960,7 +955,7 @@ function AdminView({ regs, onReset, T }) {
         <div>
           <h2 style={{ fontFamily:"'Cinzel', serif", fontSize:"clamp(20px,4vw,30px)", fontWeight:700,
             color: T.dark ? BRAND.goldLight : BRAND.navyDark, marginBottom:4 }}>Registrations Dashboard</h2>
-          <p style={{ fontSize:13, color:T.textMuted }}>RUNSA Parliamentary Summit · 29th April 2026</p>
+          <p style={{ fontSize:13, color:T.textMuted }}>RUNSA Legislative Summit · 29th April 2026</p>
         </div>
         <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
           <button onClick={downloadCSV} style={{
