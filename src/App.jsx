@@ -647,7 +647,6 @@ function RegisterView({ onRegister, T }) {
         {[
           { icon:"🎓", text:"Open to all legislative officers" },
           { icon:"🎫", text:"Instant QR ticket on submission" },
-          { icon:"🏛", text:"500+ delegates expected" },
         ].map(({ icon, text }) => (
           <div key={text} style={{
             display:"flex", alignItems:"center", gap:10, padding:"12px 16px",
@@ -719,7 +718,7 @@ function TicketView({ ticket, onBack, T }) {
                 RUNSA · Legislative Council
               </div>
               <div style={{ fontFamily:"'EB Garamond', serif", fontSize:"clamp(16px,3vw,22px)",
-                fontWeight:600, color:BRAND.cream, marginBottom:4 }}>Parliamentary Summit 2026</div>
+                fontWeight:600, color:BRAND.cream, marginBottom:4 }}>Legislative Summit 2026</div>
               <div style={{ fontSize:11, color:"rgba(245,240,232,0.55)" }}>
                 29 April 2026 · Sapetro Lecture Theatre, RUN
               </div>
