@@ -227,17 +227,27 @@ export default function App() {
       id, qrURL: checkinURL(id), ...form,
       registeredAt: new Date().toISOString(), signedIn: false, signedInAt: null
     };
-    await fbAddReg(t);
     setRegs(prev => [t, ...prev]);
     setTicket(t);
     setView("ticket");
+    fbAddReg(t); // save to Firebase in background — no await
   };
 
   const signIn = async id => {
+    // Check local state first for instant response
+    const local = regs.find(r => r.id === id);
+    if (local && local.signedIn) return { ok: false, reason: "already", delegate: local };
+    if (local) {
+      const now = new Date().toISOString();
+      const updated = { ...local, signedIn: true, signedInAt: now };
+      setRegs(prev => prev.map(r => r.id === id ? updated : r));
+      fbSignIn(id); // update Firebase in background — no await
+      return { ok: true, delegate: updated };
+    }
+    // Not in local cache — fetch from Firebase (delegate registered on another device)
     const result = await fbSignIn(id);
     if (result.ok) {
-      setRegs(prev => prev.map(r => r.id === id
-        ? { ...r, signedIn: true, signedInAt: result.delegate.signedInAt } : r));
+      setRegs(prev => [...prev, result.delegate]);
     }
     return result;
   };
