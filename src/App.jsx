@@ -583,7 +583,7 @@ function RegisterView({ onRegister, T }) {
         </h1>
         <p style={{
           fontFamily:"'EB Garamond', serif",
-          fontSize:"clamp(20px, 3vw, 30px)",
+          fontSize:"clamp(18px, 2.5vw, 26px)",
           fontStyle:"italic",
           color:T.textMuted,
           maxWidth:520, margin:"0 auto",
