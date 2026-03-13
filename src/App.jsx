@@ -7,9 +7,9 @@ const ADMIN_PIN = "LS2026";
 // ─── FIREBASE CONFIG ──────────────────────────────────────────────────────────
 // Free Firestore database — shared across ALL devices in real time
 const FIREBASE_CONFIG = {
-  apiKey: "REPLACE_WITH_YOUR_API_KEY",
-  authDomain: "REPLACE_WITH_YOUR_AUTH_DOMAIN",
-  projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
+  apiKey: "AIzaSyC3SqUXGR0kqPCpG88BFRB9qUMAk08x_6Q",
+  authDomain: "runsa-summit.firebaseapp.com",
+  projectId: "runsa-summit",
 };
 const COLLECTION = "delegates";
 
@@ -230,25 +230,22 @@ export default function App() {
     setRegs(prev => [t, ...prev]);
     setTicket(t);
     setView("ticket");
-    fbAddReg(t); // save to Firebase in background — no await
+    fbAddReg(t); // background save — no await
   };
 
   const signIn = async id => {
-    // Check local state first for instant response
     const local = regs.find(r => r.id === id);
     if (local && local.signedIn) return { ok: false, reason: "already", delegate: local };
     if (local) {
       const now = new Date().toISOString();
       const updated = { ...local, signedIn: true, signedInAt: now };
       setRegs(prev => prev.map(r => r.id === id ? updated : r));
-      fbSignIn(id); // update Firebase in background — no await
+      fbSignIn(id); // background update — no await
       return { ok: true, delegate: updated };
     }
-    // Not in local cache — fetch from Firebase (delegate registered on another device)
+    // Not in local cache — registered on another device, fetch from Firebase
     const result = await fbSignIn(id);
-    if (result.ok) {
-      setRegs(prev => [...prev, result.delegate]);
-    }
+    if (result.ok) setRegs(prev => [...prev, result.delegate]);
     return result;
   };
 
