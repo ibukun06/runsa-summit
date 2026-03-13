@@ -583,7 +583,7 @@ function RegisterView({ onRegister, T }) {
         </h1>
         <p style={{
           fontFamily:"'EB Garamond', serif",
-          fontSize:"clamp(15px, 2vw, 20px)",
+          fontSize:"clamp(20px, 3vw, 30px)",
           fontStyle:"italic",
           color:T.textMuted,
           maxWidth:520, margin:"0 auto",
@@ -685,7 +685,6 @@ function RegisterView({ onRegister, T }) {
         {[
           { icon:"🎓", text:"Open to all legislative officers" },
           { icon:"🎫", text:"Instant QR ticket on submission" },
-          { icon:"🏛", text:"500+ delegates expected" },
         ].map(({ icon, text }) => (
           <div key={text} style={{
             display:"flex", alignItems:"center", gap:10, padding:"12px 16px",
