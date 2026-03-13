@@ -315,7 +315,7 @@ export default function App() {
               onError={e => e.target.style.display="none"} />
             <div>
               <div style={{ fontFamily:"'Cinzel', serif", fontSize:15, fontWeight:700,
-                color: dark ? BRAND.goldLight : BRAND.navyDark, lineHeight:1.1 }}>RUNSA</div>
+                color: dark ? BRAND.goldLight : BRAND.navyDark, lineHeight:1.1 }}>Redeemer's University Students' Association</div>
               <div style={{ fontSize:10, color:T.textMuted, letterSpacing:"0.06em",
                 textTransform:"uppercase", lineHeight:1 }}>Legislative Council</div>
             </div>
@@ -445,7 +445,7 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
             <div style={{ fontFamily:"'Cinzel', serif", fontSize:13, color:BRAND.goldLight,
               fontWeight:700, letterSpacing:"0.06em" }}>RUNSA LEGISLATIVE COUNCIL</div>
             <div style={{ fontSize:11, color:"rgba(245,240,232,0.65)", marginTop:2 }}>
-              Parliamentary Summit 2026 · Entry System
+              Legislative Summit 2026 · Entry System
             </div>
           </div>
         </div>
@@ -483,7 +483,7 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
               )}
               {status === "notfound" && (
                 <p style={{ fontSize:13, color:T.textMuted, marginBottom:20, lineHeight:1.6 }}>
-                  This QR code is not registered in the RUNSA Summit system. Please see the registration desk.
+                  This QR code is not registered in the RUNSA Legislative Summit system. Please see the registration desk.
                 </p>
               )}
               {status === "already" && (
