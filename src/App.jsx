@@ -942,7 +942,7 @@ function ManualCheckin({ regs, onSignIn, T }) {
 
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
 
-  cofunction AdminView({ regs, persist, T }) {
+  function AdminView({ regs, persist, T }) {
   const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState("");
   const [pinErr, setPinErr] = useState(false);
