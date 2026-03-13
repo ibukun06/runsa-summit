@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 // ⚠️  Change this to your actual Vercel URL before deploying
 const BASE_URL = "https://runsa-summit.vercel.app";
-const ADMIN_PIN = "RUNSA2026";
+const ADMIN_PIN = "LS2026";
 const STORAGE_KEY = "runsa-regs-v3";
 
 // ─── BRAND COLOURS (extracted from both logos) ────────────────────────────────
