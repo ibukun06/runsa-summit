@@ -3,11 +3,8 @@ import { useState, useEffect, useRef } from "react";
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 // ⚠️  Change this to your actual Vercel URL before deploying
 const BASE_URL = "https://legislative-summit-registration.vercel.app/";
-const ADMIN_PIN = "RUNSA2026";
-Change it to:
 const ADMIN_PIN = "LS2026";
 const STORAGE_KEY = "runsa-regs-v3";
-
 // ─── BRAND COLOURS (extracted from both logos) ────────────────────────────────
 // RUNSA Shield  → royal blue + gold
 // Legislative Council Seal → navy + cream + parchment
@@ -944,47 +941,40 @@ function ManualCheckin({ regs, onSignIn, T }) {
 }
 
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
-function AdminView({ regs, persist, T }) {
+
+  cofunction AdminView({ regs, persist, T }) {
   const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState("");
   const [pinErr, setPinErr] = useState(false);
   const [search, setSearch] = useState("");
+  const [lastActiveTime, setLastActiveTime] = useState(Date.now());
 
-  const unlock = () => {
-    if (pin === ADMIN_PIN) { setUnlocked(true); setPinErr(false); }
-    else setPinErr(true);
-  };
+  // Auto-logout after 1 hour of inactivity
+  useEffect(() => {
+    if (!unlocked) return;
+    
+    const checkTimeout = () => {
+      if (Date.now() - lastActiveTime > 3600000) { // 1 hour
+        setUnlocked(false);
+        setPinErr(false);
+        setPin("");
+      }
+    };
+    
+    const interval = setInterval(checkTimeout, 60000);
+    return () => clearInterval(interval);
+  }, [unlocked, lastActiveTime]);
 
-  if (!unlocked) return (
-    <div style={{ maxWidth:1100, margin:"0 auto", padding:"60px 20px", display:"flex",
-      justifyContent:"center" }}>
-      <div style={{ width:"100%", maxWidth:380, background:T.surface,
-        border:`1px solid ${T.border}`, borderRadius:16, padding:"40px 32px",
-        textAlign:"center", boxShadow: T.dark ? "0 20px 60px rgba(0,0,0,0.4)" : "0 8px 32px rgba(13,31,60,0.1)" }}>
-        <div style={{ fontSize:48, marginBottom:16 }}>🔐</div>
-        <h2 style={{ fontFamily:"'Cinzel', serif", fontSize:22, fontWeight:700,
-          color: T.dark ? BRAND.goldLight : BRAND.navyDark, marginBottom:8 }}>Admin Access</h2>
-        <p style={{ fontSize:13, color:T.textMuted, marginBottom:24, lineHeight:1.6 }}>
-          Enter your admin PIN to access the registrations dashboard.
-        </p>
-        <input type="password" style={{ ...inputStyle(T, pinErr), textAlign:"center",
-          letterSpacing:"0.3em", fontSize:20, marginBottom:pinErr ? 8 : 16 }}
-          placeholder="PIN" value={pin}
-          onChange={e => { setPin(e.target.value); setPinErr(false); }}
-          onKeyDown={e => e.key === "Enter" && unlock()} />
-        {pinErr && <p style={{ fontSize:12, color:"#c0392b", marginBottom:12 }}>Incorrect PIN. Try again.</p>}
-        <button onClick={unlock}
-          style={{ width:"100%", padding:"13px", marginTop: pinErr ? 0 : 4,
-            background:`linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})`,
-            color:"#fff", border:"none", borderRadius:10,
-            fontSize:14, fontWeight:600, cursor:"pointer",
-            fontFamily:"'Cinzel', serif", letterSpacing:"0.04em",
-            boxShadow:`0 4px 16px rgba(201,146,10,0.3)` }}>
-          Unlock Dashboard →
-        </button>
-      </div>
-    </div>
-  );
+  // Track user activity
+  useEffect(() => {
+    const updateActivity = () => setLastActiveTime(Date.now());
+    window.addEventListener('mousemove', updateActivity);
+    window.addEventListener('keypress', updateActivity);
+    return () => {
+      window.removeEventListener('mousemove', updateActivity);
+      window.removeEventListener('keypress', updateActivity);
+    };
+  }, []);
   const [filter, setFilter] = useState("all");
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -1040,7 +1030,7 @@ function AdminView({ regs, persist, T }) {
             Registrations Dashboard
           </h2>
           <p style={{ fontSize:13, color:T.textMuted }}>
-            RUNSA Parliamentary Summit · 29th April 2026
+            RUNSA Legislative Summit · 29th April 2026
           </p>
         </div>
 
