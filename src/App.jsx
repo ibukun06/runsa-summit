@@ -109,20 +109,26 @@ async function fbResetAll() {
 }
 
 
-// ─── DATE LOCK ────────────────────────────────────────────────────────────────
-// Check-in is only allowed on 29th April 2026 (WAT = UTC+1)
-// Secret testmode bypass: add &testmode=LS2026 to any URL
-function isCheckinAllowed() {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("testmode") === "LS2026") return { allowed: true, reason: "test" };
-  // WAT is UTC+1 — get current date in WAT
-  const now = new Date();
-  const wat = new Date(now.toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
-  const y = wat.getFullYear(), m = wat.getMonth() + 1, d = wat.getDate();
-  if (y === 2026 && m === 4 && d === 29) return { allowed: true, reason: "live" };
-  if (y < 2026 || (y === 2026 && m < 4) || (y === 2026 && m === 4 && d < 29))
-    return { allowed: false, reason: "before" };
-  return { allowed: false, reason: "after" };
+// ─── CHECK-IN GATE (Firebase-controlled) ─────────────────────────────────────
+// Admin toggles check-in open/closed from the Admin panel.
+// Stored in Firestore document: settings/checkin -> { open: true/false }
+const SETTINGS_DOC = "checkin";
+const SETTINGS_COL = "settings";
+
+async function fbGetCheckinOpen() {
+  try {
+    const db = await initFirebase();
+    const snap = await db.collection(SETTINGS_COL).doc(SETTINGS_DOC).get();
+    if (!snap.exists) return false;
+    return snap.data().open === true;
+  } catch (e) { console.error("checkin gate read error:", e); return false; }
+}
+
+async function fbSetCheckinOpen(open) {
+  try {
+    const db = await initFirebase();
+    await db.collection(SETTINGS_COL).doc(SETTINGS_DOC).set({ open });
+  } catch (e) { console.error("checkin gate write error:", e); }
 }
 
 // ─── QR CODE ──────────────────────────────────────────────────────────────────
@@ -213,6 +219,7 @@ export default function App() {
   const [view, setView] = useState("register");
   const [ticket, setTicket] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [checkinOpen, setCheckinOpen] = useState(false);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -236,6 +243,11 @@ export default function App() {
       fbLoadRegs().then(r => setRegs(r));
     }, 15000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Load check-in gate status
+  useEffect(() => {
+    fbGetCheckinOpen().then(v => setCheckinOpen(v));
   }, []);
 
   const handleRegister = async form => {
@@ -396,7 +408,7 @@ export default function App() {
           ? <TicketView ticket={ticket} onBack={() => setView("register")} onCreateCard={() => { window.open("https://legislative-summit-registration.vercel.app/card?prefill=" + encodeURIComponent(ticket.id), "_blank"); }} T={T} />
           : <RegisterView onRegister={handleRegister} T={T} />)}
         {view === "checkin" && <ManualCheckin onSignIn={signIn} T={T} />}
-        {view === "admin" && <AdminView regs={regs} onReset={resetAll} T={T} />}
+        {view === "admin" && <AdminView regs={regs} onReset={resetAll} checkinOpen={checkinOpen} onToggleCheckin={async (v) => { setCheckinOpen(v); await fbSetCheckinOpen(v); }} T={T} />}
       </main>
 
       <footer style={{ borderTop:`1px solid ${T.border}`, padding:"24px 20px",
@@ -429,24 +441,26 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
 
   useEffect(() => {
     if (!id) { setStatus("notfound"); return; }
-    const lock = isCheckinAllowed();
-    if (!lock.allowed) { setStatus(lock.reason === "before" ? "locked-before" : "locked-after"); return; }
-    const t = setTimeout(async () => {
+    let cancelled = false;
+    (async () => {
+      const isOpen = await fbGetCheckinOpen();
+      if (cancelled) return;
+      if (!isOpen) { setStatus("locked"); return; }
       const r = await onSignIn(id);
+      if (cancelled) return;
       if (r.ok) { setDelegate(r.delegate); setStatus("success"); }
       else if (r.reason === "already") { setDelegate(r.delegate); setStatus("already"); }
       else setStatus("notfound");
-    }, 700);
-    return () => clearTimeout(t);
+    })();
+    return () => { cancelled = true; };
   }, [id]);
 
   const statusMap = {
-    loading:        { icon:"⏳", label:"Verifying ticket…", accent:"#888" },
-    success:        { icon:"✅", label:"Delegate Signed In", accent:"#2e9e5b" },
-    already:        { icon:"⚠️", label:"Already Signed In", accent:"#c97a10" },
-    notfound:       { icon:"❌", label:"Invalid Ticket", accent:"#c0392b" },
-    "locked-before":{ icon:"🔒", label:"Check-In Not Open Yet", accent:"#1a3a6b" },
-    "locked-after": { icon:"🔒", label:"Check-In Has Closed", accent:"#555" },
+    loading:  { icon:"⏳", label:"Verifying ticket…",   accent:"#888" },
+    success:  { icon:"✅", label:"Delegate Signed In",   accent:"#2e9e5b" },
+    already:  { icon:"⚠️", label:"Already Signed In",   accent:"#c97a10" },
+    notfound: { icon:"❌", label:"Invalid Ticket",       accent:"#c0392b" },
+    locked:   { icon:"🔒", label:"Check-In Is Closed",  accent:"#1a3a6b" },
   };
   const s = statusMap[status];
 
@@ -507,14 +521,9 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
                   This QR code is not registered in the RUNSA Legislative Summit system. Please see the registration desk.
                 </p>
               )}
-              {status === "locked-before" && (
+              {status === "locked" && (
                 <p style={{ fontSize:13, color:T.textMuted, marginBottom:20, lineHeight:1.6 }}>
-                  Check-in opens on <strong style={{ color:"#e8b84b" }}>29th April 2026</strong>. Please come back on the day of the summit.
-                </p>
-              )}
-              {status === "locked-after" && (
-                <p style={{ fontSize:13, color:T.textMuted, marginBottom:20, lineHeight:1.6 }}>
-                  Check-in for the RUNSA Legislative Summit 2026 has closed. Thank you for attending.
+                  Check-in is currently <strong style={{ color:"#e8b84b" }}>closed</strong>. The organising team will open it when ready. Please stand by.
                 </p>
               )}
               {status === "already" && (
@@ -532,8 +541,7 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
                 {status === "success" && "✓ ENTRY GRANTED"}
                 {status === "already" && "⚠ DUPLICATE SCAN"}
                 {status === "notfound" && "✗ ENTRY DENIED"}
-                {status === "locked-before" && "🔒 NOT YET OPEN"}
-                {status === "locked-after" && "🔒 CHECK-IN CLOSED"}
+                {status === "locked" && "🔒 CHECK-IN CLOSED"}
               </div>
             </div>
           )}
@@ -843,15 +851,13 @@ function ManualCheckin({ onSignIn, T }) {
 
   const handle = async () => {
     if (!input.trim() || busy) return;
-    const lock = isCheckinAllowed();
-    if (!lock.allowed) {
-      const msg = lock.reason === "before"
-        ? "Check-in is not open yet. It opens on 29th April 2026."
-        : "Check-in for the summit has closed.";
-      setResult({ ok: false, reason: "locked", msg });
+    setBusy(true);
+    const isOpen = await fbGetCheckinOpen();
+    if (!isOpen) {
+      setResult({ ok: false, reason: "locked", msg: "Check-in is currently closed. The organising team will open it when ready." });
+      setBusy(false);
       return;
     }
-    setBusy(true);
     const raw = input.trim();
     const id = raw.includes("checkin=")
       ? ((() => { try { return new URL(raw).searchParams.get("checkin"); } catch { return raw.split("checkin=")[1]; } })())
@@ -927,7 +933,7 @@ function ManualCheckin({ onSignIn, T }) {
 }
 
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
-function AdminView({ regs, onReset, T }) {
+function AdminView({ regs, onReset, checkinOpen, onToggleCheckin, T }) {
   const [unlocked, setUnlocked] = useState(false);
   const [loginTime, setLoginTime] = useState(null);
   const [pin, setPin] = useState("");
@@ -1076,6 +1082,40 @@ function AdminView({ regs, onReset, T }) {
             <div style={{ fontSize:11, color:T.textMuted, textTransform:"uppercase", letterSpacing:"0.08em", marginTop:6 }}>{s.label}</div>
           </div>
         ))}
+      </div>
+
+      {/* ── CHECK-IN GATE TOGGLE ── */}
+      <div style={{ background:T.surface, border:`1px solid ${checkinOpen ? "rgba(46,158,91,0.45)" : T.border}`,
+        borderRadius:14, padding:"20px 24px", marginBottom:24,
+        boxShadow: checkinOpen ? "0 0 24px rgba(46,158,91,0.12)" : "none",
+        transition:"all 0.3s" }} className="fade-up-2">
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:14 }}>
+          <div>
+            <div style={{ fontFamily:"'Cinzel', serif", fontSize:15, fontWeight:700,
+              color: checkinOpen ? "#2e9e5b" : T.dark ? BRAND.goldLight : BRAND.navyDark,
+              marginBottom:4 }}>
+              {checkinOpen ? "🟢 Check-In is OPEN" : "🔴 Check-In is CLOSED"}
+            </div>
+            <div style={{ fontSize:12, color:T.textMuted, lineHeight:1.6 }}>
+              {checkinOpen
+                ? "Delegates can scan QR codes and sign in now."
+                : "All QR scans and manual sign-ins are blocked."}
+            </div>
+          </div>
+          <button onClick={() => onToggleCheckin(!checkinOpen)} style={{
+            padding:"12px 28px", borderRadius:10, border:"none", cursor:"pointer",
+            fontFamily:"'Cinzel', serif", fontSize:13, fontWeight:700,
+            letterSpacing:"0.04em", transition:"all 0.2s",
+            background: checkinOpen
+              ? "linear-gradient(135deg, #c0392b, #922b21)"
+              : "linear-gradient(135deg, #27ae60, #1e8449)",
+            color:"#fff",
+            boxShadow: checkinOpen
+              ? "0 4px 16px rgba(192,57,43,0.35)"
+              : "0 4px 16px rgba(39,174,96,0.35)" }}>
+            {checkinOpen ? "🔒 Close Check-In" : "🔓 Open Check-In"}
+          </button>
+        </div>
       </div>
 
       <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap", alignItems:"center" }} className="fade-up-3">
