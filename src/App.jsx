@@ -20,15 +20,21 @@ const BRAND = {
   navyMid:     "#1e4d8c",
   gold:        "#c9920a",
   goldLight:   "#e8b84b",
+  goldPale:    "#f5d57a",
+  green:       "#39e07a",   // flyer electric green
+  greenDim:    "rgba(57,224,122,0.12)",
+  greenGlow:   "rgba(57,224,122,0.25)",
   cream:       "#f5f0e8",
   creamDark:   "#e8e0d0",
   white:       "#ffffff",
-  darkBg:      "#080f1e",
-  darkSurface: "#0f1e38",
-  darkBorder:  "rgba(200,146,10,0.25)",
+  darkBg:      "#060f0a",   // navy-green deep dark (flyer atmosphere)
+  darkSurface: "#0a1a0f",   // dark green-tinted surface
+  darkSurface2:"#0f1e14",
+  darkBorder:  "rgba(57,224,122,0.18)",  // green-tinted border
+  darkBorderGold: "rgba(200,146,10,0.22)",
   lightBg:     "#f0ece3",
   lightSurface:"#ffffff",
-  lightBorder: "rgba(26,58,107,0.18)",
+  lightBorder: "rgba(26,58,107,0.16)",
 };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -178,28 +184,41 @@ function QRCode({ data, size = 160, darkColor = "#0d1f3c" }) {
 // ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
 function GlobalStyles({ dark }) {
   const css = `
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@400;600;700;900&family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
     body {
       font-family: 'Inter', sans-serif;
-      background: ${dark ? BRAND.darkBg : BRAND.lightBg};
+      background: ${dark
+        ? "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(57,224,122,0.07) 0%, transparent 60%), " + BRAND.darkBg
+        : BRAND.lightBg};
       color: ${dark ? BRAND.creamDark : BRAND.navyDark};
       transition: background 0.3s, color 0.3s;
       min-height: 100vh;
     }
     input, select, textarea, button { font-family: 'Inter', sans-serif; }
-    input::placeholder { color: ${dark ? "rgba(232,224,208,0.35)" : "rgba(13,31,60,0.35)"}; }
+    input::placeholder { color: ${dark ? "rgba(232,224,208,0.3)" : "rgba(13,31,60,0.32)"}; }
     select option { background: ${dark ? BRAND.darkSurface : BRAND.white}; color: ${dark ? BRAND.creamDark : BRAND.navyDark}; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    @keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
-    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(201,146,10,0.4); } 50% { box-shadow: 0 0 0 10px rgba(201,146,10,0); } }
-    .fade-up { animation: fadeUp 0.45s ease both; }
-    .fade-up-2 { animation: fadeUp 0.45s 0.1s ease both; }
-    .fade-up-3 { animation: fadeUp 0.45s 0.2s ease both; }
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(57,224,122,0.35); } 50% { box-shadow: 0 0 0 12px rgba(57,224,122,0); } }
+    @keyframes greenPulse { 0%,100% { opacity:1; } 50% { opacity:0.45; } }
+    @keyframes glowLine { 0%,100% { opacity:0.4; } 50% { opacity:1; } }
+    .fade-up { animation: fadeUp 0.4s ease both; }
+    .fade-up-2 { animation: fadeUp 0.4s 0.08s ease both; }
+    .fade-up-3 { animation: fadeUp 0.4s 0.16s ease both; }
+    /* Green glow dot */
+    .live-dot { display:inline-block; width:8px; height:8px; border-radius:50%;
+      background:${BRAND.green}; animation:greenPulse 2s infinite; }
+    /* Flyer-style section divider */
+    .section-band {
+      background: ${dark ? "rgba(57,224,122,0.06)" : "rgba(255,255,255,0.9)"};
+      border-top: 1px solid ${dark ? "rgba(57,224,122,0.2)" : "rgba(26,58,107,0.1)"};
+      border-bottom: 1px solid ${dark ? "rgba(57,224,122,0.2)" : "rgba(26,58,107,0.1)"};
+    }
+    ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: ${dark ? "rgba(201,146,10,0.3)" : "rgba(26,58,107,0.2)"}; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: ${dark ? "rgba(57,224,122,0.25)" : "rgba(201,146,10,0.22)"}; border-radius: 3px; }
     @media print {
       body * { visibility: hidden !important; }
       #printable-ticket, #printable-ticket * { visibility: visible !important; }
@@ -290,22 +309,32 @@ export default function App() {
   const T = {
     dark, gold: BRAND.gold, goldLight: BRAND.goldLight, navy: BRAND.navy,
     navyDark: BRAND.navyDark, cream: BRAND.cream, creamDark: BRAND.creamDark,
+    green: BRAND.green, greenDim: BRAND.greenDim, greenGlow: BRAND.greenGlow,
     bg: dark ? BRAND.darkBg : BRAND.lightBg,
     surface: dark ? BRAND.darkSurface : BRAND.lightSurface,
+    surface2: dark ? BRAND.darkSurface2 : "#f8f5f0",
     border: dark ? BRAND.darkBorder : BRAND.lightBorder,
+    borderGold: dark ? BRAND.darkBorderGold : BRAND.lightBorder,
     text: dark ? BRAND.creamDark : BRAND.navyDark,
-    textMuted: dark ? "rgba(232,224,208,0.55)" : "rgba(13,31,60,0.5)",
+    textMuted: dark ? "rgba(232,224,208,0.52)" : "rgba(13,31,60,0.48)",
   };
 
   if (loading) return (
     <>
       <GlobalStyles dark={dark} />
       <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center",
-        justifyContent:"center", background:T.bg }}>
-        <div style={{ width:44, height:44, border:`3px solid ${T.border}`,
-          borderTop:`3px solid ${T.gold}`, borderRadius:"50%", animation:"spin 0.9s linear infinite" }} />
-        <p style={{ marginTop:16, color:T.gold, fontFamily:"'Cinzel', serif",
-          fontSize:14, letterSpacing:"0.06em", fontSize:12 }}>RUNSA LEGISLATIVE SUMMIT 2026</p>
+        justifyContent:"center", background:T.bg, gap:20 }}>
+        <img src="/legislative-council-logo.jpg" alt=""
+          style={{ width:56, height:56, borderRadius:"50%", border:`2px solid ${BRAND.green}`, objectFit:"cover",
+            boxShadow:`0 0 20px ${BRAND.greenGlow}` }}
+          onError={e => e.target.style.display="none"} />
+        <div style={{ width:40, height:40, border:`2px solid ${BRAND.greenDim}`,
+          borderTop:`2px solid ${BRAND.green}`, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
+        <div style={{ textAlign:"center" }}>
+          <p style={{ color:BRAND.green, fontFamily:"'Bebas Neue', sans-serif",
+            fontSize:22, letterSpacing:"0.18em" }}>LEGISLATIVE SUMMIT 2026</p>
+          <p style={{ color:T.textMuted, fontSize:11, letterSpacing:"0.1em", marginTop:4 }}>LOADING...</p>
+        </div>
       </div>
     </>
   );
@@ -332,71 +361,90 @@ export default function App() {
       <GlobalStyles dark={dark} />
       <header style={{
         position:"sticky", top:0, zIndex:200,
-        background: dark ? "rgba(8,15,30,0.92)" : "rgba(240,236,227,0.94)",
-        backdropFilter:"blur(16px)",
-        borderBottom:`1px solid ${T.border}`,
+        background: dark ? "rgba(6,15,10,0.94)" : "rgba(240,236,227,0.96)",
+        backdropFilter:"blur(20px)",
+        borderBottom:`1px solid ${dark ? "rgba(57,224,122,0.15)" : "rgba(26,58,107,0.12)"}`,
+        boxShadow: dark ? "0 1px 0 rgba(57,224,122,0.08)" : "0 1px 0 rgba(26,58,107,0.06)",
       }}>
-        <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 20px", height:64,
+        <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 20px", height:60,
           display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <img src="/legislative-council-logo.jpg" alt="Legislative Council"
-              style={{ width:38, height:38, borderRadius:"50%", objectFit:"cover", border:`2px solid ${T.gold}` }}
+              style={{ width:36, height:36, borderRadius:"50%", objectFit:"cover",
+                border:`1.5px solid ${BRAND.green}`,
+                boxShadow:`0 0 12px ${BRAND.greenGlow}` }}
               onError={e => e.target.style.display="none"} />
             <div>
-              <div style={{ fontFamily:"'Cinzel', serif", fontSize:15, fontWeight:700,
-                color: dark ? BRAND.goldLight : BRAND.navyDark, lineHeight:1.1 }}>Redeemer's University Students' Association</div>
-              <div style={{ fontSize:10, color:T.textMuted, letterSpacing:"0.06em",
-                textTransform:"uppercase", lineHeight:1 }}>Legislative Council</div>
+              <div style={{ fontFamily:"'Bebas Neue', sans-serif", fontSize:18,
+                color: dark ? BRAND.green : BRAND.navyDark, lineHeight:1, letterSpacing:"0.1em" }}>RUNSA</div>
+              <div style={{ fontSize:9, color:T.textMuted, letterSpacing:"0.12em",
+                textTransform:"uppercase", lineHeight:1, marginTop:2 }}>Legislative Council</div>
             </div>
           </div>
 
-          <nav style={{ display:"flex", alignItems:"center", gap:6 }} className="hide-on-mobile">
+          <nav style={{ display:"flex", alignItems:"center", gap:4 }} className="hide-on-mobile">
             {navItems.map(n => (
               <button key={n.key} onClick={() => setView(n.key)} style={{
-                padding:"8px 20px", borderRadius:6, border:"none", cursor:"pointer",
-                fontSize:13, fontWeight:500, letterSpacing:"0.04em", fontFamily:"'Inter', sans-serif",
+                padding:"7px 18px", borderRadius:6, border:"none", cursor:"pointer",
+                fontSize:12, fontWeight:600, letterSpacing:"0.06em", fontFamily:"'Inter', sans-serif",
                 transition:"all 0.2s",
-                background: view === n.key ? `linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})` : "transparent",
-                color: view === n.key ? "#fff" : dark ? "rgba(232,224,208,0.7)" : BRAND.navy,
-                outline: view !== n.key ? `1px solid ${T.border}` : "none",
+                background: view === n.key
+                  ? `linear-gradient(135deg, ${BRAND.green}, #1a7a40)`
+                  : "transparent",
+                color: view === n.key ? "#050d1e" : dark ? "rgba(232,224,208,0.65)" : BRAND.navy,
+                borderBottom: view === n.key ? "none" : `2px solid transparent`,
+                boxShadow: view === n.key ? `0 2px 12px ${BRAND.greenGlow}` : "none",
               }}>{n.label}</button>
             ))}
             <button onClick={() => setDark(d => !d)} style={{
-              marginLeft:8, padding:"8px 12px", borderRadius:6, border:`1px solid ${T.border}`,
-              background:"transparent", cursor:"pointer", fontSize:16,
-              color: dark ? BRAND.goldLight : BRAND.navy }}>
-              {dark ? "☀️" : "🌙"}
+              marginLeft:6, padding:"6px 10px", borderRadius:6,
+              border:`1px solid ${dark ? "rgba(57,224,122,0.2)" : "rgba(26,58,107,0.15)"}`,
+              background:"transparent", cursor:"pointer", fontSize:13, fontWeight:500,
+              color: dark ? BRAND.green : BRAND.navy,
+              fontFamily:"'Inter', sans-serif" }}>
+              {dark ? "Light" : "Dark"}
             </button>
           </nav>
 
-          <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
             <button onClick={() => setMenuOpen(o => !o)} style={{
-              padding:"8px 10px", borderRadius:6, border:`1px solid ${T.border}`,
-              background:"transparent", cursor:"pointer", fontSize:18,
-              color: dark ? BRAND.goldLight : BRAND.navy }} aria-label="Menu">
-              {menuOpen ? "✕" : "☰"}
+              width:36, height:36, borderRadius:8,
+              border:`1px solid ${dark ? "rgba(57,224,122,0.2)" : "rgba(26,58,107,0.15)"}`,
+              background:"transparent", cursor:"pointer", display:"flex",
+              alignItems:"center", justifyContent:"center",
+              color: dark ? BRAND.green : BRAND.navy }} aria-label="Menu">
+              <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor">
+                {menuOpen
+                  ? <><path d="M1 1L15 11M15 1L1 11" stroke="currentColor" strokeWidth="1.8" fill="none"/></>
+                  : <><rect y="0" width="16" height="1.8" rx="1"/><rect y="5.1" width="11" height="1.8" rx="1"/><rect y="10.2" width="16" height="1.8" rx="1"/></>
+                }
+              </svg>
             </button>
           </div>
         </div>
 
         {menuOpen && (
           <div style={{ background: dark ? BRAND.darkSurface : BRAND.white,
-            borderTop:`1px solid ${T.border}`, padding:"12px 20px 16px" }}>
+            borderTop:`1px solid ${dark ? "rgba(57,224,122,0.12)" : "rgba(26,58,107,0.1)"}`,
+            padding:"16px 20px 20px" }}>
             {navItems.map(n => (
               <button key={n.key} onClick={() => { setView(n.key); setMenuOpen(false); }} style={{
                 display:"block", width:"100%", textAlign:"left",
-                padding:"12px 16px", marginBottom:6, borderRadius:8,
-                border: view === n.key ? "none" : `1px solid ${T.border}`,
-                background: view === n.key ? `linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})` : "transparent",
-                color: view === n.key ? "#fff" : T.text,
-                fontSize:14, fontWeight:500, cursor:"pointer",
+                padding:"13px 16px", marginBottom:6, borderRadius:8,
+                border: `1px solid ${view === n.key ? "transparent" : dark ? "rgba(57,224,122,0.12)" : "rgba(26,58,107,0.1)"}`,
+                background: view === n.key ? `linear-gradient(135deg, ${BRAND.green}, #1a7a40)` : "transparent",
+                color: view === n.key ? "#050d1e" : T.text,
+                fontSize:13, fontWeight:600, cursor:"pointer", letterSpacing:"0.04em",
+                fontFamily:"'Inter', sans-serif",
               }}>{n.label}</button>
             ))}
-            <button onClick={() => setDark(d => !d)} style={{
+            <button onClick={() => { setDark(d => !d); }} style={{
               display:"block", width:"100%", textAlign:"left",
-              padding:"12px 16px", borderRadius:8, border:`1px solid ${T.border}`,
-              background:"transparent", color:T.text, fontSize:14, cursor:"pointer" }}>
-              {dark ? "☀️  Light Mode" : "🌙  Dark Mode"}
+              padding:"13px 16px", borderRadius:8,
+              border:`1px solid ${dark ? "rgba(57,224,122,0.12)" : "rgba(26,58,107,0.1)"}`,
+              background:"transparent", color:T.text, fontSize:13,
+              fontWeight:500, cursor:"pointer" }}>
+              {dark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             </button>
           </div>
         )}
@@ -411,18 +459,34 @@ export default function App() {
         {view === "admin" && <AdminView regs={regs} onReset={resetAll} checkinOpen={checkinOpen} onToggleCheckin={async (v) => { setCheckinOpen(v); await fbSetCheckinOpen(v); }} T={T} />}
       </main>
 
-      <footer style={{ borderTop:`1px solid ${T.border}`, padding:"24px 20px",
-        textAlign:"center", background: dark ? BRAND.darkSurface : BRAND.cream }}>
-        <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:14, marginBottom:10 }}>
-          <img src="/runsa-logo.jpg" alt="RUNSA" style={{ height:32, objectFit:"contain" }}
+      <footer style={{
+        borderTop:`1px solid ${dark ? "rgba(57,224,122,0.12)" : "rgba(26,58,107,0.1)"}`,
+        padding:"32px 20px 24px",
+        textAlign:"center",
+        background: dark ? BRAND.darkSurface : "#f0ece3",
+      }}>
+        {/* Dot strip — flyer style */}
+        <div style={{ display:"flex", justifyContent:"center", gap:6, marginBottom:20 }}>
+          {Array.from({length:18}).map((_,i) => (
+            <div key={i} style={{ width:5, height:5, borderRadius:"50%",
+              background: dark ? `rgba(57,224,122,${i%3===0?0.5:0.2})` : `rgba(26,58,107,${i%3===0?0.3:0.12})` }} />
+          ))}
+        </div>
+        <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:16, marginBottom:14 }}>
+          <img src="/runsa-logo.jpg" alt="RUNSA" style={{ height:30, objectFit:"contain" }}
             onError={e => e.target.style.display="none"} />
+          <div style={{ width:1, height:28, background: dark ? "rgba(57,224,122,0.2)" : "rgba(26,58,107,0.15)" }} />
           <img src="/legislative-council-logo.jpg" alt="Legislative Council"
-            style={{ height:32, objectFit:"contain", borderRadius:"50%" }}
+            style={{ height:30, objectFit:"contain", borderRadius:"50%", border:`1.5px solid ${BRAND.green}` }}
             onError={e => e.target.style.display="none"} />
         </div>
-        <p style={{ fontSize:12, color:T.textMuted, lineHeight:1.6 }}>
-          RUNSA Legislative Summit 2026 · 29th April, 2026 · Redeemer's University Nigeria
-          <br />© Redeemer's University Students' Association — Legislative Council
+        <p style={{ fontFamily:"'Bebas Neue', sans-serif", fontSize:13, color: dark ? BRAND.green : BRAND.navy,
+          letterSpacing:"0.14em", marginBottom:6 }}>
+          LEGISLATIVE SUMMIT 2026
+        </p>
+        <p style={{ fontSize:11, color:T.textMuted, lineHeight:1.7, letterSpacing:"0.03em" }}>
+          29th April, 2026 · Sapetro Lecture Theatre, Redeemer's University Nigeria<br />
+          © Redeemer's University Students' Association — Legislative Council
         </p>
       </footer>
 
@@ -588,51 +652,98 @@ function RegisterView({ onRegister, T }) {
     "Speaker / President","Deputy Speaker / Vice President",
     "Chief Whip","Deputy Chief Whip",
     "Senate President","House Speaker","Committee Chair",
-    "Honourable Member","Representative",
-    "Secretary General","Financial Secretary","Other Legislative Officer", "Student"
+    "Honourable Member","Senator / Representative",
+    "Secretary General","Financial Secretary","Other Legislative Officer",
   ];
 
   return (
     <div style={{ maxWidth:1100, margin:"0 auto", padding:"40px 20px" }}>
-      <div style={{ textAlign:"center", marginBottom:48 }} className="fade-up">
+      <div style={{ textAlign:"center", marginBottom:52 }} className="fade-up">
+        {/* Logos row */}
         <div style={{ display:"flex", justifyContent:"center", alignItems:"center",
-          gap:20, marginBottom:28, flexWrap:"wrap" }}>
+          gap:20, marginBottom:32, flexWrap:"wrap" }}>
           <img src="/runsa-logo.jpg" alt="RUNSA"
-            style={{ height:80, objectFit:"contain",
-              filter: T.dark ? "drop-shadow(0 0 12px rgba(201,146,10,0.4))" : "none" }}
+            style={{ height:72, objectFit:"contain",
+              filter: T.dark ? "drop-shadow(0 0 14px rgba(57,224,122,0.3))" : "none" }}
             onError={e => e.target.style.display="none"} />
-          <div style={{ width:1, height:64, background:T.border }} />
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+            <div style={{ width:1, height:28, background: T.dark ? "rgba(57,224,122,0.25)" : "rgba(26,58,107,0.15)" }} />
+            <div style={{ width:6, height:6, borderRadius:"50%", background:T.dark?BRAND.green:BRAND.navy }} />
+            <div style={{ width:1, height:28, background: T.dark ? "rgba(57,224,122,0.25)" : "rgba(26,58,107,0.15)" }} />
+          </div>
           <img src="/legislative-council-logo.jpg" alt="Legislative Council"
-            style={{ height:80, objectFit:"contain", borderRadius:"50%",
-              border:`3px solid ${BRAND.gold}`, boxShadow:`0 0 20px rgba(201,146,10,0.3)` }}
+            style={{ height:72, objectFit:"contain", borderRadius:"50%",
+              border:`2.5px solid ${BRAND.green}`,
+              boxShadow:`0 0 22px ${BRAND.greenGlow}` }}
             onError={e => e.target.style.display="none"} />
         </div>
+        {/* Date badge */}
         <div style={{
-          display:"inline-block", border:`1px solid ${BRAND.gold}55`,
-          color:BRAND.gold, padding:"5px 18px", borderRadius:20,
-          fontSize:11, letterSpacing:"0.12em", textTransform:"uppercase", marginBottom:18,
-          background: T.dark ? "rgba(201,146,10,0.08)" : "rgba(201,146,10,0.06)",
-        }}>29th April 2026 · Redeemer's University Nigeria, Ede, Osun state.</div>
-        <h1 style={{
-          fontFamily:"'Cinzel', serif", fontSize:"clamp(26px, 5vw, 54px)",
-          fontWeight:900, lineHeight:1.1,
-          color: T.dark ? BRAND.goldLight : BRAND.navyDark, marginBottom:12,
-        }}>The Catalyst of Transformation</h1>
-        <p style={{
-          fontFamily:"'EB Garamond', serif", fontSize:"clamp(15px, 2vw, 20px)",
-          fontStyle:"italic", color:T.textMuted, maxWidth:520, margin:"0 auto",
-        }}>Legislating the Future for Democratic Leadership</p>
+          display:"inline-flex", alignItems:"center", gap:8,
+          border:`1px solid ${T.dark ? "rgba(57,224,122,0.3)" : "rgba(26,58,107,0.2)"}`,
+          color: T.dark ? BRAND.green : BRAND.navy,
+          padding:"6px 20px", borderRadius:100,
+          fontSize:11, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:20,
+          background: T.dark ? "rgba(57,224,122,0.06)" : "rgba(26,58,107,0.04)",
+        }}>
+          <span style={{ width:6, height:6, borderRadius:"50%", background:T.dark?BRAND.green:BRAND.navy, display:"inline-block" }} />
+          29th April 2026 · Redeemer's University, Ede
+        </div>
+        {/* Main title — flyer energy */}
+        <div style={{ marginBottom:8 }}>
+          <div style={{
+            fontFamily:"'Bebas Neue', sans-serif",
+            fontSize:"clamp(48px, 10vw, 96px)",
+            lineHeight:0.95, letterSpacing:"0.04em",
+            background: T.dark
+              ? "linear-gradient(135deg, #f5d57a 0%, #e8b84b 40%, #ffffff 100%)"
+              : "linear-gradient(135deg, #c9920a 0%, #0d1f3c 100%)",
+            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+            backgroundClip:"text",
+          }}>LEGISLATIVE</div>
+          <div style={{
+            fontFamily:"'Bebas Neue', sans-serif",
+            fontSize:"clamp(48px, 10vw, 96px)",
+            lineHeight:0.95, letterSpacing:"0.04em",
+            background: T.dark
+              ? "linear-gradient(135deg, #39e07a 0%, #e8b84b 100%)"
+              : "linear-gradient(135deg, #1a7a40 0%, #1a3a6b 100%)",
+            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
+            backgroundClip:"text",
+          }}>SUMMIT 2026</div>
+        </div>
+        {/* Theme band — like the white band on the flyer */}
+        <div style={{
+          display:"inline-block",
+          background: T.dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.9)",
+          border:`1px solid ${T.dark ? "rgba(255,255,255,0.1)" : "rgba(26,58,107,0.12)"}`,
+          borderRadius:6, padding:"8px 24px", marginTop:16,
+        }}>
+          <div style={{ fontSize:9, letterSpacing:"0.16em", color:T.textMuted, textTransform:"uppercase", marginBottom:3 }}>Theme</div>
+          <div style={{ fontFamily:"'Cinzel', serif", fontSize:"clamp(12px,2vw,15px)", fontWeight:700,
+            color: T.dark ? BRAND.goldLight : BRAND.navyDark }}>
+            The Catalyst of Transformation
+          </div>
+          <div style={{ fontFamily:"'EB Garamond', serif", fontStyle:"italic",
+            fontSize:"clamp(12px,1.5vw,14px)", color:T.textMuted, marginTop:2 }}>
+            Legislating the Future for Democratic Leadership
+          </div>
+        </div>
       </div>
 
       <div style={{
         maxWidth:640, margin:"0 auto", background:T.surface,
-        border:`1px solid ${T.border}`, borderRadius:16,
-        boxShadow: T.dark ? "0 20px 60px rgba(0,0,0,0.5)" : "0 8px 40px rgba(13,31,60,0.1)",
+        border:`1px solid ${T.dark ? "rgba(57,224,122,0.15)" : "rgba(26,58,107,0.12)"}`,
+        borderRadius:18,
+        boxShadow: T.dark ? "0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(57,224,122,0.08)" : "0 8px 40px rgba(13,31,60,0.1)",
         overflow:"hidden",
       }} className="fade-up-2">
         <div style={{
-          background:`linear-gradient(135deg, ${BRAND.navyDark} 0%, ${BRAND.navy} 100%)`,
-          padding:"24px 32px", display:"flex", alignItems:"center", gap:14,
+          background: T.dark
+            ? "linear-gradient(135deg, #0a1a0f 0%, #0d1f3c 100%)"
+            : `linear-gradient(135deg, ${BRAND.navyDark} 0%, ${BRAND.navy} 100%)`,
+          padding:"22px 32px", display:"flex", alignItems:"center", gap:14,
+          borderBottom:`1px solid ${T.dark ? "rgba(57,224,122,0.12)" : "rgba(255,255,255,0.12)"}`,
         }}>
           <div style={{ fontSize:28, color:BRAND.goldLight }}>📋</div>
           <div>
@@ -653,7 +764,7 @@ function RegisterView({ onRegister, T }) {
             </FormField>
             <FormField label="Tertiary Institution" error={errors.institution} T={T}>
               <input style={inputStyle(T, !!errors.institution)}
-                placeholder="e.g. Redeemer's University Nigeria" value={form.institution}
+                placeholder="e.g. Redeemers' University, Ede" value={form.institution}
                 onChange={e => { set("institution", e.target.value); clrErr("institution"); }} />
             </FormField>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:20 }}>

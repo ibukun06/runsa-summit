@@ -8,7 +8,7 @@ const FIREBASE_CONFIG = {
   projectId: "runsa-summit",
 };
 const COLLECTION = "delegates";
-const CW = 1080, CH = 1920; // 9:16 portrait — universal story format
+const CW = 1080, CH = 1350; // 4:5 — best for WhatsApp, IG feed+stories, LinkedIn, Snapchat
 
 // ─── FIREBASE ─────────────────────────────────────────────────────────────────
 let db = null;
@@ -110,324 +110,501 @@ function drawSmartCover(ctx, img, x, y, w, h) {
 // ─── CARD RENDERER ────────────────────────────────────────────────────────────
 async function renderCard(delegate, photoDataUrl, mode) {
   const dark = mode === "dark";
+
+  // Colours — blending navy/gold (logo) + electric green (flyer)
   const BG     = dark ? "#050d1e" : "#f0ece3";
   const GOLD   = "#c9920a";
   const GOLD2  = "#e8b84b";
   const GOLD3  = "#f5d57a";
+  const GREEN  = "#39e07a";   // flyer accent green (toned for elegance)
   const NAVY   = "#050d1e";
   const TEXT   = dark ? "#f5f0e8" : "#050d1e";
   const MUTED  = dark ? "rgba(245,240,232,0.52)" : "rgba(5,13,30,0.42)";
-  const EVTCOL = dark ? GOLD3 : NAVY;
 
   const canvas = document.createElement("canvas");
   canvas.width = CW; canvas.height = CH;
   const ctx = canvas.getContext("2d");
 
-  // ── BASE ──────────────────────────────────────────────────────────────────
+  const PAD  = 64;
+  const CM   = 44;   // corner margin
+  const CS   = 100;  // corner size
+
+  // Photo zone = top 58% of card
+  const PHOTO_H = Math.round(CH * 0.58);
+
+  // ── BASE BACKGROUND ───────────────────────────────────────────────────────
   ctx.fillStyle = BG;
   ctx.fillRect(0, 0, CW, CH);
 
-  const PHOTO_H = Math.round(CH * 0.60); // top 60%
-  const PAD = 72;  // content padding — sits comfortably inside CM2=48 corners
-
-  // ── PHOTO ZONE ────────────────────────────────────────────────────────────
+  // ── PHOTO / GRADIENT TOP ──────────────────────────────────────────────────
   if (photoDataUrl) {
     const photo = await loadImg(photoDataUrl);
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, CW, PHOTO_H);
-    ctx.clip();
+    ctx.beginPath(); ctx.rect(0, 0, CW, PHOTO_H); ctx.clip();
     drawSmartCover(ctx, photo, 0, 0, CW, PHOTO_H);
     ctx.restore();
-
-    // Gradient: top vignette (for logo readability)
-    const topV = ctx.createLinearGradient(0, 0, 0, 260);
-    topV.addColorStop(0, "rgba(0,0,0,0.52)");
-    topV.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = topV;
-    ctx.fillRect(0, 0, CW, 260);
-
-    // Gradient: bottom fade into card background
-    const botV = ctx.createLinearGradient(0, PHOTO_H * 0.48, 0, PHOTO_H);
-    botV.addColorStop(0, "rgba(0,0,0,0)");
-    botV.addColorStop(0.55, dark ? "rgba(5,13,30,0.62)" : "rgba(240,236,227,0.55)");
-    botV.addColorStop(1,   dark ? "rgba(5,13,30,0.98)" : "rgba(240,236,227,0.98)");
-    ctx.fillStyle = botV;
-    ctx.fillRect(0, PHOTO_H * 0.48, CW, PHOTO_H * 0.52);
+    // Top vignette for logo readability
+    const tv = ctx.createLinearGradient(0, 0, 0, 220);
+    tv.addColorStop(0, "rgba(0,0,0,0.55)"); tv.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 220);
+    // Bottom fade to bg
+    const bv = ctx.createLinearGradient(0, PHOTO_H * 0.5, 0, PHOTO_H);
+    bv.addColorStop(0, "rgba(0,0,0,0)");
+    bv.addColorStop(0.6, dark ? "rgba(5,13,30,0.7)" : "rgba(240,236,227,0.6)");
+    bv.addColorStop(1,   dark ? "rgba(5,13,30,1)"   : "rgba(240,236,227,1)");
+    ctx.fillStyle = bv; ctx.fillRect(0, PHOTO_H * 0.5, CW, PHOTO_H * 0.5);
   } else {
-    // No photo — rich gradient bg
-    const grad = ctx.createLinearGradient(0, 0, CW * 0.7, PHOTO_H);
-    grad.addColorStop(0, dark ? "#1a3a6b" : "#ddd5c2");
-    grad.addColorStop(0.5, dark ? "#0d1f3c" : "#e8e0d0");
-    grad.addColorStop(1, dark ? "#080f1e" : "#cfc5af");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, CW, PHOTO_H);
-    // Big monogram art
-    const initials = delegate.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-    ctx.font = "900 500px Georgia, serif";
+    const g = ctx.createLinearGradient(0, 0, CW, PHOTO_H);
+    g.addColorStop(0, dark ? "#1a3a6b" : "#ddd5c2");
+    g.addColorStop(1, dark ? "#080f1e" : "#cfc5af");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, CW, PHOTO_H);
+    const initials = delegate.name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
+    ctx.font = "900 400px Georgia, serif";
     ctx.fillStyle = dark ? "rgba(201,146,10,0.07)" : "rgba(5,13,30,0.05)";
-    ctx.textAlign = "center";
-    ctx.fillText(initials, CW / 2, PHOTO_H * 0.72);
-    // Bottom fade
-    const fade = ctx.createLinearGradient(0, PHOTO_H * 0.55, 0, PHOTO_H);
-    fade.addColorStop(0, "rgba(0,0,0,0)");
-    fade.addColorStop(1, dark ? "rgba(5,13,30,0.92)" : "rgba(240,236,227,0.92)");
-    ctx.fillStyle = fade;
-    ctx.fillRect(0, PHOTO_H * 0.55, CW, PHOTO_H * 0.45);
-    // Top vignette
-    const topV = ctx.createLinearGradient(0, 0, 0, 250);
-    topV.addColorStop(0, "rgba(0,0,0,0.38)");
-    topV.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = topV;
-    ctx.fillRect(0, 0, CW, 250);
+    ctx.textAlign = "center"; ctx.fillText(initials, CW/2, PHOTO_H * 0.72);
+    const fv = ctx.createLinearGradient(0, PHOTO_H*0.55, 0, PHOTO_H);
+    fv.addColorStop(0, "rgba(0,0,0,0)");
+    fv.addColorStop(1, dark ? "rgba(5,13,30,0.95)" : "rgba(240,236,227,0.95)");
+    ctx.fillStyle = fv; ctx.fillRect(0, PHOTO_H*0.55, CW, PHOTO_H*0.45);
+    const tv2 = ctx.createLinearGradient(0,0,0,220);
+    tv2.addColorStop(0,"rgba(0,0,0,0.45)"); tv2.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle = tv2; ctx.fillRect(0,0,CW,220);
   }
 
-  // ── CORNER ACCENTS (drawn early so all content renders on top) ──────────────
-  ctx.strokeStyle = dark ? "rgba(201,146,10,0.52)" : "rgba(5,13,30,0.18)";
-  ctx.lineWidth = 6;
-  const CS2 = 120, CM2 = 48; // CM2=48 is the safe inner boundary
-  ctx.beginPath(); ctx.moveTo(CM2, CM2+CS2); ctx.lineTo(CM2,CM2); ctx.lineTo(CM2+CS2,CM2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CW-CM2-CS2,CM2); ctx.lineTo(CW-CM2,CM2); ctx.lineTo(CW-CM2,CM2+CS2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CM2,CH-CM2-CS2); ctx.lineTo(CM2,CH-CM2); ctx.lineTo(CM2+CS2,CH-CM2); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CW-CM2-CS2,CH-CM2); ctx.lineTo(CW-CM2,CH-CM2); ctx.lineTo(CW-CM2,CH-CM2-CS2); ctx.stroke();
+  // ── CORNER ACCENTS (gold on dark, navy on light) ──────────────────────────
+  ctx.strokeStyle = dark ? "rgba(201,146,10,0.6)" : "rgba(5,13,30,0.2)";
+  ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(CM,CM+CS); ctx.lineTo(CM,CM); ctx.lineTo(CM+CS,CM); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CW-CM-CS,CM); ctx.lineTo(CW-CM,CM); ctx.lineTo(CW-CM,CM+CS); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CM,CH-CM-CS); ctx.lineTo(CM,CH-CM); ctx.lineTo(CM+CS,CH-CM); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CW-CM-CS,CH-CM); ctx.lineTo(CW-CM,CH-CM); ctx.lineTo(CW-CM,CH-CM-CS); ctx.stroke();
 
-  // ── TOP BAR — logo + org text, all inside CM2=48 boundary ────────────────
-  // Logo: center at (CM2+22+44, CM2+22+44) = left edge at CM2+22, top at CM2+22
-  const LOGO_R = 44;           // radius
-  const LOGO_X = CM2 + 22 + LOGO_R;  // center x = 114
-  const LOGO_Y = CM2 + 22 + LOGO_R;  // center y = 114
+  // ── TOP-LEFT: LOGO ────────────────────────────────────────────────────────
+  const LR = 40, LX = CM + 18 + LR, LY = CM + 18 + LR;
   try {
     const logo = await loadImg("/legislative-council-logo.jpg");
     ctx.save();
-    ctx.beginPath(); ctx.arc(LOGO_X, LOGO_Y, LOGO_R, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
-    ctx.drawImage(logo, LOGO_X - LOGO_R, LOGO_Y - LOGO_R, LOGO_R * 2, LOGO_R * 2);
+    ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI*2); ctx.closePath(); ctx.clip();
+    ctx.drawImage(logo, LX-LR, LY-LR, LR*2, LR*2);
     ctx.restore();
-    ctx.strokeStyle = "rgba(232,184,75,0.78)";
-    ctx.lineWidth = 3.5;
-    ctx.beginPath(); ctx.arc(LOGO_X, LOGO_Y, LOGO_R, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = "rgba(232,184,75,0.8)"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI*2); ctx.stroke();
   } catch {}
 
-  // Org text — right-aligned to CM2+20 from right edge (inside corner)
-  const TEXT_RIGHT = CW - CM2 - 20;
+  // ── TOP-RIGHT: "LEGISLATIVE SUMMIT 2026" in flyer style ──────────────────
+  // Big bold gold text like the flyer — this IS the event identity
+  const TR_X = CW - CM - 18;
   ctx.textAlign = "right";
-  ctx.font = "700 26px Arial, sans-serif";
-  ctx.fillStyle = "rgba(232,184,75,0.92)";
-  ctx.fillText("RUNSA LEGISLATIVE COUNCIL", TEXT_RIGHT, LOGO_Y - 10);
-  ctx.font = "400 19px Arial, sans-serif";
-  ctx.fillStyle = "rgba(245,240,232,0.48)";
-  ctx.fillText("REDEEMER'S UNIVERSITY STUDENTS' ASSOCIATION", TEXT_RIGHT, LOGO_Y + 20);
-
-  // ── ATTENDING BADGE ───────────────────────────────────────────────────────
-  const BADGE_Y = PHOTO_H - 130;
-  const bW = 330, bH = 64;
-  ctx.fillStyle = "rgba(201,146,10,0.18)";
-  ctx.strokeStyle = "rgba(201,146,10,0.6)";
-  ctx.lineWidth = 2.5;
-  rrect(ctx, PAD, BADGE_Y, bW, bH, 32);
-  ctx.fill(); ctx.stroke();
-  ctx.fillStyle = GOLD2;
-  ctx.beginPath(); ctx.arc(PAD + 26, BADGE_Y + bH / 2, 8, 0, Math.PI * 2); ctx.fill();
-  ctx.textAlign = "left";
-  ctx.font = "700 24px Arial, sans-serif";
-  ctx.fillStyle = GOLD2;
-  ctx.fillText("I'M ATTENDING", PAD + 46, BADGE_Y + bH / 2 + 9);
-
-  // ── INFO SECTION ──────────────────────────────────────────────────────────
-  const INFO_START = PHOTO_H + 56;
-
-  // NAME — adaptive size so long names never overflow
-  const nameMaxW = CW - PAD * 2;
-  let nameFontSize = 110;
-  ctx.font = `900 ${nameFontSize}px Georgia, serif`;
-  // Shrink font until name fits in 2 lines max
-  while (nameFontSize > 56) {
-    ctx.font = `900 ${nameFontSize}px Georgia, serif`;
-    const testLines = wrapText(ctx, delegate.name, nameMaxW);
-    if (testLines.length <= 2) break;
-    nameFontSize -= 6;
-  }
-  ctx.fillStyle = TEXT;
-  ctx.textAlign = "left";
-  ctx.shadowColor = dark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.08)";
-  ctx.shadowBlur = 16;
-  const nameLines = wrapText(ctx, delegate.name, nameMaxW);
-  const NLH = nameFontSize + 8;
-  nameLines.forEach((line, i) => ctx.fillText(line, PAD, INFO_START + i * NLH));
+  // "LEGISLATIVE" — large, bold, gold gradient
+  ctx.font = "900 52px Arial Black, Arial, sans-serif";
+  const lgGrad = ctx.createLinearGradient(TR_X - 420, LY - 36, TR_X, LY - 36);
+  lgGrad.addColorStop(0, GOLD3);
+  lgGrad.addColorStop(0.5, GOLD2);
+  lgGrad.addColorStop(1, GOLD);
+  ctx.fillStyle = lgGrad;
+  ctx.shadowColor = "rgba(201,146,10,0.4)"; ctx.shadowBlur = 8;
+  ctx.fillText("LEGISLATIVE", TR_X, LY - 14);
+  // "SUMMIT 2026" — slightly smaller, same gold
+  ctx.font = "700 38px Arial Black, Arial, sans-serif";
+  const sg = ctx.createLinearGradient(TR_X - 300, LY + 28, TR_X, LY + 28);
+  sg.addColorStop(0, GOLD2); sg.addColorStop(1, GOLD3);
+  ctx.fillStyle = sg;
+  ctx.fillText("SUMMIT 2026", TR_X, LY + 32);
   ctx.shadowBlur = 0;
-  const NAME_BOT = INFO_START + nameLines.length * NLH + 8;
+  // Thin green underline accent (from flyer)
+  ctx.strokeStyle = dark ? GREEN : "rgba(39,174,96,0.7)";
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(TR_X - 290, LY + 44); ctx.lineTo(TR_X, LY + 44); ctx.stroke();
 
-  // POSITION
-  ctx.font = "700 40px Arial, sans-serif";
+  // ── "I'M ATTENDING" BADGE ─────────────────────────────────────────────────
+  const BADGE_Y = PHOTO_H - 110;
+  const bW = 300, bH = 56;
+  ctx.fillStyle = "rgba(201,146,10,0.18)";
+  ctx.strokeStyle = "rgba(201,146,10,0.65)";
+  ctx.lineWidth = 2;
+  rrect(ctx, PAD, BADGE_Y, bW, bH, 28);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = GREEN;
+  ctx.beginPath(); ctx.arc(PAD+22, BADGE_Y+bH/2, 7, 0, Math.PI*2); ctx.fill();
+  ctx.textAlign = "left";
+  ctx.font = "700 22px Arial, sans-serif";
+  ctx.fillStyle = GOLD2;
+  ctx.fillText("I'M ATTENDING", PAD+42, BADGE_Y+bH/2+8);
+
+  // ── NAME — adaptive, max 2 lines ──────────────────────────────────────────
+  const INFO_Y = PHOTO_H + 44;
+  const nameMaxW = CW - PAD * 2;
+  let nfs = 88; // start at 88px (smaller than before)
+  ctx.font = `900 ${nfs}px Georgia, serif`;
+  while (nfs > 48) {
+    ctx.font = `900 ${nfs}px Georgia, serif`;
+    if (wrapText(ctx, delegate.name, nameMaxW).length <= 2) break;
+    nfs -= 5;
+  }
+  ctx.fillStyle = TEXT; ctx.textAlign = "left";
+  ctx.shadowColor = dark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.07)"; ctx.shadowBlur = 10;
+  const nameLines = wrapText(ctx, delegate.name, nameMaxW);
+  const NLH = nfs + 6;
+  nameLines.forEach((l, i) => ctx.fillText(l, PAD, INFO_Y + i * NLH));
+  ctx.shadowBlur = 0;
+  const NAME_BOT = INFO_Y + nameLines.length * NLH + 4;
+
+  // ── POSITION + INSTITUTION ────────────────────────────────────────────────
+  ctx.font = "700 34px Arial, sans-serif";
   ctx.fillStyle = dark ? GOLD2 : GOLD;
-  ctx.fillText(delegate.position.toUpperCase(), PAD, NAME_BOT + 52);
+  ctx.fillText(delegate.position.toUpperCase(), PAD, NAME_BOT + 42);
 
-  // INSTITUTION
-  ctx.font = "400 36px Arial, sans-serif";
+  ctx.font = "400 28px Arial, sans-serif";
   ctx.fillStyle = MUTED;
-  ctx.fillText(delegate.institution, PAD, NAME_BOT + 104);
+  ctx.fillText(delegate.institution, PAD, NAME_BOT + 84);
 
   // ── DIVIDER ───────────────────────────────────────────────────────────────
-  const DIV_Y = NAME_BOT + 148;
-  const dg = ctx.createLinearGradient(PAD, DIV_Y, CW - PAD, DIV_Y);
-  dg.addColorStop(0, dark ? "rgba(201,146,10,0.55)" : "rgba(5,13,30,0.18)");
-  dg.addColorStop(0.7, dark ? "rgba(201,146,10,0.12)" : "rgba(5,13,30,0.04)");
+  const DIV_Y = NAME_BOT + 118;
+  const dg = ctx.createLinearGradient(PAD, DIV_Y, CW-PAD, DIV_Y);
+  dg.addColorStop(0, dark ? "rgba(57,224,122,0.4)" : "rgba(5,13,30,0.15)"); // green accent
+  dg.addColorStop(0.5, dark ? "rgba(201,146,10,0.3)" : "rgba(5,13,30,0.08)");
   dg.addColorStop(1, "rgba(0,0,0,0)");
   ctx.strokeStyle = dg; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(PAD, DIV_Y); ctx.lineTo(CW - PAD, DIV_Y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(PAD, DIV_Y); ctx.lineTo(CW-PAD, DIV_Y); ctx.stroke();
 
-  // ── EVENT + QR ROW ────────────────────────────────────────────────────────
-  const EV_Y = DIV_Y + 50;
-  const QR_SIZE = 240;
-  const QR_X = CW - PAD - QR_SIZE - 20;
-  const TEXT_MAX = QR_X - PAD - 36;
+  // ── EVENT TITLE + QR (side by side) ──────────────────────────────────────
+  const EV_Y = DIV_Y + 36;
+  const QR_SIZE = 160;  // reduced from 240
+  const QR_PAD  = 14;
+  const QR_CARD_W = QR_SIZE + QR_PAD*2;
+  const QR_CARD_H = QR_SIZE + QR_PAD*2 + 28;
+  const QR_X = CW - PAD - QR_CARD_W;
+  const TEXT_MAX = QR_X - PAD - 28;
 
-  // Event title
-  ctx.font = "700 62px Arial, sans-serif";
-  ctx.fillStyle = EVTCOL;
-  ctx.textAlign = "left";
+  // Event title — gold bold, like flyer
+  ctx.font = "700 50px Arial Black, Arial, sans-serif";
+  const etg = ctx.createLinearGradient(PAD, EV_Y, PAD+TEXT_MAX, EV_Y);
+  etg.addColorStop(0, GOLD3); etg.addColorStop(1, GOLD2);
+  ctx.fillStyle = etg; ctx.textAlign = "left";
   const evLines = wrapText(ctx, "LEGISLATIVE SUMMIT 2026", TEXT_MAX);
-  evLines.forEach((l, i) => ctx.fillText(l, PAD, EV_Y + 62 + i * 74));
-  const EV_BOT = EV_Y + evLines.length * 74 + 62;
+  evLines.forEach((l, i) => ctx.fillText(l, PAD, EV_Y + 50 + i * 58));
+  const EV_BOT = EV_Y + evLines.length * 58 + 50;
 
-  // Location
-  ctx.font = "400 30px Arial, sans-serif";
+  // Location + date
+  ctx.font = "400 26px Arial, sans-serif";
   ctx.fillStyle = MUTED;
-  ctx.fillText("@ Redeemer's University, Ede", PAD, EV_BOT + 18);
-  ctx.fillText("29th April, 2026", PAD, EV_BOT + 58);
+  ctx.fillText("@ Redeemer's University, Ede  ·  29th April, 2026", PAD, EV_BOT + 14);
 
   // ── QR CODE ───────────────────────────────────────────────────────────────
   const qrURL = delegate.qrURL || `${REG_SITE}?checkin=${delegate.id}`;
-  const qrImg = await generateQRImage(qrURL, 320);
+  const qrImg = await generateQRImage(qrURL, 220);
   if (qrImg) {
-    const QR_Y = EV_Y - 8;
-    const CARD_W = QR_SIZE + 44;
-    const CARD_H = QR_SIZE + 64;
-    // White card
+    const QR_Y = EV_Y - 4;
     ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = dark ? "rgba(201,146,10,0.38)" : "rgba(5,13,30,0.12)";
+    ctx.strokeStyle = dark ? "rgba(201,146,10,0.45)" : "rgba(5,13,30,0.12)";
     ctx.lineWidth = 2;
-    rrect(ctx, QR_X - 4, QR_Y, CARD_W, CARD_H, 18);
+    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 14);
     ctx.fill(); ctx.stroke();
-    // QR image
-    ctx.drawImage(qrImg, QR_X + 18, QR_Y + 12, QR_SIZE, QR_SIZE);
-    // Label
+    ctx.drawImage(qrImg, QR_X + QR_PAD, QR_Y + QR_PAD, QR_SIZE, QR_SIZE);
     ctx.textAlign = "center";
-    ctx.font = "600 19px Arial, sans-serif";
+    ctx.font = "600 16px Arial, sans-serif";
     ctx.fillStyle = "rgba(201,146,10,0.85)";
-    ctx.fillText("SCAN TO ENTER", QR_X + CARD_W / 2, QR_Y + CARD_H - 14);
+    ctx.fillText("SCAN TO ENTER", QR_X + QR_CARD_W/2, QR_Y + QR_CARD_H - 8);
   }
 
-  // ── TICKET ID (bottom-left) ────────────────────────────────────────────────
+  // ── TICKET ID ─────────────────────────────────────────────────────────────
   ctx.textAlign = "left";
-  ctx.font = "400 24px monospace";
-  ctx.fillStyle = dark ? "rgba(201,146,10,0.38)" : "rgba(5,13,30,0.22)";
-  ctx.fillText(delegate.id, CM2 + 20, CH - CM2 - 14);
+  ctx.font = "400 20px monospace";
+  ctx.fillStyle = dark ? "rgba(201,146,10,0.35)" : "rgba(5,13,30,0.2)";
+  ctx.fillText(delegate.id, CM + 16, CH - CM - 12);
 
   return canvas;
 }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Space+Grotesk:wght@300;400;500;600;700&family=Cinzel:wght@400;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
   :root {
-    --navy:#050d1e; --navy2:#0d1f3c; --navy3:#1a3a6b;
-    --gold:#c9920a; --gold2:#e8b84b; --cream:#f5f0e8;
-    --glass:rgba(255,255,255,0.04); --border:rgba(201,146,10,0.2);
+    --navy: #060f0a;
+    --navy2: #0a1a0f;
+    --navy3: #0f261a;
+    --gold: #c9920a;
+    --gold2: #e8b84b;
+    --gold3: #f5d57a;
+    --green: #39e07a;
+    --green2: rgba(57,224,122,0.12);
+    --green3: rgba(57,224,122,0.22);
+    --cream: #f5f0e8;
+    --border: rgba(57,224,122,0.15);
+    --border-gold: rgba(201,146,10,0.22);
+    --glass: rgba(57,224,122,0.04);
+    --glass2: rgba(57,224,122,0.08);
   }
+
   html, body { min-height: 100vh; }
-  body { background: var(--navy); color: var(--cream); font-family: 'Space Grotesk', sans-serif; overflow-x: hidden; }
-  body::before {
-    content:''; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
-    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+
+  body {
+    background:
+      radial-gradient(ellipse 90% 60% at 50% -5%, rgba(57,224,122,0.08) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 40% at 80% 60%, rgba(201,146,10,0.04) 0%, transparent 50%),
+      #060f0a;
+    color: var(--cream);
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
   }
-  .page { position:relative; z-index:1; min-height:100vh; display:flex; flex-direction:column; }
 
-  .hdr { padding:18px 24px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); background:rgba(5,13,30,.88); backdrop-filter:blur(16px); position:sticky; top:0; z-index:100; }
-  .hdr-brand { display:flex; align-items:center; gap:10px; }
-  .hdr-logo { width:34px; height:34px; border-radius:50%; border:1.5px solid var(--gold); object-fit:cover; }
-  .hdr-title { font-family:'Cinzel',serif; font-size:13px; font-weight:700; color:var(--gold2); line-height:1.1; }
-  .hdr-sub { font-size:10px; color:rgba(245,240,232,.4); letter-spacing:.06em; text-transform:uppercase; }
-  .hdr-reg { font-size:12px; color:var(--gold); text-decoration:none; border:1px solid var(--border); padding:7px 14px; border-radius:6px; font-weight:500; transition:all .2s; }
-  .hdr-reg:hover { background:rgba(201,146,10,.08); border-color:var(--gold); }
+  /* Subtle noise grain like flyer */
+  body::after {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.3;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  }
 
-  .hero { padding:52px 24px 36px; text-align:center; max-width:680px; margin:0 auto; }
-  .badge { display:inline-flex; align-items:center; gap:8px; padding:6px 16px; border:1px solid rgba(201,146,10,.4); border-radius:100px; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold2); background:rgba(201,146,10,.06); margin-bottom:22px; }
-  .badge::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--gold2); animation:blink 2s infinite; }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
-  .hero h1 { font-family:'Playfair Display',serif; font-size:clamp(30px,7vw,60px); font-weight:900; line-height:1.05; background:linear-gradient(135deg,#f5d57a 0%,#e8b84b 45%,#fff 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; margin-bottom:14px; }
-  .hero p { font-size:clamp(13px,2vw,16px); color:rgba(245,240,232,.5); line-height:1.7; max-width:480px; margin:0 auto 36px; }
+  .page { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
 
-  .steps { display:flex; justify-content:center; align-items:center; gap:8px; margin-bottom:44px; flex-wrap:wrap; }
-  .step { display:flex; align-items:center; gap:8px; }
-  .step-n { width:26px; height:26px; border-radius:50%; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--gold); flex-shrink:0; }
-  .step.active .step-n { background:var(--gold); color:var(--navy); border-color:var(--gold); }
-  .step.done .step-n { background:#27ae60; color:#fff; border-color:#27ae60; font-size:13px; }
-  .step-lbl { font-size:12px; color:rgba(245,240,232,.4); }
-  .step.active .step-lbl, .step.done .step-lbl { color:rgba(245,240,232,.8); }
-  .step-line { width:28px; height:1px; background:var(--border); }
+  /* ── Header ── */
+  .hdr {
+    padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: rgba(6,15,10,0.92);
+    backdrop-filter: blur(20px);
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 1px 0 rgba(57,224,122,0.08);
+  }
+  .hdr-brand { display: flex; align-items: center; gap: 10px; }
+  .hdr-logo {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 1.5px solid var(--green); object-fit: cover;
+    box-shadow: 0 0 12px rgba(57,224,122,0.22);
+  }
+  .hdr-title {
+    font-family: 'Bebas Neue', sans-serif; font-size: 16px;
+    color: var(--green); line-height: 1; letter-spacing: 0.1em;
+  }
+  .hdr-sub { font-size: 9px; color: rgba(245,240,232,0.38); letter-spacing: 0.1em; text-transform: uppercase; }
+  .hdr-reg {
+    font-size: 11px; font-weight: 600; color: #060f0a;
+    text-decoration: none;
+    background: linear-gradient(135deg, var(--green), #1a7a40);
+    padding: 7px 16px; border-radius: 6px;
+    letter-spacing: 0.06em; font-family: 'Inter', sans-serif;
+    box-shadow: 0 2px 12px rgba(57,224,122,0.2);
+    transition: all .2s;
+  }
+  .hdr-reg:hover { box-shadow: 0 4px 18px rgba(57,224,122,0.32); transform: translateY(-1px); }
 
-  .main { flex:1; max-width:960px; margin:0 auto; padding:0 24px 80px; width:100%; }
+  /* ── Hero ── */
+  .hero { padding: 56px 24px 40px; text-align: center; max-width: 700px; margin: 0 auto; }
 
-  .panel { background:var(--glass); border:1px solid var(--border); border-radius:20px; overflow:hidden; margin-bottom:24px; }
-  .phead { background:linear-gradient(135deg,rgba(13,31,60,.85),rgba(26,58,107,.35)); border-bottom:1px solid var(--border); padding:18px 26px; display:flex; align-items:center; gap:12px; }
-  .picon { width:36px; height:36px; border-radius:10px; background:rgba(201,146,10,.14); border:1px solid rgba(201,146,10,.3); display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
-  .ptitle { font-family:'Cinzel',serif; font-size:14px; font-weight:700; color:var(--gold2); letter-spacing:.04em; }
-  .pdesc { font-size:12px; color:rgba(245,240,232,.4); margin-top:2px; }
-  .pbody { padding:26px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 16px; border: 1px solid var(--border); border-radius: 100px;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--green); background: var(--glass2); margin-bottom: 24px;
+  }
+  .badge::before {
+    content: ''; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--green); animation: blink 2s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
 
-  .tick-row { display:flex; gap:10px; }
-  .tick-in { flex:1; padding:14px 18px; background:rgba(255,255,255,.05); border:1.5px solid var(--border); border-radius:10px; color:var(--cream); font-family:'Space Grotesk',sans-serif; font-size:15px; letter-spacing:.05em; outline:none; transition:border-color .2s; text-transform:uppercase; }
-  .tick-in:focus { border-color:var(--gold); }
-  .tick-in::placeholder { text-transform:none; color:rgba(245,240,232,.25); letter-spacing:0; }
-  .btn-fetch { padding:14px 22px; background:linear-gradient(135deg,var(--gold),var(--navy3)); border:none; border-radius:10px; color:#fff; font-family:'Cinzel',serif; font-size:13px; font-weight:700; letter-spacing:.04em; cursor:pointer; white-space:nowrap; transition:opacity .2s; }
-  .btn-fetch:disabled { opacity:.45; cursor:not-allowed; }
+  .hero h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(42px, 9vw, 84px);
+    line-height: 0.95; letter-spacing: 0.04em; margin-bottom: 16px;
+    background: linear-gradient(135deg, #f5d57a 0%, #e8b84b 45%, #39e07a 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p { font-size: clamp(13px,2vw,16px); color: rgba(245,240,232,0.48); line-height: 1.7; max-width: 460px; margin: 0 auto 36px; }
 
-  .del-card { display:flex; align-items:center; gap:14px; padding:16px; background:rgba(39,174,96,.07); border:1px solid rgba(39,174,96,.25); border-radius:12px; margin-top:14px; animation:fadeUp .3s ease both; }
-  .del-av { width:44px; height:44px; border-radius:50%; background:rgba(201,146,10,.15); border:2px solid var(--gold); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
-  .del-name { font-family:'Cinzel',serif; font-size:14px; font-weight:700; color:var(--cream); margin-bottom:3px; }
-  .del-meta { font-size:12px; color:rgba(245,240,232,.5); }
-  .del-id { margin-left:auto; font-family:monospace; font-size:12px; color:var(--gold); letter-spacing:.08em; flex-shrink:0; }
-  .err { margin-top:12px; padding:12px 16px; background:rgba(192,57,43,.08); border:1px solid rgba(192,57,43,.3); border-radius:8px; color:#e74c3c; font-size:13px; }
+  /* Steps */
+  .steps { display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 44px; flex-wrap: wrap; }
+  .step { display: flex; align-items: center; gap: 7px; }
+  .step-n {
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 1px solid rgba(57,224,122,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: var(--green); flex-shrink: 0;
+  }
+  .step.active .step-n { background: var(--green); color: #060f0a; border-color: var(--green); box-shadow: 0 0 10px rgba(57,224,122,0.4); }
+  .step.done .step-n { background: var(--green); color: #060f0a; border-color: var(--green); font-size: 12px; }
+  .step-lbl { font-size: 11px; color: rgba(245,240,232,0.35); font-weight: 500; }
+  .step.active .step-lbl, .step.done .step-lbl { color: rgba(245,240,232,0.8); }
+  .step-line { width: 24px; height: 1px; background: rgba(57,224,122,0.18); }
 
-  .mode-toggle { display:flex; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:20px; }
-  .mode-btn { flex:1; padding:12px; border:none; cursor:pointer; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; transition:all .2s; background:transparent; color:rgba(245,240,232,.4); }
-  .mode-btn.dk { background:var(--navy2); color:var(--gold2); }
-  .mode-btn.lt { background:#f5f0e8; color:#050d1e; }
+  /* ── Main ── */
+  .main { flex: 1; max-width: 960px; margin: 0 auto; padding: 0 24px 80px; width: 100%; }
 
-  .upload-zone { border:2px dashed var(--border); border-radius:14px; padding:36px 20px; text-align:center; cursor:pointer; transition:all .2s; position:relative; overflow:hidden; }
-  .upload-zone:hover, .upload-zone.drag { border-color:var(--gold); background:rgba(201,146,10,.04); }
-  .upload-zone input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
-  .up-icon { font-size:36px; margin-bottom:10px; }
-  .up-title { font-family:'Cinzel',serif; font-size:14px; font-weight:700; color:var(--gold2); margin-bottom:5px; }
-  .up-sub { font-size:12px; color:rgba(245,240,232,.4); }
-  .photo-row { display:flex; align-items:center; gap:16px; }
-  .photo-row img { width:110px; height:110px; object-fit:cover; border-radius:12px; border:2px solid var(--gold); display:block; flex-shrink:0; }
-  .photo-rm { padding:6px 14px; background:#c0392b; border:none; color:#fff; border-radius:6px; font-size:12px; cursor:pointer; font-family:'Space Grotesk',sans-serif; }
-  .photo-info { font-size:13px; color:rgba(245,240,232,.5); line-height:1.7; }
+  /* Panel */
+  .panel {
+    background: rgba(10,26,15,0.7);
+    border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden; margin-bottom: 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(57,224,122,0.06);
+  }
+  .phead {
+    background: linear-gradient(135deg, rgba(10,26,15,0.95), rgba(9,22,34,0.8));
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px; display: flex; align-items: center; gap: 12px;
+  }
+  .picon {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: var(--glass2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; flex-shrink: 0;
+  }
+  .ptitle {
+    font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700;
+    color: var(--green); letter-spacing: 0.05em;
+  }
+  .pdesc { font-size: 11px; color: rgba(245,240,232,0.38); margin-top: 2px; }
+  .pbody { padding: 24px; }
 
-  .btn-gen { width:100%; padding:17px; margin-top:20px; background:linear-gradient(135deg,var(--gold) 0%,var(--navy3) 120%); border:none; border-radius:14px; color:#fff; font-family:'Cinzel',serif; font-size:15px; font-weight:700; letter-spacing:.06em; cursor:pointer; box-shadow:0 8px 28px rgba(201,146,10,.28); transition:all .2s; }
-  .btn-gen:hover { transform:translateY(-2px); box-shadow:0 12px 36px rgba(201,146,10,.38); }
-  .btn-gen:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+  /* Inputs */
+  .tick-row { display: flex; gap: 10px; }
+  .tick-in {
+    flex: 1; padding: 13px 16px;
+    background: rgba(57,224,122,0.04); border: 1.5px solid var(--border);
+    border-radius: 9px; color: var(--cream);
+    font-family: 'Inter', sans-serif; font-size: 14px;
+    letter-spacing: 0.06em; outline: none; transition: border-color .2s;
+    text-transform: uppercase;
+  }
+  .tick-in:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(57,224,122,0.08); }
+  .tick-in::placeholder { text-transform: none; color: rgba(245,240,232,0.22); letter-spacing: 0; }
 
-  .preview { text-align:center; animation:fadeUp .5s ease both; }
-  .preview-lbl { font-family:'Cinzel',serif; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); margin-bottom:18px; }
-  .card-wrap { display:inline-block; max-width:340px; width:100%; border-radius:20px; overflow:hidden; box-shadow:0 28px 72px rgba(0,0,0,.65),0 0 0 1px rgba(201,146,10,.18); }
-  .card-wrap img { width:100%; display:block; }
+  .btn-fetch {
+    padding: 13px 20px;
+    background: linear-gradient(135deg, var(--green), #1a7a40);
+    border: none; border-radius: 9px; color: #060f0a;
+    font-family: 'Cinzel', serif; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.06em; cursor: pointer; white-space: nowrap;
+    box-shadow: 0 2px 14px rgba(57,224,122,0.22); transition: all .2s;
+  }
+  .btn-fetch:hover { box-shadow: 0 4px 20px rgba(57,224,122,0.35); transform: translateY(-1px); }
+  .btn-fetch:disabled { opacity: .4; cursor: not-allowed; transform: none; }
 
-  .act-row { display:flex; gap:12px; margin-top:22px; justify-content:center; flex-wrap:wrap; }
-  .btn-dl { padding:14px 28px; background:linear-gradient(135deg,var(--gold),var(--navy3)); border:none; border-radius:10px; color:#fff; font-family:'Cinzel',serif; font-size:13px; font-weight:700; letter-spacing:.04em; cursor:pointer; box-shadow:0 4px 18px rgba(201,146,10,.3); transition:all .2s; }
-  .btn-dl:hover { transform:translateY(-2px); }
-  .btn-sec { padding:14px 28px; background:transparent; border:1.5px solid var(--border); border-radius:10px; color:rgba(245,240,232,.6); font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:500; cursor:pointer; transition:all .2s; }
-  .btn-sec:hover { border-color:var(--gold); color:var(--gold); }
+  /* Delegate card */
+  .del-card {
+    display: flex; align-items: center; gap: 14px; padding: 14px;
+    background: rgba(57,224,122,0.05); border: 1px solid rgba(57,224,122,0.22);
+    border-radius: 10px; margin-top: 14px; animation: fadeUp .3s ease both;
+  }
+  .del-av {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--glass2); border: 1.5px solid var(--green);
+    display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+  }
+  .del-name { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; color: var(--cream); margin-bottom: 3px; }
+  .del-meta { font-size: 11px; color: rgba(245,240,232,0.45); }
+  .del-id { margin-left: auto; font-family: monospace; font-size: 11px; color: var(--green); letter-spacing: .08em; flex-shrink: 0; }
+  .err { margin-top: 12px; padding: 11px 15px; background: rgba(192,57,43,.08); border: 1px solid rgba(192,57,43,.3); border-radius: 8px; color: #e74c3c; font-size: 12px; }
 
-  .cap-box { margin:22px auto 0; padding:18px 22px; background:var(--glass); border:1px solid var(--border); border-radius:14px; max-width:420px; text-align:left; }
-  .cap-lbl { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); font-weight:600; margin-bottom:10px; }
-  .cap-txt { font-size:13px; color:rgba(245,240,232,.7); line-height:1.65; user-select:all; white-space:pre-line; }
-  .btn-copy { margin-top:12px; padding:8px 18px; background:rgba(255,255,255,.05); border:1px solid var(--border); border-radius:6px; color:var(--gold2); font-size:12px; cursor:pointer; transition:all .2s; font-family:'Space Grotesk',sans-serif; }
-  .btn-copy:hover { background:rgba(201,146,10,.1); }
+  /* Mode toggle */
+  .mode-toggle { display: flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; margin-bottom: 18px; }
+  .mode-btn {
+    flex: 1; padding: 11px; border: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+    transition: all .2s; background: transparent; color: rgba(245,240,232,0.35);
+    letter-spacing: 0.04em;
+  }
+  .mode-btn.dk { background: var(--navy2); color: var(--green); border-bottom: 2px solid var(--green); }
+  .mode-btn.lt { background: #f5f0e8; color: #060f0a; border-bottom: 2px solid #060f0a; }
 
-  @keyframes fadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+  /* Upload */
+  .upload-zone {
+    border: 1.5px dashed rgba(57,224,122,0.25); border-radius: 12px;
+    padding: 32px 20px; text-align: center; cursor: pointer;
+    transition: all .2s; background: var(--glass);
+  }
+  .upload-zone:hover, .upload-zone.drag {
+    border-color: var(--green); background: var(--glass2);
+    box-shadow: 0 0 20px rgba(57,224,122,0.08);
+  }
+  .up-icon { font-size: 32px; margin-bottom: 10px; }
+  .up-title { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; color: var(--green); margin-bottom: 4px; }
+  .up-sub { font-size: 11px; color: rgba(245,240,232,0.35); }
+  .photo-row { display: flex; align-items: center; gap: 16px; }
+  .photo-row img { width: 100px; height: 100px; object-fit: cover; border-radius: 10px; border: 1.5px solid var(--green); display: block; flex-shrink: 0; box-shadow: 0 0 14px rgba(57,224,122,0.15); }
+  .photo-rm { padding: 6px 12px; background: rgba(192,57,43,0.85); border: none; color: #fff; border-radius: 6px; font-size: 11px; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 600; }
+  .photo-info { font-size: 12px; color: rgba(245,240,232,0.45); line-height: 1.7; }
+
+  /* Generate button */
+  .btn-gen {
+    width: 100%; padding: 15px; margin-top: 18px;
+    background: linear-gradient(135deg, var(--gold) 0%, #1a3a6b 120%);
+    border: none; border-radius: 12px; color: #fff;
+    font-family: 'Bebas Neue', sans-serif; font-size: 18px;
+    letter-spacing: 0.12em; cursor: pointer;
+    box-shadow: 0 6px 24px rgba(201,146,10,0.25); transition: all .2s;
+  }
+  .btn-gen:hover { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(201,146,10,0.35); }
+  .btn-gen:disabled { opacity: .38; cursor: not-allowed; transform: none; }
+
+  /* Preview */
+  .preview { text-align: center; animation: fadeUp .5s ease both; }
+  .preview-lbl {
+    font-family: 'Bebas Neue', sans-serif; font-size: 14px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--green); margin-bottom: 20px;
+  }
+  .card-wrap {
+    display: inline-block; max-width: 320px; width: 100%;
+    border-radius: 18px; overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(57,224,122,0.14), 0 0 40px rgba(57,224,122,0.06);
+  }
+  .card-wrap img { width: 100%; display: block; }
+
+  /* Action buttons */
+  .act-row { display: flex; gap: 10px; margin-top: 20px; justify-content: center; flex-wrap: wrap; }
+  .btn-share {
+    padding: 12px 22px;
+    background: linear-gradient(135deg, var(--green), #1a7a40);
+    border: none; border-radius: 9px; color: #060f0a;
+    font-family: 'Bebas Neue', sans-serif; font-size: 15px;
+    letter-spacing: 0.1em; cursor: pointer;
+    box-shadow: 0 3px 16px rgba(57,224,122,0.22); transition: all .2s;
+  }
+  .btn-share:hover { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(57,224,122,0.32); }
+  .btn-dl {
+    padding: 12px 22px;
+    background: linear-gradient(135deg, var(--gold), #1a3a6b);
+    border: none; border-radius: 9px; color: #fff;
+    font-family: 'Bebas Neue', sans-serif; font-size: 15px;
+    letter-spacing: 0.1em; cursor: pointer;
+    box-shadow: 0 3px 16px rgba(201,146,10,0.22); transition: all .2s;
+  }
+  .btn-dl:hover { transform: translateY(-1px); }
+  .btn-sec {
+    padding: 12px 18px; background: transparent;
+    border: 1px solid var(--border); border-radius: 9px;
+    color: rgba(245,240,232,0.5); font-family: 'Inter', sans-serif;
+    font-size: 12px; font-weight: 500; cursor: pointer; transition: all .2s;
+  }
+  .btn-sec:hover { border-color: var(--green); color: var(--green); }
+
+  /* Caption box */
+  .cap-box {
+    margin: 20px auto 0; padding: 16px 20px;
+    background: rgba(10,26,15,0.6); border: 1px solid var(--border);
+    border-radius: 12px; max-width: 380px; text-align: left;
+  }
+  .cap-lbl { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--green); font-weight: 600; margin-bottom: 8px; font-family: 'Inter', sans-serif; }
+  .cap-txt { font-size: 12px; color: rgba(245,240,232,0.62); line-height: 1.65; user-select: all; white-space: pre-line; }
+  .btn-copy {
+    margin-top: 10px; padding: 7px 16px;
+    background: var(--glass2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--green); font-size: 11px;
+    cursor: pointer; transition: all .2s; font-family: 'Inter', sans-serif; font-weight: 600;
+  }
+  .btn-copy:hover { background: rgba(57,224,122,0.12); }
+
+  /* Footer dot strip */
+  .footer-dots { display: flex; justify-content: center; gap: 5px; padding: 20px 0 0; }
+  .footer-dots span { width: 4px; height: 4px; border-radius: 50%; background: rgba(57,224,122,0.3); display: block; }
+  .footer-dots span:nth-child(3n) { background: rgba(201,146,10,0.4); }
+
+  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
   @media(max-width:480px) { .tick-row{flex-direction:column} .del-id{display:none} }
 `;
 
@@ -507,6 +684,36 @@ export default function CardGenerator() {
     a.click();
   };
 
+  const handleShare = async () => {
+    if (!cardUrl) return;
+    try {
+      // Convert dataURL to blob for sharing
+      const res = await fetch(cardUrl);
+      const blob = await res.blob();
+      const file = new File([blob], `RUNSA-Summit-${delegate.name.split(" ")[0]}.jpg`, { type: "image/jpeg" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "RUNSA Legislative Summit 2026",
+          text: caption,
+        });
+      } else if (navigator.share) {
+        // Fallback — share without file (some browsers)
+        await navigator.share({ title: "RUNSA Legislative Summit 2026", text: caption, url: REG_SITE });
+      } else {
+        // Desktop fallback — copy caption + download
+        await navigator.clipboard.writeText(caption);
+        handleDownload();
+        alert("Caption copied! Image downloaded — paste caption when sharing.");
+      }
+    } catch (e) {
+      if (e.name !== "AbortError") {
+        // User cancelled — that's fine
+        console.error("Share failed:", e);
+      }
+    }
+  };
+
   const caption = delegate
     ? `🏛️ I'm attending the RUNSA Legislative Summit 2026!\n\n"The Catalyst of Transformation: Legislating the Future for Democratic Leadership"\n\n📍 @ Redeemer's University, Ede\n📅 29th April, 2026\n\n🎫 Register here: ${REG_SITE}\n\n#RUNSASummit2026 #LegislativeCouncil #RUNSA #RUN`
     : "";
@@ -533,7 +740,7 @@ export default function CardGenerator() {
             <img src="/legislative-council-logo.jpg" alt="" className="hdr-logo"
               onError={e => e.target.style.display = "none"} />
             <div>
-              <div className="hdr-title">Redeemer's University Students' Association · Legislative Council</div>
+              <div className="hdr-title">RUNSA · Legislative Council</div>
               <div className="hdr-sub">Summit Card Generator</div>
             </div>
           </div>
@@ -543,7 +750,7 @@ export default function CardGenerator() {
         <div className="hero">
           <div className="badge">Summit 2026 · Card Generator</div>
           <h1>Show the World<br />You're In.</h1>
-          <p>Generate your personal attendee card for the RUNSA Legislative Summit 2026. Share it. Let the hype build. 🔥</p>
+          <p>Generate your personal attendee card for the RUNSA Legislative Summit 2026. Share it. Drive the hype.</p>
           <div className="steps">
             {steps.map((s, i) => (
               <div key={s.n} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -659,12 +866,13 @@ export default function CardGenerator() {
               </div>
 
               <div className="act-row">
-                <button className="btn-dl" onClick={handleDownload}>⬇ Download Card</button>
+                <button className="btn-share" onClick={handleShare}>📤 Share Card</button>
+                <button className="btn-dl" onClick={handleDownload}>⬇ Download</button>
                 <button className="btn-sec" onClick={() => {
                   setCardMode(m => m === "dark" ? "light" : "dark");
                   setCardUrl(null);
                 }}>
-                  {cardMode === "dark" ? "☀️ Try Light Mode" : "🌙 Try Dark Mode"}
+                  {cardMode === "dark" ? "☀️ Light" : "🌙 Dark"}
                 </button>
                 <button className="btn-sec" onClick={() => {
                   setCardUrl(null); setPhoto(null); setDelegate(null); setTicketId("");
@@ -681,6 +889,11 @@ export default function CardGenerator() {
             </div>
           )}
 
+        </div>
+
+        {/* Footer dot strip — flyer inspired */}
+        <div className="footer-dots">
+          {Array.from({length: 20}).map((_,i) => <span key={i} />)}
         </div>
       </div>
     </>
