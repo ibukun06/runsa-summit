@@ -533,7 +533,7 @@ export default function CardGenerator() {
             <img src="/legislative-council-logo.jpg" alt="" className="hdr-logo"
               onError={e => e.target.style.display = "none"} />
             <div>
-              <div className="hdr-title">RUNSA · Legislative Council</div>
+              <div className="hdr-title">Redeemer's University Students' Association · Legislative Council</div>
               <div className="hdr-sub">Summit Card Generator</div>
             </div>
           </div>
