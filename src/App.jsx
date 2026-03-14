@@ -653,7 +653,7 @@ function RegisterView({ onRegister, T }) {
             </FormField>
             <FormField label="Tertiary Institution" error={errors.institution} T={T}>
               <input style={inputStyle(T, !!errors.institution)}
-                placeholder="e.g. Redeemers' University, Ede" value={form.institution}
+                placeholder="e.g. Redeemer's University Nigeria" value={form.institution}
                 onChange={e => { set("institution", e.target.value); clrErr("institution"); }} />
             </FormField>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:20 }}>
