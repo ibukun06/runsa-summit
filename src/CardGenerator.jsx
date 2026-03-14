@@ -470,6 +470,26 @@ export default function CardGenerator() {
     reader.readAsDataURL(file);
   };
 
+  // Robust file picker — creates a fresh input each time to avoid
+  // browser caching/double-fire issues on iOS, Android, Mac and Windows
+  const openFilePicker = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0;";
+    const cleanup = () => { try { document.body.removeChild(input); } catch {} };
+    input.onchange = e => {
+      const file = e.target.files?.[0];
+      if (file) handlePhoto(file);
+      cleanup();
+    };
+    input.addEventListener("cancel", cleanup);
+    // Fallback cleanup after 5 minutes
+    setTimeout(cleanup, 300000);
+    document.body.appendChild(input);
+    input.click();
+  };
+
   const handleGenerate = async () => {
     if (!delegate) return;
     setGenerating(true);
@@ -603,9 +623,7 @@ export default function CardGenerator() {
                     onDragOver={e => { e.preventDefault(); setDrag(true); }}
                     onDragLeave={() => setDrag(false)}
                     onDrop={e => { e.preventDefault(); setDrag(false); handlePhoto(e.dataTransfer.files[0]); }}
-                    onClick={() => fileRef.current?.click()}>
-                    <input ref={fileRef} type="file" accept="image/*"
-                      onChange={e => { if(e.target.files[0]) handlePhoto(e.target.files[0]); e.target.value=''; }} />
+                    onClick={openFilePicker}>
                     <div className="up-icon">📷</div>
                     <div className="up-title">Tap to upload your photo</div>
                     <div className="up-sub">JPG or PNG · Front-facing photo works best</div>
