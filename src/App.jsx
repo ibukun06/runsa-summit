@@ -332,7 +332,7 @@ export default function App() {
           borderTop:`2px solid ${BRAND.green}`, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
         <div style={{ textAlign:"center" }}>
           <p style={{ color:BRAND.green, fontFamily:"'Bebas Neue', sans-serif",
-            fontSize:22, letterSpacing:"0.18em" }}>LEGISLATIVE SUMMIT 2026</p>
+            fontSize:22, letterSpacing:"0.18em" }}>RUNSA LEGISLATIVE SUMMIT 2026</p>
           <p style={{ color:T.textMuted, fontSize:11, letterSpacing:"0.1em", marginTop:4 }}>LOADING...</p>
         </div>
       </div>
@@ -376,7 +376,7 @@ export default function App() {
               onError={e => e.target.style.display="none"} />
             <div>
               <div style={{ fontFamily:"'Bebas Neue', sans-serif", fontSize:18,
-                color: dark ? BRAND.green : BRAND.navyDark, lineHeight:1, letterSpacing:"0.1em" }}>RUNSA</div>
+                color: dark ? BRAND.green : BRAND.navyDark, lineHeight:1, letterSpacing:"0.1em" }}>Redeemer's University Students' Association</div>
               <div style={{ fontSize:9, color:T.textMuted, letterSpacing:"0.12em",
                 textTransform:"uppercase", lineHeight:1, marginTop:2 }}>Legislative Council</div>
             </div>
@@ -652,8 +652,8 @@ function RegisterView({ onRegister, T }) {
     "Speaker / President","Deputy Speaker / Vice President",
     "Chief Whip","Deputy Chief Whip",
     "Senate President","House Speaker","Committee Chair",
-    "Honourable Member","Senator / Representative",
-    "Secretary General","Financial Secretary","Other Legislative Officer",
+    "Honourable Member","Representative",
+    "Secretary General","Financial Secretary","Other Legislative Officer", "Student"
   ];
 
   return (
