@@ -582,17 +582,17 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
               )}
               {status === "notfound" && (
                 <p style={{ fontSize:13, color:T.textMuted, marginBottom:20, lineHeight:1.6 }}>
-                  This QR code is not registered in the RUNSA Legislative Summit system. Please see the registration desk.
+                  This QR code is not registered in the RUNSA Legislative Summit system. Please contact the registration unit.
                 </p>
               )}
               {status === "locked" && (
                 <p style={{ fontSize:13, color:T.textMuted, marginBottom:20, lineHeight:1.6 }}>
-                  Check-in is currently <strong style={{ color:"#e8b84b" }}>closed</strong>. The organising team will open it when ready. Please stand by.
+                  Check-in is currently <strong style={{ color:"#e8b84b" }}>closed</strong>. Please contact the registration unit. Thank you.
                 </p>
               )}
               {status === "already" && (
                 <p style={{ fontSize:13, color:T.textMuted, marginBottom:20, lineHeight:1.6 }}>
-                  This ticket was already used for entry. Do not grant admission without verification from the organising team.
+                  This ticket was already used for entry. Do not grant admission without verification from the registration unit.
                 </p>
               )}
               <div style={{
@@ -965,7 +965,7 @@ function ManualCheckin({ onSignIn, T }) {
     setBusy(true);
     const isOpen = await fbGetCheckinOpen();
     if (!isOpen) {
-      setResult({ ok: false, reason: "locked", msg: "Check-in is currently closed. The organising team will open it when ready." });
+      setResult({ ok: false, reason: "locked", msg: "Check-in is currently closed. Please contact registration unit." });
       setBusy(false);
       return;
     }
