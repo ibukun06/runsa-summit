@@ -344,7 +344,7 @@ export default function App() {
               onError={e => e.target.style.display="none"} />
             <div>
               <div style={{ fontFamily:"'Cinzel', serif", fontSize:15, fontWeight:700,
-                color: dark ? BRAND.goldLight : BRAND.navyDark, lineHeight:1.1 }}>RUNSA</div>
+                color: dark ? BRAND.goldLight : BRAND.navyDark, lineHeight:1.1 }}>Redeemer's University Students' Association</div>
               <div style={{ fontSize:10, color:T.textMuted, letterSpacing:"0.06em",
                 textTransform:"uppercase", lineHeight:1 }}>Legislative Council</div>
             </div>
@@ -588,8 +588,8 @@ function RegisterView({ onRegister, T }) {
     "Speaker / President","Deputy Speaker / Vice President",
     "Chief Whip","Deputy Chief Whip",
     "Senate President","House Speaker","Committee Chair",
-    "Honourable Member","Senator / Representative",
-    "Secretary General","Financial Secretary","Other Legislative Officer",
+    "Honourable Member","Representative",
+    "Secretary General","Financial Secretary","Other Legislative Officer", "Student"
   ];
 
   return (
