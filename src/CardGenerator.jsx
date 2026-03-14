@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const REG_SITE = "https://legislative-summit-registration.vercel.app";
@@ -128,7 +128,7 @@ async function renderCard(delegate, photoDataUrl, mode) {
   ctx.fillRect(0, 0, CW, CH);
 
   const PHOTO_H = Math.round(CH * 0.60); // top 60%
-  const PAD = 72;
+  const PAD = 68;  // matches corner margin of 36 + 32 buffer
 
   // ── PHOTO ZONE ────────────────────────────────────────────────────────────
   if (photoDataUrl) {
@@ -182,6 +182,15 @@ async function renderCard(delegate, photoDataUrl, mode) {
     ctx.fillRect(0, 0, CW, 250);
   }
 
+  // ── CORNER ACCENTS (drawn early so all content renders on top) ──────────────
+  ctx.strokeStyle = dark ? "rgba(201,146,10,0.52)" : "rgba(5,13,30,0.18)";
+  ctx.lineWidth = 6;
+  const CS2 = 110, CM2 = 36;
+  ctx.beginPath(); ctx.moveTo(CM2, CM2+CS2); ctx.lineTo(CM2,CM2); ctx.lineTo(CM2+CS2,CM2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CW-CM2-CS2,CM2); ctx.lineTo(CW-CM2,CM2); ctx.lineTo(CW-CM2,CM2+CS2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CM2,CH-CM2-CS2); ctx.lineTo(CM2,CH-CM2); ctx.lineTo(CM2+CS2,CH-CM2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CW-CM2-CS2,CH-CM2); ctx.lineTo(CW-CM2,CH-CM2); ctx.lineTo(CW-CM2,CH-CM2-CS2); ctx.stroke();
+
   // ── TOP BAR ───────────────────────────────────────────────────────────────
   // Logo
   try {
@@ -197,12 +206,12 @@ async function renderCard(delegate, photoDataUrl, mode) {
 
   // Org text top-right
   ctx.textAlign = "right";
-  ctx.font = "700 30px Arial, sans-serif";
+  ctx.font = "700 28px Arial, sans-serif";
   ctx.fillStyle = "rgba(232,184,75,0.92)";
-  ctx.fillText("RUNSA LEGISLATIVE COUNCIL", CW - PAD, 66);
-  ctx.font = "400 22px Arial, sans-serif";
+  ctx.fillText("RUNSA LEGISLATIVE COUNCIL", CW - 56, 68);
+  ctx.font = "400 20px Arial, sans-serif";
   ctx.fillStyle = "rgba(245,240,232,0.48)";
-  ctx.fillText("REDEEMER'S UNIVERSITY STUDENTS' ASSOCIATION", CW - PAD, 102);
+  ctx.fillText("REDEEMER'S UNIVERSITY STUDENTS' ASSOCIATION", CW - 56, 102);
 
   // ── ATTENDING BADGE ───────────────────────────────────────────────────────
   const BADGE_Y = PHOTO_H - 130;
@@ -222,17 +231,26 @@ async function renderCard(delegate, photoDataUrl, mode) {
   // ── INFO SECTION ──────────────────────────────────────────────────────────
   const INFO_START = PHOTO_H + 56;
 
-  // NAME — large, primary text
-  ctx.font = "900 110px Georgia, serif";
+  // NAME — adaptive size so long names never overflow
+  const nameMaxW = CW - PAD * 2;
+  let nameFontSize = 110;
+  ctx.font = `900 ${nameFontSize}px Georgia, serif`;
+  // Shrink font until name fits in 2 lines max
+  while (nameFontSize > 56) {
+    ctx.font = `900 ${nameFontSize}px Georgia, serif`;
+    const testLines = wrapText(ctx, delegate.name, nameMaxW);
+    if (testLines.length <= 2) break;
+    nameFontSize -= 6;
+  }
   ctx.fillStyle = TEXT;
   ctx.textAlign = "left";
   ctx.shadowColor = dark ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.08)";
   ctx.shadowBlur = 16;
-  const nameLines = wrapText(ctx, delegate.name, CW - PAD * 2);
-  const NLH = 118;
+  const nameLines = wrapText(ctx, delegate.name, nameMaxW);
+  const NLH = nameFontSize + 8;
   nameLines.forEach((line, i) => ctx.fillText(line, PAD, INFO_START + i * NLH));
   ctx.shadowBlur = 0;
-  const NAME_BOT = INFO_START + nameLines.length * NLH;
+  const NAME_BOT = INFO_START + nameLines.length * NLH + 8;
 
   // POSITION
   ctx.font = "700 40px Arial, sans-serif";
@@ -299,16 +317,7 @@ async function renderCard(delegate, photoDataUrl, mode) {
   ctx.textAlign = "left";
   ctx.font = "400 24px monospace";
   ctx.fillStyle = dark ? "rgba(201,146,10,0.38)" : "rgba(5,13,30,0.22)";
-  ctx.fillText(delegate.id, PAD, CH - 60);
-
-  // ── CORNER ACCENTS ────────────────────────────────────────────────────────
-  ctx.strokeStyle = dark ? "rgba(201,146,10,0.38)" : "rgba(5,13,30,0.12)";
-  ctx.lineWidth = 5;
-  const CS = 100, CM = 44;
-  ctx.beginPath(); ctx.moveTo(CM, CM + CS); ctx.lineTo(CM, CM); ctx.lineTo(CM + CS, CM); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CW-CM-CS, CM); ctx.lineTo(CW-CM, CM); ctx.lineTo(CW-CM, CM+CS); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CM, CH-CM-CS); ctx.lineTo(CM, CH-CM); ctx.lineTo(CM+CS, CH-CM); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CW-CM-CS, CH-CM); ctx.lineTo(CW-CM, CH-CM); ctx.lineTo(CW-CM, CH-CM-CS); ctx.stroke();
+  ctx.fillText(delegate.id, CM2 + 16, CH - CM2 - 10);
 
   return canvas;
 }
@@ -431,6 +440,13 @@ export default function CardGenerator() {
   const [cardUrl, setCardUrl]       = useState(null);
   const [copied, setCopied]         = useState(false);
   const fileRef = useRef(null);
+
+  // Auto-fill ticket ID if coming from registration page via ?prefill=RLS-XXXXX
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pre = params.get("prefill");
+    if (pre) setTicketId(pre.toUpperCase());
+  }, []);
 
   const step = !delegate ? 1 : !cardUrl ? 2 : 3;
 
@@ -585,7 +601,7 @@ export default function CardGenerator() {
                     onDrop={e => { e.preventDefault(); setDrag(false); handlePhoto(e.dataTransfer.files[0]); }}
                     onClick={() => fileRef.current?.click()}>
                     <input ref={fileRef} type="file" accept="image/*"
-                      onChange={e => handlePhoto(e.target.files[0])} />
+                      onChange={e => { if(e.target.files[0]) handlePhoto(e.target.files[0]); e.target.value=''; }} />
                     <div className="up-icon">📷</div>
                     <div className="up-title">Tap to upload your photo</div>
                     <div className="up-sub">JPG or PNG · Front-facing photo works best</div>

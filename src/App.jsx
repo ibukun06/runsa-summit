@@ -108,6 +108,23 @@ async function fbResetAll() {
   } catch (e) { console.error("Firebase reset error:", e); }
 }
 
+
+// ─── DATE LOCK ────────────────────────────────────────────────────────────────
+// Check-in is only allowed on 29th April 2026 (WAT = UTC+1)
+// Secret testmode bypass: add &testmode=LS2026 to any URL
+function isCheckinAllowed() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("testmode") === "LS2026") return { allowed: true, reason: "test" };
+  // WAT is UTC+1 — get current date in WAT
+  const now = new Date();
+  const wat = new Date(now.toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
+  const y = wat.getFullYear(), m = wat.getMonth() + 1, d = wat.getDate();
+  if (y === 2026 && m === 4 && d === 29) return { allowed: true, reason: "live" };
+  if (y < 2026 || (y === 2026 && m < 4) || (y === 2026 && m === 4 && d < 29))
+    return { allowed: false, reason: "before" };
+  return { allowed: false, reason: "after" };
+}
+
 // ─── QR CODE ──────────────────────────────────────────────────────────────────
 function QRCode({ data, size = 160, darkColor = "#0d1f3c" }) {
   const ref = useRef(null);
@@ -276,7 +293,7 @@ export default function App() {
         <div style={{ width:44, height:44, border:`3px solid ${T.border}`,
           borderTop:`3px solid ${T.gold}`, borderRadius:"50%", animation:"spin 0.9s linear infinite" }} />
         <p style={{ marginTop:16, color:T.gold, fontFamily:"'Cinzel', serif",
-          fontSize:14, letterSpacing:"0.08em" }}>RUNSA LEGISLATIVE SUMMIT 2026</p>
+          fontSize:14, letterSpacing:"0.06em", fontSize:12 }}>RUNSA LEGISLATIVE SUMMIT 2026</p>
       </div>
     </>
   );
@@ -315,7 +332,7 @@ export default function App() {
               onError={e => e.target.style.display="none"} />
             <div>
               <div style={{ fontFamily:"'Cinzel', serif", fontSize:15, fontWeight:700,
-                color: dark ? BRAND.goldLight : BRAND.navyDark, lineHeight:1.1 }}>Redeemer's University Students' Association</div>
+                color: dark ? BRAND.goldLight : BRAND.navyDark, lineHeight:1.1 }}>RUNSA</div>
               <div style={{ fontSize:10, color:T.textMuted, letterSpacing:"0.06em",
                 textTransform:"uppercase", lineHeight:1 }}>Legislative Council</div>
             </div>
@@ -376,7 +393,7 @@ export default function App() {
       <main style={{ minHeight:"calc(100vh - 64px)" }}>
         {view === "register" && <RegisterView onRegister={handleRegister} T={T} />}
         {view === "ticket" && (ticket
-          ? <TicketView ticket={ticket} onBack={() => setView("register")} T={T} />
+          ? <TicketView ticket={ticket} onBack={() => setView("register")} onCreateCard={() => { window.open("https://legislative-summit-registration.vercel.app/card?prefill=" + encodeURIComponent(ticket.id), "_blank"); }} T={T} />
           : <RegisterView onRegister={handleRegister} T={T} />)}
         {view === "checkin" && <ManualCheckin onSignIn={signIn} T={T} />}
         {view === "admin" && <AdminView regs={regs} onReset={resetAll} T={T} />}
@@ -412,6 +429,8 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
 
   useEffect(() => {
     if (!id) { setStatus("notfound"); return; }
+    const lock = isCheckinAllowed();
+    if (!lock.allowed) { setStatus(lock.reason === "before" ? "locked-before" : "locked-after"); return; }
     const t = setTimeout(async () => {
       const r = await onSignIn(id);
       if (r.ok) { setDelegate(r.delegate); setStatus("success"); }
@@ -422,10 +441,12 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
   }, [id]);
 
   const statusMap = {
-    loading:  { icon:"⏳", label:"Verifying ticket…", accent:"#888" },
-    success:  { icon:"✅", label:"Delegate Signed In", accent:"#2e9e5b" },
-    already:  { icon:"⚠️", label:"Already Signed In", accent:"#c97a10" },
-    notfound: { icon:"❌", label:"Invalid Ticket", accent:"#c0392b" },
+    loading:        { icon:"⏳", label:"Verifying ticket…", accent:"#888" },
+    success:        { icon:"✅", label:"Delegate Signed In", accent:"#2e9e5b" },
+    already:        { icon:"⚠️", label:"Already Signed In", accent:"#c97a10" },
+    notfound:       { icon:"❌", label:"Invalid Ticket", accent:"#c0392b" },
+    "locked-before":{ icon:"🔒", label:"Check-In Not Open Yet", accent:"#1a3a6b" },
+    "locked-after": { icon:"🔒", label:"Check-In Has Closed", accent:"#555" },
   };
   const s = statusMap[status];
 
@@ -486,6 +507,16 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
                   This QR code is not registered in the RUNSA Legislative Summit system. Please see the registration desk.
                 </p>
               )}
+              {status === "locked-before" && (
+                <p style={{ fontSize:13, color:T.textMuted, marginBottom:20, lineHeight:1.6 }}>
+                  Check-in opens on <strong style={{ color:"#e8b84b" }}>29th April 2026</strong>. Please come back on the day of the summit.
+                </p>
+              )}
+              {status === "locked-after" && (
+                <p style={{ fontSize:13, color:T.textMuted, marginBottom:20, lineHeight:1.6 }}>
+                  Check-in for the RUNSA Legislative Summit 2026 has closed. Thank you for attending.
+                </p>
+              )}
               {status === "already" && (
                 <p style={{ fontSize:13, color:T.textMuted, marginBottom:20, lineHeight:1.6 }}>
                   This ticket was already used for entry. Do not grant admission without verification from the organising team.
@@ -501,6 +532,8 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
                 {status === "success" && "✓ ENTRY GRANTED"}
                 {status === "already" && "⚠ DUPLICATE SCAN"}
                 {status === "notfound" && "✗ ENTRY DENIED"}
+                {status === "locked-before" && "🔒 NOT YET OPEN"}
+                {status === "locked-after" && "🔒 CHECK-IN CLOSED"}
               </div>
             </div>
           )}
@@ -699,7 +732,7 @@ function selectStyle(T, hasErr) {
 }
 
 // ─── TICKET VIEW ──────────────────────────────────────────────────────────────
-function TicketView({ ticket, onBack, T }) {
+function TicketView({ ticket, onBack, onCreateCard, T }) {
   return (
     <div style={{ maxWidth:1100, margin:"0 auto", padding:"40px 20px" }}>
       <div style={{ maxWidth:620, margin:"0 auto" }}>
@@ -770,20 +803,28 @@ function TicketView({ ticket, onBack, T }) {
         </div>
 
         <div style={{ display:"flex", gap:12, marginTop:20, flexWrap:"wrap" }} className="fade-up-3">
-          <button onClick={() => window.print()} style={{
-            flex:1, minWidth:160, padding:"13px 20px",
-            background:`linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})`,
+          <button onClick={onCreateCard} style={{
+            flex:1, minWidth:160, padding:"14px 20px",
+            background:`linear-gradient(135deg, ${BRAND.gold} 0%, ${BRAND.navy} 120%)`,
             color:"#fff", border:"none", borderRadius:10,
-            fontSize:14, fontWeight:600, cursor:"pointer",
+            fontSize:14, fontWeight:700, cursor:"pointer",
             fontFamily:"'Cinzel', serif", letterSpacing:"0.04em",
-            boxShadow:`0 4px 16px rgba(201,146,10,0.3)` }}>
-            🖨 Print / Save as PDF
+            boxShadow:`0 4px 20px rgba(201,146,10,0.35)` }}>
+            🎨 Create Attendance Card
           </button>
-          <button onClick={onBack} style={{
-            flex:1, minWidth:160, padding:"13px 20px",
+          <button onClick={() => window.print()} style={{
+            flex:1, minWidth:140, padding:"14px 20px",
             background:"transparent", border:`1.5px solid ${T.border}`,
             color:T.dark ? BRAND.goldLight : BRAND.navy,
-            borderRadius:10, fontSize:14, cursor:"pointer" }}>
+            borderRadius:10, fontSize:13, fontWeight:600, cursor:"pointer",
+            fontFamily:"'Cinzel', serif" }}>
+            🖨 Save as PDF
+          </button>
+          <button onClick={onBack} style={{
+            flex:1, minWidth:140, padding:"14px 20px",
+            background:"transparent", border:`1.5px solid ${T.border}`,
+            color:T.dark ? BRAND.goldLight : BRAND.navy,
+            borderRadius:10, fontSize:13, cursor:"pointer" }}>
             + Register Another
           </button>
         </div>
@@ -802,6 +843,14 @@ function ManualCheckin({ onSignIn, T }) {
 
   const handle = async () => {
     if (!input.trim() || busy) return;
+    const lock = isCheckinAllowed();
+    if (!lock.allowed) {
+      const msg = lock.reason === "before"
+        ? "Check-in is not open yet. It opens on 29th April 2026."
+        : "Check-in for the summit has closed.";
+      setResult({ ok: false, reason: "locked", msg });
+      return;
+    }
     setBusy(true);
     const raw = input.trim();
     const id = raw.includes("checkin=")
@@ -844,16 +893,19 @@ function ManualCheckin({ onSignIn, T }) {
           {result && (
             <div style={{
               padding:"20px", borderRadius:12, textAlign:"center",
-              background: result.ok ? "rgba(46,158,91,0.08)" : result.reason==="already" ? "rgba(201,122,16,0.08)" : "rgba(192,57,43,0.08)",
-              border:`1px solid ${result.ok ? "rgba(46,158,91,0.3)" : result.reason==="already" ? "rgba(201,122,16,0.3)" : "rgba(192,57,43,0.3)"}`,
-              color: result.ok ? "#2e9e5b" : result.reason==="already" ? "#c97a10" : "#c0392b",
+              background: result.ok ? "rgba(46,158,91,0.08)" : result.reason==="already" ? "rgba(201,122,16,0.08)" : result.reason==="locked" ? "rgba(26,58,107,0.12)" : "rgba(192,57,43,0.08)",
+              border:`1px solid ${result.ok ? "rgba(46,158,91,0.3)" : result.reason==="already" ? "rgba(201,122,16,0.3)" : result.reason==="locked" ? "rgba(26,58,107,0.4)" : "rgba(192,57,43,0.3)"}`,
+              color: result.ok ? "#2e9e5b" : result.reason==="already" ? "#c97a10" : result.reason==="locked" ? "#7bafd4" : "#c0392b",
             }} className="fade-up">
               <div style={{ fontSize:40, marginBottom:8 }}>
-                {result.ok ? "✅" : result.reason==="already" ? "⚠️" : "❌"}
+                {result.ok ? "✅" : result.reason==="already" ? "⚠️" : result.reason==="locked" ? "🔒" : "❌"}
               </div>
               <div style={{ fontFamily:"'Cinzel', serif", fontSize:16, fontWeight:700, marginBottom:8 }}>
-                {result.ok ? "Delegate Signed In" : result.reason==="already" ? "Already Signed In" : "Ticket Not Found"}
+                {result.ok ? "Delegate Signed In" : result.reason==="already" ? "Already Signed In" : result.reason==="locked" ? "Check-In Locked" : "Ticket Not Found"}
               </div>
+              {result.reason === "locked" && (
+                <div style={{ fontSize:13, color:T.textMuted, marginBottom:8 }}>{result.msg}</div>
+              )}
               {result.delegate && (
                 <>
                   <div style={{ fontFamily:"'EB Garamond', serif", fontSize:20, fontWeight:600,
