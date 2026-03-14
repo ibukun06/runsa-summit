@@ -128,7 +128,7 @@ async function renderCard(delegate, photoDataUrl, mode) {
   ctx.fillRect(0, 0, CW, CH);
 
   const PHOTO_H = Math.round(CH * 0.60); // top 60%
-  const PAD = 68;  // matches corner margin of 36 + 32 buffer
+  const PAD = 72;  // content padding — sits comfortably inside CM2=48 corners
 
   // ── PHOTO ZONE ────────────────────────────────────────────────────────────
   if (photoDataUrl) {
@@ -185,33 +185,37 @@ async function renderCard(delegate, photoDataUrl, mode) {
   // ── CORNER ACCENTS (drawn early so all content renders on top) ──────────────
   ctx.strokeStyle = dark ? "rgba(201,146,10,0.52)" : "rgba(5,13,30,0.18)";
   ctx.lineWidth = 6;
-  const CS2 = 110, CM2 = 36;
+  const CS2 = 120, CM2 = 48; // CM2=48 is the safe inner boundary
   ctx.beginPath(); ctx.moveTo(CM2, CM2+CS2); ctx.lineTo(CM2,CM2); ctx.lineTo(CM2+CS2,CM2); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(CW-CM2-CS2,CM2); ctx.lineTo(CW-CM2,CM2); ctx.lineTo(CW-CM2,CM2+CS2); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(CM2,CH-CM2-CS2); ctx.lineTo(CM2,CH-CM2); ctx.lineTo(CM2+CS2,CH-CM2); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(CW-CM2-CS2,CH-CM2); ctx.lineTo(CW-CM2,CH-CM2); ctx.lineTo(CW-CM2,CH-CM2-CS2); ctx.stroke();
 
-  // ── TOP BAR ───────────────────────────────────────────────────────────────
-  // Logo
+  // ── TOP BAR — logo + org text, all inside CM2=48 boundary ────────────────
+  // Logo: center at (CM2+22+44, CM2+22+44) = left edge at CM2+22, top at CM2+22
+  const LOGO_R = 44;           // radius
+  const LOGO_X = CM2 + 22 + LOGO_R;  // center x = 114
+  const LOGO_Y = CM2 + 22 + LOGO_R;  // center y = 114
   try {
     const logo = await loadImg("/legislative-council-logo.jpg");
     ctx.save();
-    ctx.beginPath(); ctx.arc(PAD + 50, 82, 50, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
-    ctx.drawImage(logo, PAD, 32, 100, 100);
+    ctx.beginPath(); ctx.arc(LOGO_X, LOGO_Y, LOGO_R, 0, Math.PI * 2); ctx.closePath(); ctx.clip();
+    ctx.drawImage(logo, LOGO_X - LOGO_R, LOGO_Y - LOGO_R, LOGO_R * 2, LOGO_R * 2);
     ctx.restore();
-    ctx.strokeStyle = "rgba(232,184,75,0.75)";
+    ctx.strokeStyle = "rgba(232,184,75,0.78)";
     ctx.lineWidth = 3.5;
-    ctx.beginPath(); ctx.arc(PAD + 50, 82, 50, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(LOGO_X, LOGO_Y, LOGO_R, 0, Math.PI * 2); ctx.stroke();
   } catch {}
 
-  // Org text top-right
+  // Org text — right-aligned to CM2+20 from right edge (inside corner)
+  const TEXT_RIGHT = CW - CM2 - 20;
   ctx.textAlign = "right";
-  ctx.font = "700 28px Arial, sans-serif";
+  ctx.font = "700 26px Arial, sans-serif";
   ctx.fillStyle = "rgba(232,184,75,0.92)";
-  ctx.fillText("RUNSA LEGISLATIVE COUNCIL", CW - 56, 68);
-  ctx.font = "400 20px Arial, sans-serif";
+  ctx.fillText("RUNSA LEGISLATIVE COUNCIL", TEXT_RIGHT, LOGO_Y - 10);
+  ctx.font = "400 19px Arial, sans-serif";
   ctx.fillStyle = "rgba(245,240,232,0.48)";
-  ctx.fillText("REDEEMER'S UNIVERSITY STUDENTS' ASSOCIATION", CW - 56, 102);
+  ctx.fillText("REDEEMER'S UNIVERSITY STUDENTS' ASSOCIATION", TEXT_RIGHT, LOGO_Y + 20);
 
   // ── ATTENDING BADGE ───────────────────────────────────────────────────────
   const BADGE_Y = PHOTO_H - 130;
@@ -317,7 +321,7 @@ async function renderCard(delegate, photoDataUrl, mode) {
   ctx.textAlign = "left";
   ctx.font = "400 24px monospace";
   ctx.fillStyle = dark ? "rgba(201,146,10,0.38)" : "rgba(5,13,30,0.22)";
-  ctx.fillText(delegate.id, CM2 + 16, CH - CM2 - 10);
+  ctx.fillText(delegate.id, CM2 + 20, CH - CM2 - 14);
 
   return canvas;
 }
