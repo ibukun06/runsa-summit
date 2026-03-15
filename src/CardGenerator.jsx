@@ -257,13 +257,17 @@ async function renderCard(delegate, photoDataUrl, mode) {
   ctx.fillStyle = GOLD2;
   ctx.fillText("I'M ATTENDING", PAD+42, BADGE_Y+bH/2+8);
 
-  // ── SPACE BUDGET LAYOUT ───────────────────────────────────────────────────
+  // ── QR CODE SPACE BUDGET LAYOUT ───────────────────────────────────────────────────
   const QR_SIZE    = 160;
   const QR_PAD     = 12;
   const QR_CARD_W  = QR_SIZE + QR_PAD * 2;
   const QR_CARD_H  = QR_SIZE + QR_PAD * 2;
+  // Right edge of QR card = TR_X (same as text right boundary)
   const QR_X       = CW - CM - INNER_GAP - QR_CARD_W;
   const TEXT_MAX   = QR_X - PAD - 28;
+  // QR bottom = QR_BOTTOM_MAX (same gap from bottom corner as logo from top corner)
+  const QR_Y       = QR_BOTTOM_MAX - QR_CARD_H;
+
 
   // ── ANCHOR FROM BOTTOM UP ─────────────────────────────────────────────────
   // Date bottom = same gap from bottom-right corner as logo top from top-left corner
@@ -357,7 +361,7 @@ async function renderCard(delegate, photoDataUrl, mode) {
 
   return canvas;
 }
-
+    
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 const CSS = `
