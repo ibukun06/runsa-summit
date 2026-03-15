@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const BASE_URL = "https://legislative-summit-registration.vercel.app";
 const ADMIN_PIN = "LS2026";
-const CHECKIN_PIN = "290326"; // separate PIN to toggle check-in
+const CHECKIN_PIN = "290426"; // separate PIN to toggle check-in
 
 // ─── FIREBASE CONFIG ──────────────────────────────────────────────────────────
 // Free Firestore database — shared across ALL devices in real time
