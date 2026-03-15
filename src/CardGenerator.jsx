@@ -257,34 +257,67 @@ async function renderCard(delegate, photoDataUrl, mode) {
   ctx.fillStyle = GOLD2;
   ctx.fillText("I'M ATTENDING", PAD+42, BADGE_Y+bH/2+8);
 
-  // ── NAME ──────────────────────────────────────────────────────────────────
-  const INFO_Y = PHOTO_H + 44;
+  // ── SPACE BUDGET LAYOUT ───────────────────────────────────────────────────
+  const QR_SIZE    = 160;
+  const QR_PAD     = 12;
+  const QR_CARD_W  = QR_SIZE + QR_PAD * 2;
+  const QR_CARD_H  = QR_SIZE + QR_PAD * 2;
+  const QR_X       = CW - CM - INNER_GAP - QR_CARD_W;
+  const TEXT_MAX   = QR_X - PAD - 28;
+
+  // ── ANCHOR FROM BOTTOM UP ─────────────────────────────────────────────────
+  // Date bottom = same gap from bottom-right corner as logo top from top-left corner
+  // = CH - CM - INNER_GAP  (= 1288 for CH=1350, CM=44, INNER_GAP=18)
+  const DATE_BOTTOM = CH - CM - INNER_GAP;      // 1288
+  const DATE_SIZE   = 26;
+  const DATE_Y      = DATE_BOTTOM - 4;           // baseline of date text
+
+  const LOC_SIZE    = 32;
+  const LOC_Y       = DATE_Y - DATE_SIZE - 10;   // baseline of location, 10px above date
+
+  const EV_SIZE     = 48;
+  const EVT_GAP     = 24;
+  const EV_BASELINE = LOC_Y - LOC_SIZE - EVT_GAP; // baseline of event title bottom line
+
+  const DIV_Y       = EV_BASELINE - EV_SIZE - 20; // divider just above event title
+
+  // QR card top = same as event title top
+  const QR_Y        = EV_BASELINE - EV_SIZE - 8;
+
+  // ── NAME — fit between PHOTO_H and DIV_Y ─────────────────────────────────
+  const INFO_START  = PHOTO_H + 36;
+  // Space for: name + gap(12) + position(36) + gap(10) + institution(30) + gap(16) to DIV
+  const FIXED_BELOW = 12 + 36 + 10 + 30 + 16;   // = 104
+  const NAME_BUDGET = DIV_Y - INFO_START - FIXED_BELOW;
+
   const nameMaxW = CW - PAD * 2;
-  let nfs = 88;
-  ctx.font = `900 ${nfs}px Georgia, serif`;
-  while (nfs > 48) {
+  let nfs = 86;
+  while (nfs > 40) {
     ctx.font = `900 ${nfs}px Georgia, serif`;
-    if (wrapText(ctx, delegate.name, nameMaxW).length <= 2) break;
-    nfs -= 5;
+    const lines = wrapText(ctx, delegate.name, nameMaxW);
+    if (lines.length <= 2 && lines.length * (nfs + 4) <= NAME_BUDGET) break;
+    nfs -= 4;
   }
+  const NLH = nfs + 4;
+  const nameLines = wrapText(ctx, delegate.name, nameMaxW);
+
   ctx.fillStyle = TEXT; ctx.textAlign = "left";
   ctx.shadowColor = dark ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.1)"; ctx.shadowBlur = 12;
-  const nameLines = wrapText(ctx, delegate.name, nameMaxW);
-  const NLH = nfs + 6;
-  nameLines.forEach((l, i) => ctx.fillText(l, PAD, INFO_Y + i * NLH));
+  nameLines.forEach((l, i) => ctx.fillText(l, PAD, INFO_START + (i + 1) * NLH));
   ctx.shadowBlur = 0;
-  const NAME_BOT = INFO_Y + nameLines.length * NLH + 4;
+  const NAME_BOT = INFO_START + nameLines.length * NLH;
 
-  // ── POSITION + INSTITUTION ────────────────────────────────────────────────
-  ctx.font = "700 34px Arial, sans-serif";
+  // ── POSITION (tight gap below name) ──────────────────────────────────────
+  ctx.font = "700 32px Arial, sans-serif";
   ctx.fillStyle = GOLD2;
-  ctx.fillText(delegate.position.toUpperCase(), PAD, NAME_BOT + 42);
-  ctx.font = "400 28px Arial, sans-serif";
+  ctx.fillText(delegate.position.toUpperCase(), PAD, NAME_BOT + 12 + 36);
+
+  // ── INSTITUTION ───────────────────────────────────────────────────────────
+  ctx.font = "400 26px Arial, sans-serif";
   ctx.fillStyle = MUTED;
-  ctx.fillText(delegate.institution, PAD, NAME_BOT + 84);
+  ctx.fillText(delegate.institution, PAD, NAME_BOT + 12 + 36 + 10 + 30);
 
   // ── DIVIDER ───────────────────────────────────────────────────────────────
-  const DIV_Y = NAME_BOT + 118;
   const dg = ctx.createLinearGradient(PAD, DIV_Y, CW-PAD, DIV_Y);
   dg.addColorStop(0, DIV);
   dg.addColorStop(0.6, dark ? "rgba(201,146,10,0.12)" : "rgba(201,146,10,0.1)");
@@ -292,39 +325,25 @@ async function renderCard(delegate, photoDataUrl, mode) {
   ctx.strokeStyle = dg; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(PAD, DIV_Y); ctx.lineTo(CW-PAD, DIV_Y); ctx.stroke();
 
-  // ── QR position — respects corner gap exactly ─────────────────────────────
-  const QR_SIZE    = 160;
-  const QR_PAD     = 12;
-  const QR_CARD_W  = QR_SIZE + QR_PAD * 2;
-  const QR_CARD_H  = QR_SIZE + QR_PAD * 2;
-  // Right edge of QR card = TR_X (same as text right boundary)
-  const QR_X       = CW - CM - INNER_GAP - QR_CARD_W;
-  const TEXT_MAX   = QR_X - PAD - 28;
-  // QR bottom = QR_BOTTOM_MAX (same gap from bottom corner as logo from top corner)
-  const QR_Y       = QR_BOTTOM_MAX - QR_CARD_H;
-
-  // ── EVENT TITLE ───────────────────────────────────────────────────────────
-  const EV_Y = DIV_Y + 36;
-  ctx.font = "700 50px Arial Black, Arial, sans-serif";
-  const etg = ctx.createLinearGradient(PAD, EV_Y, PAD + TEXT_MAX, EV_Y);
+  // ── EVENT TITLE (anchored from bottom) ────────────────────────────────────
+  ctx.font = `700 ${EV_SIZE}px Arial Black, Arial, sans-serif`;
+  const etg = ctx.createLinearGradient(PAD, EV_BASELINE - EV_SIZE, PAD + TEXT_MAX, EV_BASELINE);
   etg.addColorStop(0, GOLD3); etg.addColorStop(1, dark ? GOLD2 : GOLD);
   ctx.fillStyle = etg; ctx.textAlign = "left";
-  const evLines = wrapText(ctx, "LEGISLATIVE SUMMIT 2026", TEXT_MAX);
-  evLines.forEach((l, i) => ctx.fillText(l, PAD, EV_Y + 50 + i * 58));
-  const EV_BOT = EV_Y + evLines.length * 58 + 50;
+  // Single line — if wraps, show first line only to guarantee no overflow
+  ctx.fillText("LEGISLATIVE SUMMIT 2026", PAD, EV_BASELINE);
 
-  // ── LOCATION + DATE — LOUD AND SHARP ─────────────────────────────────────
-  // University name — bold, full colour, not muted
-  ctx.font = "700 34px Arial, sans-serif";
+  // ── LOCATION — anchored, bold ──────────────────────────────────────────────
+  ctx.font = `700 ${LOC_SIZE}px Arial, sans-serif`;
   ctx.fillStyle = LOC;
-  ctx.fillText("REDEEMER'S UNIVERSITY, EDE", PAD, EV_BOT + 22);
+  ctx.fillText("REDEEMER'S UNIVERSITY, EDE", PAD, LOC_Y);
 
-  // Date — semi-bold, slightly smaller
-  ctx.font = "600 28px Arial, sans-serif";
+  // ── DATE — anchored exactly at bottom gap ─────────────────────────────────
+  ctx.font = `600 ${DATE_SIZE}px Arial, sans-serif`;
   ctx.fillStyle = LOC2;
-  ctx.fillText("29th April, 2026", PAD, EV_BOT + 62);
+  ctx.fillText("29th April, 2026", PAD, DATE_Y);
 
-  // ── QR CODE ───────────────────────────────────────────────────────────────
+  // ── QR CODE — fixed position, bottom right ────────────────────────────────
   const qrURL = delegate.qrURL || `${REG_SITE}?checkin=${delegate.id}`;
   const qrImg = await generateQRImage(qrURL, 220);
   if (qrImg) {
