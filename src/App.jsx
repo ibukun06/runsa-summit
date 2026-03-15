@@ -238,9 +238,14 @@ function GlobalStyles({ dark }) {
 
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [dark, setDark] = useState(() =>
-    window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true
-  );
+  const [dark, setDark] = useState(() => {
+    // Check localStorage first — user's explicit choice beats system preference
+    const saved = localStorage.getItem("runsa-theme");
+    if (saved === "light") return false;
+    if (saved === "dark") return true;
+    // Fall back to system preference
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
+  });
   const [regs, setRegs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("register");
@@ -254,8 +259,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Only follow system changes if user has NOT made an explicit choice
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = e => setDark(e.matches);
+    const handler = e => {
+      const saved = localStorage.getItem("runsa-theme");
+      if (!saved) setDark(e.matches); // no saved choice — follow system
+    };
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
@@ -405,7 +414,7 @@ export default function App() {
                 boxShadow: view === n.key ? "0 2px 12px rgba(201,146,10,0.25)" : "none",
               }}>{n.label}</button>
             ))}
-            <button onClick={() => setDark(d => !d)} style={{
+            <button onClick={() => { const nd = !dark; setDark(nd); localStorage.setItem("runsa-theme", nd ? "dark" : "light"); }} style={{
               marginLeft:6, padding:"6px 10px", borderRadius:6,
               border:`1px solid ${dark ? "rgba(26,58,107,0.45)" : "rgba(26,58,107,0.15)"}`,
               background:"transparent", cursor:"pointer", fontSize:13, fontWeight:500,
@@ -704,21 +713,24 @@ function RegisterView({ onRegister, T }) {
             fontFamily:"'Bebas Neue', sans-serif",
             fontSize:"clamp(48px, 10vw, 96px)",
             lineHeight:0.95, letterSpacing:"0.04em",
-            background: T.dark
-              ? "linear-gradient(135deg, #f5d57a 0%, #e8b84b 40%, #ffffff 100%)"
-              : "linear-gradient(135deg, #c9920a 0%, #0d1f3c 100%)",
-            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-            backgroundClip:"text",
+            // Use -webkit-text-fill-color only on dark — on light use plain color
+            ...(T.dark ? {
+              background: "linear-gradient(135deg, #f5d57a 0%, #e8b84b 40%, #ffffff 100%)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text",
+            } : {
+              color: BRAND.gold,  // solid gold on light — always visible
+            }),
           }}>LEGISLATIVE</div>
           <div style={{
             fontFamily:"'Bebas Neue', sans-serif",
             fontSize:"clamp(48px, 10vw, 96px)",
             lineHeight:0.95, letterSpacing:"0.04em",
-            background: T.dark
-              ? "linear-gradient(135deg, #39e07a 0%, #e8b84b 100%)"
-              : "linear-gradient(135deg, #1a7a40 0%, #1a3a6b 100%)",
-            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-            backgroundClip:"text",
+            ...(T.dark ? {
+              background: "linear-gradient(135deg, #39e07a 0%, #e8b84b 100%)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text",
+            } : {
+              color: BRAND.navy,  // solid deep navy on light — bold and clear
+            }),
           }}>SUMMIT 2026</div>
         </div>
         {/* Theme band — like the white band on the flyer */}
