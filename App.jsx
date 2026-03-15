@@ -666,13 +666,13 @@ function RegisterView({ onRegister, T }) {
     setBusy(false);
   };
 
-  const levels = ["100 Level","200 Level","300 Level","400 Level","500 Level","600 Level","Postgraduate"];
+  const levels = ["100 Level","200 Level","300 Level","400 Level","500 Level","600 Level","ND","HND"];
   const positions = [
     "Speaker / President","Deputy Speaker / Vice President",
     "Chief Whip","Deputy Chief Whip",
-    "Senate President","House Speaker","Committee Chair",
-    "Honourable Member","Representative",
-    "Secretary General","Financial Secretary","Other Legislative Officer", "Student"
+    "Senate President","Secretary General","Committee Chair",
+    "Financial Secretary","Other Legislative Officer"
+    "Honourable Member","Departmental Representative","Student","Staff"
   ];
 
   return (
