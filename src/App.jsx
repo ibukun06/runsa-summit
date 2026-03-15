@@ -670,7 +670,7 @@ function RegisterView({ onRegister, T }) {
     "Speaker / President","Deputy Speaker / Vice President",
     "Chief Whip","Deputy Chief Whip",
     "Senate President","Secretary General","Committee Chair",
-    "Financial Secretary","Other Legislative Officer"
+    "Financial Secretary","Other Legislative Officer",
     "Honourable Member","Departmental Representative","Student","Staff"
   ];
 
