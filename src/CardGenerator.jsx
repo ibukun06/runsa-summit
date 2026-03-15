@@ -109,109 +109,141 @@ function drawSmartCover(ctx, img, x, y, w, h) {
 
 // ─── CARD RENDERER ────────────────────────────────────────────────────────────
 async function renderCard(delegate, photoDataUrl, mode) {
-  // Bottom panel ALWAYS dark navy — fixes light mode photo quality issue
-  // Light mode only affects top vignette opacity (slightly less dark)
-  const lightMode = mode === "light";
+  const dark = mode === "dark";
 
   const GOLD   = "#c9920a";
   const GOLD2  = "#e8b84b";
   const GOLD3  = "#f5d57a";
   const GREEN  = "#39e07a";
-  const BG_BOTTOM = "#060d1a";  // always dark navy base
-  const TEXT   = "#f5f0e8";
-  const MUTED  = "rgba(245,240,232,0.55)";
+
+  // Dark mode colours
+  const BG_D    = "#060d1a";
+  const TEXT_D  = "#f5f0e8";
+  const MUTED_D = "rgba(245,240,232,0.58)";
+  const LOC_D   = "#f5f0e8";
+  const LOC2_D  = "rgba(245,240,232,0.7)";
+  const CORNER_D = "rgba(201,146,10,0.58)";
+  const DIV_D   = "rgba(201,146,10,0.5)";
+
+  // Light mode colours — warm cream, navy text
+  const BG_L    = "#f0ece3";
+  const TEXT_L  = "#0a1628";
+  const MUTED_L = "rgba(10,22,40,0.55)";
+  const LOC_L   = "#0a1628";
+  const LOC2_L  = "rgba(10,22,40,0.65)";
+  const CORNER_L = "rgba(201,146,10,0.65)";
+  const DIV_L   = "rgba(201,146,10,0.45)";
+
+  const BG     = dark ? BG_D    : BG_L;
+  const TEXT   = dark ? TEXT_D  : TEXT_L;
+  const MUTED  = dark ? MUTED_D : MUTED_L;
+  const LOC    = dark ? LOC_D   : LOC_L;
+  const LOC2   = dark ? LOC2_D  : LOC2_L;
+  const CORNER = dark ? CORNER_D : CORNER_L;
+  const DIV    = dark ? DIV_D   : DIV_L;
 
   const canvas = document.createElement("canvas");
   canvas.width = CW; canvas.height = CH;
   const ctx = canvas.getContext("2d");
 
-  const PAD = 64;
-  const CM  = 44;
-  const CS  = 100;
+  const PAD        = 64;
+  const CM         = 44;   // corner margin — inner corner at (CM, CM)
+  const CS         = 100;  // corner arm length
+  const INNER_GAP  = 18;   // content gap from corner bracket line
+
+  // Logo dimensions — top-left
+  const LR = 40;
+  const LX = CM + INNER_GAP + LR;  // logo centre x ≈ 102
+  const LY = CM + INNER_GAP + LR;  // logo centre y ≈ 102
+  // Logo top edge = LY - LR = 62 = CM + INNER_GAP
+  // QR bottom edge must = CH - CM - INNER_GAP (same gap from bottom corner)
+  const QR_BOTTOM_MAX = CH - CM - INNER_GAP;
+
   const PHOTO_H = Math.round(CH * 0.58);
 
-  // ── BASE — always dark navy ───────────────────────────────────────────────
-  ctx.fillStyle = BG_BOTTOM;
+  // ── BACKGROUND ────────────────────────────────────────────────────────────
+  ctx.fillStyle = BG;
   ctx.fillRect(0, 0, CW, CH);
 
-  // ── PHOTO / GRADIENT TOP ─────────────────────────────────────────────────
+  // ── PHOTO ─────────────────────────────────────────────────────────────────
   if (photoDataUrl) {
     const photo = await loadImg(photoDataUrl);
     ctx.save();
     ctx.beginPath(); ctx.rect(0, 0, CW, PHOTO_H); ctx.clip();
     drawSmartCover(ctx, photo, 0, 0, CW, PHOTO_H);
     ctx.restore();
-    // Top vignette — slightly less dark for light mode
+    // Top vignette
     const tv = ctx.createLinearGradient(0, 0, 0, 240);
-    tv.addColorStop(0, lightMode ? "rgba(0,0,0,0.42)" : "rgba(0,0,0,0.58)");
-    tv.addColorStop(1, "rgba(0,0,0,0)");
+    tv.addColorStop(0, "rgba(0,0,0,0.55)"); tv.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 240);
-    // Bottom fade — ALWAYS fades to dark navy (never to cream/white)
+    // Bottom fade to BG colour
     const bv = ctx.createLinearGradient(0, PHOTO_H * 0.42, 0, PHOTO_H);
-    bv.addColorStop(0, "rgba(6,13,26,0)");
-    bv.addColorStop(0.55, "rgba(6,13,26,0.75)");
-    bv.addColorStop(1, "rgba(6,13,26,1)");
+    bv.addColorStop(0, "rgba(0,0,0,0)");
+    if (dark) {
+      bv.addColorStop(0.5, "rgba(6,13,26,0.72)");
+      bv.addColorStop(1,   "rgba(6,13,26,1)");
+    } else {
+      bv.addColorStop(0.5, "rgba(240,236,227,0.72)");
+      bv.addColorStop(1,   "rgba(240,236,227,1)");
+    }
     ctx.fillStyle = bv; ctx.fillRect(0, PHOTO_H * 0.42, CW, PHOTO_H * 0.58);
   } else {
     const g = ctx.createLinearGradient(0, 0, CW * 0.8, PHOTO_H);
-    g.addColorStop(0, "#1a3a6b"); g.addColorStop(0.6, "#0d1f3c"); g.addColorStop(1, BG_BOTTOM);
+    if (dark) {
+      g.addColorStop(0, "#1a3a6b"); g.addColorStop(0.6, "#0d1f3c"); g.addColorStop(1, BG_D);
+    } else {
+      g.addColorStop(0, "#e8dcc8"); g.addColorStop(0.6, "#d4c8b0"); g.addColorStop(1, BG_L);
+    }
     ctx.fillStyle = g; ctx.fillRect(0, 0, CW, PHOTO_H);
     const initials = delegate.name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
     ctx.font = "900 380px Georgia, serif";
-    ctx.fillStyle = "rgba(201,146,10,0.08)";
+    ctx.fillStyle = dark ? "rgba(201,146,10,0.08)" : "rgba(10,22,40,0.07)";
     ctx.textAlign = "center"; ctx.fillText(initials, CW/2, PHOTO_H * 0.74);
     const fv = ctx.createLinearGradient(0, PHOTO_H*0.52, 0, PHOTO_H);
-    fv.addColorStop(0, "rgba(6,13,26,0)"); fv.addColorStop(1, "rgba(6,13,26,1)");
+    fv.addColorStop(0, "rgba(0,0,0,0)");
+    fv.addColorStop(1, dark ? "rgba(6,13,26,1)" : "rgba(240,236,227,1)");
     ctx.fillStyle = fv; ctx.fillRect(0, PHOTO_H*0.52, CW, PHOTO_H*0.48);
     const tv2 = ctx.createLinearGradient(0,0,0,240);
-    tv2.addColorStop(0,"rgba(0,0,0,0.5)"); tv2.addColorStop(1,"rgba(0,0,0,0)");
+    tv2.addColorStop(0,"rgba(0,0,0,0.45)"); tv2.addColorStop(1,"rgba(0,0,0,0)");
     ctx.fillStyle = tv2; ctx.fillRect(0,0,CW,240);
   }
 
-  // ── CORNER ACCENTS — gold ─────────────────────────────────────────────────
-  ctx.strokeStyle = "rgba(201,146,10,0.55)";
+  // ── CORNER ACCENTS ────────────────────────────────────────────────────────
+  ctx.strokeStyle = CORNER;
   ctx.lineWidth = 5;
   ctx.beginPath(); ctx.moveTo(CM,CM+CS); ctx.lineTo(CM,CM); ctx.lineTo(CM+CS,CM); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(CW-CM-CS,CM); ctx.lineTo(CW-CM,CM); ctx.lineTo(CW-CM,CM+CS); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(CM,CH-CM-CS); ctx.lineTo(CM,CH-CM); ctx.lineTo(CM+CS,CH-CM); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(CW-CM-CS,CH-CM); ctx.lineTo(CW-CM,CH-CM); ctx.lineTo(CW-CM,CH-CM-CS); ctx.stroke();
 
-  // ── TOP-LEFT: LOGO ────────────────────────────────────────────────────────
-  const LR = 40, LX = CM + 18 + LR, LY = CM + 18 + LR; // center ≈ (102, 102)
+  // ── LOGO (top-left) ───────────────────────────────────────────────────────
   try {
     const logo = await loadImg("/legislative-council-logo.jpg");
     ctx.save();
     ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI*2); ctx.closePath(); ctx.clip();
     ctx.drawImage(logo, LX-LR, LY-LR, LR*2, LR*2);
     ctx.restore();
-    ctx.strokeStyle = "rgba(232,184,75,0.85)"; ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(232,184,75,0.88)"; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI*2); ctx.stroke();
   } catch {}
 
-  // ── TOP-RIGHT: LEGISLATIVE SUMMIT 2026 — same Y level as logo ────────────
-  // Logo centre is at LY=102. Align text block to same vertical band.
-  const TR_X = CW - CM - 18;
+  // ── LEGISLATIVE SUMMIT 2026 (top-right, same Y as logo) ───────────────────
+  const TR_X = CW - CM - INNER_GAP;
   ctx.textAlign = "right";
   ctx.shadowColor = "rgba(201,146,10,0.45)"; ctx.shadowBlur = 8;
-
   ctx.font = "900 50px Arial Black, Arial, sans-serif";
   const lgGrad = ctx.createLinearGradient(TR_X-400, LY, TR_X, LY);
   lgGrad.addColorStop(0, GOLD3); lgGrad.addColorStop(0.5, GOLD2); lgGrad.addColorStop(1, GOLD);
   ctx.fillStyle = lgGrad;
-  ctx.fillText("LEGISLATIVE", TR_X, LY - 2);  // top line at logo Y
-
+  ctx.fillText("LEGISLATIVE", TR_X, LY - 2);
   ctx.font = "700 36px Arial Black, Arial, sans-serif";
-  const sg = ctx.createLinearGradient(TR_X-280, LY+30, TR_X, LY+30);
-  sg.addColorStop(0, GOLD2); sg.addColorStop(1, GOLD3);
-  ctx.fillStyle = sg;
-  ctx.fillText("SUMMIT 2026", TR_X, LY + 34); // second line below
+  ctx.fillStyle = GOLD2;
+  ctx.fillText("SUMMIT 2026", TR_X, LY + 34);
   ctx.shadowBlur = 0;
-
-  // Green accent underline
   ctx.strokeStyle = GREEN; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.moveTo(TR_X-268, LY+46); ctx.lineTo(TR_X, LY+46); ctx.stroke();
 
-  // ── "I'M ATTENDING" BADGE ─────────────────────────────────────────────────
+  // ── I'M ATTENDING BADGE ───────────────────────────────────────────────────
   const BADGE_Y = PHOTO_H - 110;
   const bW = 300, bH = 56;
   ctx.fillStyle = "rgba(201,146,10,0.15)";
@@ -225,7 +257,7 @@ async function renderCard(delegate, photoDataUrl, mode) {
   ctx.fillStyle = GOLD2;
   ctx.fillText("I'M ATTENDING", PAD+42, BADGE_Y+bH/2+8);
 
-  // ── NAME — adaptive font, max 2 lines ────────────────────────────────────
+  // ── NAME ──────────────────────────────────────────────────────────────────
   const INFO_Y = PHOTO_H + 44;
   const nameMaxW = CW - PAD * 2;
   let nfs = 88;
@@ -236,7 +268,7 @@ async function renderCard(delegate, photoDataUrl, mode) {
     nfs -= 5;
   }
   ctx.fillStyle = TEXT; ctx.textAlign = "left";
-  ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 12;
+  ctx.shadowColor = dark ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.1)"; ctx.shadowBlur = 12;
   const nameLines = wrapText(ctx, delegate.name, nameMaxW);
   const NLH = nfs + 6;
   nameLines.forEach((l, i) => ctx.fillText(l, PAD, INFO_Y + i * NLH));
@@ -247,7 +279,6 @@ async function renderCard(delegate, photoDataUrl, mode) {
   ctx.font = "700 34px Arial, sans-serif";
   ctx.fillStyle = GOLD2;
   ctx.fillText(delegate.position.toUpperCase(), PAD, NAME_BOT + 42);
-
   ctx.font = "400 28px Arial, sans-serif";
   ctx.fillStyle = MUTED;
   ctx.fillText(delegate.institution, PAD, NAME_BOT + 84);
@@ -255,52 +286,59 @@ async function renderCard(delegate, photoDataUrl, mode) {
   // ── DIVIDER ───────────────────────────────────────────────────────────────
   const DIV_Y = NAME_BOT + 118;
   const dg = ctx.createLinearGradient(PAD, DIV_Y, CW-PAD, DIV_Y);
-  dg.addColorStop(0, "rgba(201,146,10,0.5)");
-  dg.addColorStop(0.6, "rgba(201,146,10,0.15)");
+  dg.addColorStop(0, DIV);
+  dg.addColorStop(0.6, dark ? "rgba(201,146,10,0.12)" : "rgba(201,146,10,0.1)");
   dg.addColorStop(1, "rgba(0,0,0,0)");
   ctx.strokeStyle = dg; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(PAD, DIV_Y); ctx.lineTo(CW-PAD, DIV_Y); ctx.stroke();
 
-  // ── EVENT + QR ────────────────────────────────────────────────────────────
-  const EV_Y = DIV_Y + 36;
-  const QR_SIZE = 160;
-  const QR_PAD  = 12;
-  const QR_CARD_W = QR_SIZE + QR_PAD * 2;
-  const QR_X = CW - PAD - QR_CARD_W;
-  const TEXT_MAX = QR_X - PAD - 28;
+  // ── QR position — respects corner gap exactly ─────────────────────────────
+  const QR_SIZE    = 160;
+  const QR_PAD     = 12;
+  const QR_CARD_W  = QR_SIZE + QR_PAD * 2;
+  const QR_CARD_H  = QR_SIZE + QR_PAD * 2;
+  // Right edge of QR card = TR_X (same as text right boundary)
+  const QR_X       = CW - CM - INNER_GAP - QR_CARD_W;
+  const TEXT_MAX   = QR_X - PAD - 28;
+  // QR bottom = QR_BOTTOM_MAX (same gap from bottom corner as logo from top corner)
+  const QR_Y       = QR_BOTTOM_MAX - QR_CARD_H;
 
-  // Event title — gold
+  // ── EVENT TITLE ───────────────────────────────────────────────────────────
+  const EV_Y = DIV_Y + 36;
   ctx.font = "700 50px Arial Black, Arial, sans-serif";
-  const etg = ctx.createLinearGradient(PAD, EV_Y, PAD+TEXT_MAX, EV_Y);
-  etg.addColorStop(0, GOLD3); etg.addColorStop(1, GOLD2);
+  const etg = ctx.createLinearGradient(PAD, EV_Y, PAD + TEXT_MAX, EV_Y);
+  etg.addColorStop(0, GOLD3); etg.addColorStop(1, dark ? GOLD2 : GOLD);
   ctx.fillStyle = etg; ctx.textAlign = "left";
   const evLines = wrapText(ctx, "LEGISLATIVE SUMMIT 2026", TEXT_MAX);
   evLines.forEach((l, i) => ctx.fillText(l, PAD, EV_Y + 50 + i * 58));
   const EV_BOT = EV_Y + evLines.length * 58 + 50;
 
-  // Location + date
-  ctx.font = "400 26px Arial, sans-serif";
-  ctx.fillStyle = MUTED;
-  ctx.fillText("@ Redeemer's University, Ede", PAD, EV_BOT + 14);
-  ctx.fillText("29th April, 2026", PAD, EV_BOT + 52);
+  // ── LOCATION + DATE — LOUD AND SHARP ─────────────────────────────────────
+  // University name — bold, full colour, not muted
+  ctx.font = "700 34px Arial, sans-serif";
+  ctx.fillStyle = LOC;
+  ctx.fillText("REDEEMER'S UNIVERSITY, EDE", PAD, EV_BOT + 22);
 
-  // ── QR CODE — raised to location/date level ───────────────────────────────
+  // Date — semi-bold, slightly smaller
+  ctx.font = "600 28px Arial, sans-serif";
+  ctx.fillStyle = LOC2;
+  ctx.fillText("29th April, 2026", PAD, EV_BOT + 62);
+
+  // ── QR CODE ───────────────────────────────────────────────────────────────
   const qrURL = delegate.qrURL || `${REG_SITE}?checkin=${delegate.id}`;
   const qrImg = await generateQRImage(qrURL, 220);
   if (qrImg) {
-    // QR_Y = EV_BOT - 10 so QR sits beside location text
-    const QR_Y = EV_BOT - 12;
     ctx.fillStyle = "#ffffff";
-    ctx.strokeStyle = "rgba(201,146,10,0.38)";
+    ctx.strokeStyle = dark ? "rgba(201,146,10,0.4)" : "rgba(10,22,40,0.14)";
     ctx.lineWidth = 2;
-    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_SIZE + QR_PAD * 2, 12);
+    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 12);
     ctx.fill(); ctx.stroke();
     ctx.drawImage(qrImg, QR_X + QR_PAD, QR_Y + QR_PAD, QR_SIZE, QR_SIZE);
-    // No label. No ticket ID. Clean.
   }
 
   return canvas;
 }
+
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 const CSS = `
