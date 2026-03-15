@@ -15,23 +15,31 @@ const COLLECTION = "delegates";
 
 // ─── BRAND COLOURS ────────────────────────────────────────────────────────────
 const BRAND = {
-  navyDark:    "#0d1f3c",
+  // Navy — primary authority colour (RUNSA logo, legislative bodies worldwide)
+  navyDark:    "#0a1628",
   navy:        "#1a3a6b",
   navyMid:     "#1e4d8c",
+  navyDeep:    "#060d1a",   // near-black navy for dark backgrounds
+  // Gold — prestige / highlight
   gold:        "#c9920a",
   goldLight:   "#e8b84b",
   goldPale:    "#f5d57a",
-  green:       "#39e07a",   // flyer electric green
-  greenDim:    "rgba(57,224,122,0.12)",
-  greenGlow:   "rgba(57,224,122,0.25)",
+  // Green — flyer energy accent (used sparingly)
+  green:       "#39e07a",
+  greenDim:    "rgba(57,224,122,0.1)",
+  greenGlow:   "rgba(57,224,122,0.22)",
+  // Neutrals
   cream:       "#f5f0e8",
   creamDark:   "#e8e0d0",
   white:       "#ffffff",
-  darkBg:      "#060f0a",   // navy-green deep dark (flyer atmosphere)
-  darkSurface: "#0a1a0f",   // dark green-tinted surface
-  darkSurface2:"#0f1e14",
-  darkBorder:  "rgba(57,224,122,0.18)",  // green-tinted border
-  darkBorderGold: "rgba(200,146,10,0.22)",
+  // Dark mode surfaces — navy-based, not green-based
+  darkBg:      "#060d1a",
+  darkSurface: "#0d1e38",
+  darkSurface2:"#111f3a",
+  darkBorder:  "rgba(26,58,107,0.45)",
+  darkBorderAccent: "rgba(57,224,122,0.2)",  // green accent border
+  darkBorderGold: "rgba(200,146,10,0.25)",
+  // Light mode
   lightBg:     "#f0ece3",
   lightSurface:"#ffffff",
   lightBorder: "rgba(26,58,107,0.16)",
@@ -190,7 +198,7 @@ function GlobalStyles({ dark }) {
     body {
       font-family: 'Inter', sans-serif;
       background: ${dark
-        ? "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(57,224,122,0.07) 0%, transparent 60%), " + BRAND.darkBg
+        ? "radial-gradient(ellipse 70% 40% at 50% 0%, rgba(26,58,107,0.4) 0%, transparent 60%), " + BRAND.navyDeep
         : BRAND.lightBg};
       color: ${dark ? BRAND.creamDark : BRAND.navyDark};
       transition: background 0.3s, color 0.3s;
@@ -218,7 +226,7 @@ function GlobalStyles({ dark }) {
     }
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: ${dark ? "rgba(57,224,122,0.25)" : "rgba(201,146,10,0.22)"}; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: ${dark ? "rgba(26,58,107,0.6)" : "rgba(201,146,10,0.22)"}; border-radius: 3px; }
     @media print {
       body * { visibility: hidden !important; }
       #printable-ticket, #printable-ticket * { visibility: visible !important; }
@@ -314,6 +322,7 @@ export default function App() {
     surface: dark ? BRAND.darkSurface : BRAND.lightSurface,
     surface2: dark ? BRAND.darkSurface2 : "#f8f5f0",
     border: dark ? BRAND.darkBorder : BRAND.lightBorder,
+    borderAccent: dark ? BRAND.darkBorderAccent : "rgba(57,224,122,0.2)",
     borderGold: dark ? BRAND.darkBorderGold : BRAND.lightBorder,
     text: dark ? BRAND.creamDark : BRAND.navyDark,
     textMuted: dark ? "rgba(232,224,208,0.52)" : "rgba(13,31,60,0.48)",
@@ -325,13 +334,13 @@ export default function App() {
       <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center",
         justifyContent:"center", background:T.bg, gap:20 }}>
         <img src="/legislative-council-logo.jpg" alt=""
-          style={{ width:56, height:56, borderRadius:"50%", border:`2px solid ${BRAND.green}`, objectFit:"cover",
-            boxShadow:`0 0 20px ${BRAND.greenGlow}` }}
+          style={{ width:56, height:56, borderRadius:"50%", border:`2px solid ${BRAND.goldLight}`, objectFit:"cover",
+            boxShadow:`0 0 20px rgba(200,146,10,0.3)` }}
           onError={e => e.target.style.display="none"} />
-        <div style={{ width:40, height:40, border:`2px solid ${BRAND.greenDim}`,
-          borderTop:`2px solid ${BRAND.green}`, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
+        <div style={{ width:40, height:40, border:`2px solid rgba(26,58,107,0.3)`,
+          borderTop:`2px solid ${BRAND.goldLight}`, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
         <div style={{ textAlign:"center" }}>
-          <p style={{ color:BRAND.green, fontFamily:"'Bebas Neue', sans-serif",
+          <p style={{ color:BRAND.goldLight, fontFamily:"'Bebas Neue', sans-serif",
             fontSize:22, letterSpacing:"0.18em" }}>RUNSA LEGISLATIVE SUMMIT 2026</p>
           <p style={{ color:T.textMuted, fontSize:11, letterSpacing:"0.1em", marginTop:4 }}>LOADING...</p>
         </div>
@@ -361,18 +370,18 @@ export default function App() {
       <GlobalStyles dark={dark} />
       <header style={{
         position:"sticky", top:0, zIndex:200,
-        background: dark ? "rgba(6,15,10,0.94)" : "rgba(240,236,227,0.96)",
+        background: dark ? "rgba(6,13,26,0.95)" : "rgba(240,236,227,0.97)",
         backdropFilter:"blur(20px)",
-        borderBottom:`1px solid ${dark ? "rgba(57,224,122,0.15)" : "rgba(26,58,107,0.12)"}`,
-        boxShadow: dark ? "0 1px 0 rgba(57,224,122,0.08)" : "0 1px 0 rgba(26,58,107,0.06)",
+        borderBottom:`1px solid ${dark ? "rgba(26,58,107,0.5)" : "rgba(26,58,107,0.12)"}`,
+        boxShadow: dark ? "0 1px 0 rgba(26,58,107,0.3)" : "0 1px 0 rgba(26,58,107,0.06)",
       }}>
         <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 20px", height:60,
           display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             <img src="/legislative-council-logo.jpg" alt="Legislative Council"
               style={{ width:36, height:36, borderRadius:"50%", objectFit:"cover",
-                border:`1.5px solid ${BRAND.green}`,
-                boxShadow:`0 0 12px ${BRAND.greenGlow}` }}
+                border:`1.5px solid ${BRAND.goldLight}`,
+                boxShadow:`0 0 10px rgba(200,146,10,0.2)` }}
               onError={e => e.target.style.display="none"} />
             <div>
               <div style={{ fontFamily:"'Bebas Neue', sans-serif", fontSize:18,
@@ -389,18 +398,18 @@ export default function App() {
                 fontSize:12, fontWeight:600, letterSpacing:"0.06em", fontFamily:"'Inter', sans-serif",
                 transition:"all 0.2s",
                 background: view === n.key
-                  ? `linear-gradient(135deg, ${BRAND.green}, #1a7a40)`
+                  ? `linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})`
                   : "transparent",
-                color: view === n.key ? "#050d1e" : dark ? "rgba(232,224,208,0.65)" : BRAND.navy,
+                color: view === n.key ? "#fff" : dark ? "rgba(232,224,208,0.65)" : BRAND.navy,
                 borderBottom: view === n.key ? "none" : `2px solid transparent`,
-                boxShadow: view === n.key ? `0 2px 12px ${BRAND.greenGlow}` : "none",
+                boxShadow: view === n.key ? "0 2px 12px rgba(201,146,10,0.25)" : "none",
               }}>{n.label}</button>
             ))}
             <button onClick={() => setDark(d => !d)} style={{
               marginLeft:6, padding:"6px 10px", borderRadius:6,
-              border:`1px solid ${dark ? "rgba(57,224,122,0.2)" : "rgba(26,58,107,0.15)"}`,
+              border:`1px solid ${dark ? "rgba(26,58,107,0.45)" : "rgba(26,58,107,0.15)"}`,
               background:"transparent", cursor:"pointer", fontSize:13, fontWeight:500,
-              color: dark ? BRAND.green : BRAND.navy,
+              color: dark ? BRAND.goldLight : BRAND.navy,
               fontFamily:"'Inter', sans-serif" }}>
               {dark ? "Light" : "Dark"}
             </button>
@@ -409,10 +418,10 @@ export default function App() {
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
             <button onClick={() => setMenuOpen(o => !o)} style={{
               width:36, height:36, borderRadius:8,
-              border:`1px solid ${dark ? "rgba(57,224,122,0.2)" : "rgba(26,58,107,0.15)"}`,
+              border:`1px solid ${dark ? "rgba(26,58,107,0.5)" : "rgba(26,58,107,0.15)"}`,
               background:"transparent", cursor:"pointer", display:"flex",
               alignItems:"center", justifyContent:"center",
-              color: dark ? BRAND.green : BRAND.navy }} aria-label="Menu">
+              color: dark ? BRAND.goldLight : BRAND.navy }} aria-label="Menu">
               <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor">
                 {menuOpen
                   ? <><path d="M1 1L15 11M15 1L1 11" stroke="currentColor" strokeWidth="1.8" fill="none"/></>
@@ -425,15 +434,15 @@ export default function App() {
 
         {menuOpen && (
           <div style={{ background: dark ? BRAND.darkSurface : BRAND.white,
-            borderTop:`1px solid ${dark ? "rgba(57,224,122,0.12)" : "rgba(26,58,107,0.1)"}`,
+            borderTop:`1px solid ${dark ? "rgba(26,58,107,0.4)" : "rgba(26,58,107,0.1)"}`,
             padding:"16px 20px 20px" }}>
             {navItems.map(n => (
               <button key={n.key} onClick={() => { setView(n.key); setMenuOpen(false); }} style={{
                 display:"block", width:"100%", textAlign:"left",
                 padding:"13px 16px", marginBottom:6, borderRadius:8,
-                border: `1px solid ${view === n.key ? "transparent" : dark ? "rgba(57,224,122,0.12)" : "rgba(26,58,107,0.1)"}`,
-                background: view === n.key ? `linear-gradient(135deg, ${BRAND.green}, #1a7a40)` : "transparent",
-                color: view === n.key ? "#050d1e" : T.text,
+                border: `1px solid ${view === n.key ? "transparent" : dark ? "rgba(26,58,107,0.4)" : "rgba(26,58,107,0.1)"}`,
+                background: view === n.key ? `linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})` : "transparent",
+                color: view === n.key ? "#fff" : T.text,
                 fontSize:13, fontWeight:600, cursor:"pointer", letterSpacing:"0.04em",
                 fontFamily:"'Inter', sans-serif",
               }}>{n.label}</button>
@@ -441,7 +450,7 @@ export default function App() {
             <button onClick={() => { setDark(d => !d); }} style={{
               display:"block", width:"100%", textAlign:"left",
               padding:"13px 16px", borderRadius:8,
-              border:`1px solid ${dark ? "rgba(57,224,122,0.12)" : "rgba(26,58,107,0.1)"}`,
+              border:`1px solid ${dark ? "rgba(26,58,107,0.4)" : "rgba(26,58,107,0.1)"}`,
               background:"transparent", color:T.text, fontSize:13,
               fontWeight:500, cursor:"pointer" }}>
               {dark ? "Switch to Light Mode" : "Switch to Dark Mode"}
@@ -460,7 +469,7 @@ export default function App() {
       </main>
 
       <footer style={{
-        borderTop:`1px solid ${dark ? "rgba(57,224,122,0.12)" : "rgba(26,58,107,0.1)"}`,
+        borderTop:`1px solid ${dark ? "rgba(26,58,107,0.4)" : "rgba(26,58,107,0.1)"}`,
         padding:"32px 20px 24px",
         textAlign:"center",
         background: dark ? BRAND.darkSurface : "#f0ece3",
@@ -469,18 +478,18 @@ export default function App() {
         <div style={{ display:"flex", justifyContent:"center", gap:6, marginBottom:20 }}>
           {Array.from({length:18}).map((_,i) => (
             <div key={i} style={{ width:5, height:5, borderRadius:"50%",
-              background: dark ? `rgba(57,224,122,${i%3===0?0.5:0.2})` : `rgba(26,58,107,${i%3===0?0.3:0.12})` }} />
+              background: dark ? `rgba(201,146,10,${i%3===0?0.5:0.2})` : `rgba(26,58,107,${i%3===0?0.3:0.12})` }} />
           ))}
         </div>
         <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:16, marginBottom:14 }}>
           <img src="/runsa-logo.jpg" alt="RUNSA" style={{ height:30, objectFit:"contain" }}
             onError={e => e.target.style.display="none"} />
-          <div style={{ width:1, height:28, background: dark ? "rgba(57,224,122,0.2)" : "rgba(26,58,107,0.15)" }} />
+          <div style={{ width:1, height:28, background: dark ? "rgba(26,58,107,0.4)" : "rgba(26,58,107,0.15)" }} />
           <img src="/legislative-council-logo.jpg" alt="Legislative Council"
-            style={{ height:30, objectFit:"contain", borderRadius:"50%", border:`1.5px solid ${BRAND.green}` }}
+            style={{ height:30, objectFit:"contain", borderRadius:"50%", border:`1.5px solid ${BRAND.goldLight}` }}
             onError={e => e.target.style.display="none"} />
         </div>
-        <p style={{ fontFamily:"'Bebas Neue', sans-serif", fontSize:13, color: dark ? BRAND.green : BRAND.navy,
+        <p style={{ fontFamily:"'Bebas Neue', sans-serif", fontSize:13, color: dark ? BRAND.goldLight : BRAND.navy,
           letterSpacing:"0.14em", marginBottom:6 }}>
           LEGISLATIVE SUMMIT 2026
         </p>
@@ -667,26 +676,26 @@ function RegisterView({ onRegister, T }) {
               filter: T.dark ? "drop-shadow(0 0 14px rgba(57,224,122,0.3))" : "none" }}
             onError={e => e.target.style.display="none"} />
           <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-            <div style={{ width:1, height:28, background: T.dark ? "rgba(57,224,122,0.25)" : "rgba(26,58,107,0.15)" }} />
+            <div style={{ width:1, height:28, background: T.dark ? "rgba(26,58,107,0.5)" : "rgba(26,58,107,0.15)" }} />
             <div style={{ width:6, height:6, borderRadius:"50%", background:T.dark?BRAND.green:BRAND.navy }} />
-            <div style={{ width:1, height:28, background: T.dark ? "rgba(57,224,122,0.25)" : "rgba(26,58,107,0.15)" }} />
+            <div style={{ width:1, height:28, background: T.dark ? "rgba(26,58,107,0.5)" : "rgba(26,58,107,0.15)" }} />
           </div>
           <img src="/legislative-council-logo.jpg" alt="Legislative Council"
             style={{ height:72, objectFit:"contain", borderRadius:"50%",
-              border:`2.5px solid ${BRAND.green}`,
-              boxShadow:`0 0 22px ${BRAND.greenGlow}` }}
+              border:`2.5px solid ${BRAND.goldLight}`,
+              boxShadow:`0 0 18px rgba(200,146,10,0.3)` }}
             onError={e => e.target.style.display="none"} />
         </div>
         {/* Date badge */}
         <div style={{
           display:"inline-flex", alignItems:"center", gap:8,
-          border:`1px solid ${T.dark ? "rgba(57,224,122,0.3)" : "rgba(26,58,107,0.2)"}`,
-          color: T.dark ? BRAND.green : BRAND.navy,
+          border:`1px solid ${T.dark ? "rgba(201,146,10,0.35)" : "rgba(26,58,107,0.2)"}`,
+          color: T.dark ? BRAND.goldLight : BRAND.navy,
           padding:"6px 20px", borderRadius:100,
           fontSize:11, letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:20,
-          background: T.dark ? "rgba(57,224,122,0.06)" : "rgba(26,58,107,0.04)",
+          background: T.dark ? "rgba(201,146,10,0.06)" : "rgba(26,58,107,0.04)",
         }}>
-          <span style={{ width:6, height:6, borderRadius:"50%", background:T.dark?BRAND.green:BRAND.navy, display:"inline-block" }} />
+          <span style={{ width:6, height:6, borderRadius:"50%", background:T.dark?BRAND.goldLight:BRAND.navy, display:"inline-block" }} />
           29th April 2026 · Redeemer's University, Ede
         </div>
         {/* Main title — flyer energy */}
@@ -733,17 +742,15 @@ function RegisterView({ onRegister, T }) {
 
       <div style={{
         maxWidth:640, margin:"0 auto", background:T.surface,
-        border:`1px solid ${T.dark ? "rgba(57,224,122,0.15)" : "rgba(26,58,107,0.12)"}`,
+        border:`1px solid ${T.dark ? "rgba(26,58,107,0.5)" : "rgba(26,58,107,0.12)"}`,
         borderRadius:18,
-        boxShadow: T.dark ? "0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(57,224,122,0.08)" : "0 8px 40px rgba(13,31,60,0.1)",
+        boxShadow: T.dark ? "0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(26,58,107,0.2)" : "0 8px 40px rgba(13,31,60,0.1)",
         overflow:"hidden",
       }} className="fade-up-2">
         <div style={{
-          background: T.dark
-            ? "linear-gradient(135deg, #0a1a0f 0%, #0d1f3c 100%)"
-            : `linear-gradient(135deg, ${BRAND.navyDark} 0%, ${BRAND.navy} 100%)`,
+          background: `linear-gradient(135deg, ${BRAND.navyDark} 0%, ${BRAND.navy} 100%)`,
           padding:"22px 32px", display:"flex", alignItems:"center", gap:14,
-          borderBottom:`1px solid ${T.dark ? "rgba(57,224,122,0.12)" : "rgba(255,255,255,0.12)"}`,
+          borderBottom:`1px solid rgba(255,255,255,0.1)`,
         }}>
           <div style={{ fontSize:28, color:BRAND.goldLight }}>📋</div>
           <div>
