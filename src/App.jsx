@@ -16,14 +16,12 @@ const FIREBASE_CONFIG = {
 const COLLECTION = "delegates";
 
 // ─── INSTITUTION LIST ─────────────────────────────────────────────────────────
-// Full official names confirmed online March 2026. No abbreviations.
-// Summit invited schools first, then all other Nigerian institutions alphabetically.
 const INSTITUTIONS = [
-  // ── Summit Partner Schools ──────────────────────────────────────────────────
   "Redeemer's University, Ede",
   "Adeleke University, Ede",
   "Babcock University, Ilishan-Remo",
   "Bells University of Technology, Ota",
+  "Covenant University, Ota",
   "Joseph Ayo Babalola University, Ikeji-Arakeji",
   "Ladoke Akintola University of Technology, Ogbomoso",
   "Lagos State University, Ojo",
@@ -33,62 +31,98 @@ const INSTITUTIONS = [
   "University of Ibadan",
   "University of Lagos",
   "Yaba College of Technology, Lagos",
-  // ── Other Nigerian Universities (alphabetical) ───────────────────────────────
-  "Abia State University, Uturu",
-  "Achievers University, Owo",
-  "Afe Babalola University, Ado-Ekiti",
-  "Ahmadu Bello University, Zaria",
-  "Ajayi Crowther University, Oyo",
-  "Al-Hikmah University, Ilorin",
-  "Ambrose Alli University, Ekpoma",
-  "American University of Nigeria, Yola",
-  "Bayero University, Kano",
-  "Benson Idahosa University, Benin City",
-  "Bingham University, New Karu",
-  "Bowen University, Iwo",
-  "Caleb University, Lagos",
-  "Caritas University, Enugu",
-  "Covenant University, Ota",
-  "Crawford University, Igbesa",
-  "Crescent University, Abeokuta",
-  "Delta State University, Abraka",
-  "Ekiti State University, Ado-Ekiti",
-  "Elizade University, Ilara-Mokin",
-  "Enugu State University of Science and Technology, Enugu",
-  "Federal University of Agriculture, Abeokuta",
-  "Federal University of Technology, Akure",
-  "Federal University of Technology, Minna",
-  "Federal University of Technology, Owerri",
-  "Federal University, Oye-Ekiti",
-  "Fountain University, Osogbo",
-  "Igbinedion University, Okada",
-  "Imo State University, Owerri",
-  "Kwara State University, Malete",
-  "Landmark University, Omu-Aran",
-  "Madonna University, Okija",
-  "Michael Okpara University of Agriculture, Umudike",
-  "Nasarawa State University, Keffi",
-  "National Open University of Nigeria, Lagos",
-  "Niger Delta University, Amassoma",
-  "Nnamdi Azikiwe University, Awka",
-  "Novena University, Ogume",
-  "Obong University, Obong Ntak",
-  "Oduduwa University, Ipetumodu",
-  "Olabisi Onabanjo University, Ago-Iwoye",
-  "Pan-Atlantic University, Lagos",
-  "Rivers State University, Port Harcourt",
-  "University of Benin, Benin City",
-  "University of Calabar, Calabar",
-  "University of Ilorin, Ilorin",
-  "University of Jos, Jos",
-  "University of Maiduguri, Maiduguri",
-  "University of Nigeria, Nsukka",
-  "University of Port Harcourt, Port Harcourt",
-  "University of Uyo, Uyo",
-  "Veritas University, Abuja",
-  // ── Not listed above? ───────────────────────────────────────────────────────
   "Others",
 ];
+
+// Institution name normalizer — maps every likely variation people may have typed
+// to the canonical name above, so filters work correctly regardless of how
+// someone registered before the dropdown existed.
+const INSTITUTION_ALIASES = {
+  // Redeemer's University
+  "redeemer's university": "Redeemer's University, Ede",
+  "redeemers university": "Redeemer's University, Ede",
+  "redeemers university nigeria": "Redeemer's University, Ede",
+  "redeemer's university nigeria": "Redeemer's University, Ede",
+  "redeemers university, ede": "Redeemer's University, Ede",
+  "run": "Redeemer's University, Ede",
+  "redeemer university": "Redeemer's University, Ede",
+  // Adeleke University
+  "adeleke university": "Adeleke University, Ede",
+  "adeleke university, ede": "Adeleke University, Ede",
+  "adeleke": "Adeleke University, Ede",
+  // Babcock University
+  "babcock university": "Babcock University, Ilishan-Remo",
+  "babcock university, ilishan-remo": "Babcock University, Ilishan-Remo",
+  "babcock": "Babcock University, Ilishan-Remo",
+  // Bells University
+  "bells university of technology": "Bells University of Technology, Ota",
+  "bells university of technology, ota": "Bells University of Technology, Ota",
+  "bells university": "Bells University of Technology, Ota",
+  "bellstech": "Bells University of Technology, Ota",
+  "bells": "Bells University of Technology, Ota",
+  // Covenant University
+  "covenant university": "Covenant University, Ota",
+  "covenant university, ota": "Covenant University, Ota",
+  "covenant": "Covenant University, Ota",
+  // JABU
+  "joseph ayo babalola university": "Joseph Ayo Babalola University, Ikeji-Arakeji",
+  "joseph ayo babalola university, ikeji-arakeji": "Joseph Ayo Babalola University, Ikeji-Arakeji",
+  "jabu": "Joseph Ayo Babalola University, Ikeji-Arakeji",
+  "j.a.b.u": "Joseph Ayo Babalola University, Ikeji-Arakeji",
+  "jesse akainibe braimoh university": "Joseph Ayo Babalola University, Ikeji-Arakeji",
+  "jesse akainibe braimoh university (jabu)": "Joseph Ayo Babalola University, Ikeji-Arakeji",
+  "jabu law": "Joseph Ayo Babalola University, Ikeji-Arakeji",
+  "jabu src": "Joseph Ayo Babalola University, Ikeji-Arakeji",
+  // LAUTECH
+  "ladoke akintola university of technology": "Ladoke Akintola University of Technology, Ogbomoso",
+  "ladoke akintola university of technology, ogbomoso": "Ladoke Akintola University of Technology, Ogbomoso",
+  "lautech": "Ladoke Akintola University of Technology, Ogbomoso",
+  "ladoke akintola university of technology (lautech)": "Ladoke Akintola University of Technology, Ogbomoso",
+  // LASU
+  "lagos state university": "Lagos State University, Ojo",
+  "lagos state university, ojo": "Lagos State University, Ojo",
+  "lasu": "Lagos State University, Ojo",
+  "lagos state university (lasu)": "Lagos State University, Ojo",
+  // Lead City
+  "lead city university": "Lead City University, Ibadan",
+  "lead city university, ibadan": "Lead City University, Ibadan",
+  "leadcity": "Lead City University, Ibadan",
+  "lead city": "Lead City University, Ibadan",
+  // OAU
+  "obafemi awolowo university": "Obafemi Awolowo University, Ile-Ife",
+  "obafemi awolowo university, ile-ife": "Obafemi Awolowo University, Ile-Ife",
+  "oau": "Obafemi Awolowo University, Ile-Ife",
+  "obafemi awolowo university (oau)": "Obafemi Awolowo University, Ile-Ife",
+  "great ife": "Obafemi Awolowo University, Ile-Ife",
+  // UNIOSUN
+  "osun state university": "Osun State University, Osogbo",
+  "osun state university, osogbo": "Osun State University, Osogbo",
+  "uniosun": "Osun State University, Osogbo",
+  "university of osun": "Osun State University, Osogbo",
+  "university of osun (uniosun)": "Osun State University, Osogbo",
+  // UI
+  "university of ibadan": "University of Ibadan",
+  "ui": "University of Ibadan",
+  "university of ibadan (ui)": "University of Ibadan",
+  // UNILAG
+  "university of lagos": "University of Lagos",
+  "unilag": "University of Lagos",
+  "university of lagos (unilag)": "University of Lagos",
+  // YabaTech
+  "yaba college of technology": "Yaba College of Technology, Lagos",
+  "yaba college of technology, lagos": "Yaba College of Technology, Lagos",
+  "yabatech": "Yaba College of Technology, Lagos",
+  "yaba tech": "Yaba College of Technology, Lagos",
+  "yaba college of technology (yabatech)": "Yaba College of Technology, Lagos",
+};
+
+// Returns canonical institution name for display/filtering
+function normalizeInstitution(raw) {
+  if (!raw) return raw;
+  const key = raw.trim().toLowerCase();
+  return INSTITUTION_ALIASES[key] || raw;
+}
+
 
 
 // ─── BRAND COLOURS ────────────────────────────────────────────────────────────
@@ -739,6 +773,7 @@ function RegisterView({ onRegister, T }) {
   const clrErr = k => setErrors(e => ({ ...e, [k]:"" }));
 
   const isVolunteer = form.position === "Volunteer";
+  const isNoLevel = isVolunteer || form.position === "Staff"; // Staff are graduates — no level needed
 
   const validate = () => {
     const e = {};
@@ -746,7 +781,7 @@ function RegisterView({ onRegister, T }) {
     if (!isVolunteer) {
       if (!form.institution) e.institution = "Please select your institution";
       if (form.institution === "Others" && !form.institutionOther.trim()) e.institutionOther = "Please enter your institution name";
-      if (!form.level) e.level = "Please select your level";
+      if (!isNoLevel && !form.level) e.level = "Please select your level";
     }
     if (!form.position) e.position = "Please select your position";
     return e;
@@ -762,19 +797,21 @@ function RegisterView({ onRegister, T }) {
       : form.institution === "Others"
         ? form.institutionOther.trim()
         : form.institution;
-    const resolvedLevel = isVolunteer ? "Volunteer" : form.level;
+    const resolvedLevel = isVolunteer ? "Volunteer" : form.position === "Staff" ? "Staff" : form.level;
     await onRegister({ ...form, institution: resolvedInstitution, level: resolvedLevel });
     setBusy(false);
   };
 
   const levels = ["100 Level","200 Level","300 Level","400 Level","500 Level","600 Level","ND","HND","Postgraduate"];
-  const positions = [
-    "Volunteer",
+  const legislativePositions = [
     "Speaker / President","Deputy Speaker / Vice President",
     "Chief Whip","Deputy Chief Whip",
     "Senate President","Secretary General","Committee Chair",
     "Financial Secretary","Other Legislative Officer",
-    "Honourable Member","Departmental Representative","Student","Staff"
+    "Honourable Member",
+  ];
+  const generalPositions = [
+    "Volunteer","Departmental Representative","Student","Staff",
   ];
 
   return (
@@ -900,15 +937,18 @@ function RegisterView({ onRegister, T }) {
               <select style={selectStyle(T, !!errors.position)} value={form.position}
                 onChange={e => { set("position", e.target.value); clrErr("position"); }}>
                 <option value="">— Select Position —</option>
-                <option value="Volunteer">🤝 Volunteer</option>
-                <optgroup label="── Legislative Officers ──">
-                  {positions.filter(p => p !== "Volunteer").map(p => <option key={p}>{p}</option>)}
+                  <optgroup label="── Legislative Officers ──">
+                  {legislativePositions.map(p => <option key={p}>{p}</option>)}
+                </optgroup>
+                <optgroup label="── General ──">
+                  {generalPositions.map(p => <option key={p}>{p}</option>)}
                 </optgroup>
               </select>
             </FormField>
 
             {/* Institution + Level — hidden for volunteers */}
             {!isVolunteer && (<>
+              {/* Level hidden for Staff — they are graduates */}
               <FormField label="Tertiary Institution" error={errors.institution || errors.institutionOther} T={T}>
                 <select style={selectStyle(T, !!(errors.institution))} value={form.institution}
                   onChange={e => { set("institution", e.target.value); clrErr("institution"); clrErr("institutionOther"); }}>
@@ -922,6 +962,7 @@ function RegisterView({ onRegister, T }) {
                     onChange={e => { set("institutionOther", e.target.value); clrErr("institutionOther"); }} />
                 )}
               </FormField>
+              {!isNoLevel && (
               <FormField label="Level" error={errors.level} T={T}>
                 <select style={selectStyle(T, !!errors.level)} value={form.level}
                   onChange={e => { set("level", e.target.value); clrErr("level"); }}>
@@ -929,6 +970,7 @@ function RegisterView({ onRegister, T }) {
                   {levels.map(l => <option key={l}>{l}</option>)}
                 </select>
               </FormField>
+              )}
             </>)}
           </div>
           <button onClick={submit} disabled={busy} style={{
@@ -1380,7 +1422,7 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
       {label:"Checked In",   width:14}, {label:"Check-In Time",width:22},
     ];
     const dataRows = regs.map(r => [
-      r.id, r.name||'', r.institution||'', r.level||'', r.position||'',
+      r.id, r.name||'', normalizeInstitution(r.institution)||'', r.level||'', r.position||'',
       new Date(r.registeredAt).toLocaleString('en-GB'),
       r.signedIn ? 'Yes' : 'No',
       r.signedInAt ? new Date(r.signedInAt).toLocaleString('en-GB') : '',
@@ -1495,7 +1537,7 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
     const q = search.toLowerCase();
     const ms = !q || [r.name,r.institution,r.position,r.id].some(v => v?.toLowerCase().includes(q));
     const mStatus = filterStatus==="all" || (filterStatus==="signed" && r.signedIn) || (filterStatus==="pending" && !r.signedIn);
-    const mInst   = !filterInst  || r.institution === filterInst;
+    const mInst   = !filterInst  || normalizeInstitution(r.institution) === filterInst;
     const mLevel  = !filterLevel || r.level === filterLevel;
     const mPos    = !filterPos   || r.position === filterPos;
     return ms && mStatus && mInst && mLevel && mPos;
@@ -1508,7 +1550,7 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
   const hasActiveFilter = filterStatus!=="all" || filterInst || filterLevel || filterPos || search;
 
   // Unique values for filter dropdowns
-  const uniqueInstitutions = [...new Set(regs.map(r => r.institution).filter(Boolean))].sort();
+  const uniqueInstitutions = [...new Set(regs.map(r => normalizeInstitution(r.institution)).filter(Boolean))].sort();
   const uniqueLevels = [...new Set(regs.map(r => r.level).filter(Boolean))].sort();
   const uniquePositions = [...new Set(regs.map(r => r.position).filter(Boolean))].sort();
 
