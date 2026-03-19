@@ -15,6 +15,82 @@ const FIREBASE_CONFIG = {
 };
 const COLLECTION = "delegates";
 
+// ─── INSTITUTION LIST ─────────────────────────────────────────────────────────
+// Full official names confirmed online March 2026. No abbreviations.
+// Summit invited schools first, then all other Nigerian institutions alphabetically.
+const INSTITUTIONS = [
+  // ── Summit Partner Schools ──────────────────────────────────────────────────
+  "Redeemer's University, Ede",
+  "Adeleke University, Ede",
+  "Babcock University, Ilishan-Remo",
+  "Bells University of Technology, Ota",
+  "Joseph Ayo Babalola University, Ikeji-Arakeji",
+  "Ladoke Akintola University of Technology, Ogbomoso",
+  "Lagos State University, Ojo",
+  "Lead City University, Ibadan",
+  "Obafemi Awolowo University, Ile-Ife",
+  "Osun State University, Osogbo",
+  "University of Ibadan",
+  "University of Lagos",
+  "Yaba College of Technology, Lagos",
+  // ── Other Nigerian Universities (alphabetical) ───────────────────────────────
+  "Abia State University, Uturu",
+  "Achievers University, Owo",
+  "Afe Babalola University, Ado-Ekiti",
+  "Ahmadu Bello University, Zaria",
+  "Ajayi Crowther University, Oyo",
+  "Al-Hikmah University, Ilorin",
+  "Ambrose Alli University, Ekpoma",
+  "American University of Nigeria, Yola",
+  "Bayero University, Kano",
+  "Benson Idahosa University, Benin City",
+  "Bingham University, New Karu",
+  "Bowen University, Iwo",
+  "Caleb University, Lagos",
+  "Caritas University, Enugu",
+  "Covenant University, Ota",
+  "Crawford University, Igbesa",
+  "Crescent University, Abeokuta",
+  "Delta State University, Abraka",
+  "Ekiti State University, Ado-Ekiti",
+  "Elizade University, Ilara-Mokin",
+  "Enugu State University of Science and Technology, Enugu",
+  "Federal University of Agriculture, Abeokuta",
+  "Federal University of Technology, Akure",
+  "Federal University of Technology, Minna",
+  "Federal University of Technology, Owerri",
+  "Federal University, Oye-Ekiti",
+  "Fountain University, Osogbo",
+  "Igbinedion University, Okada",
+  "Imo State University, Owerri",
+  "Kwara State University, Malete",
+  "Landmark University, Omu-Aran",
+  "Madonna University, Okija",
+  "Michael Okpara University of Agriculture, Umudike",
+  "Nasarawa State University, Keffi",
+  "National Open University of Nigeria, Lagos",
+  "Niger Delta University, Amassoma",
+  "Nnamdi Azikiwe University, Awka",
+  "Novena University, Ogume",
+  "Obong University, Obong Ntak",
+  "Oduduwa University, Ipetumodu",
+  "Olabisi Onabanjo University, Ago-Iwoye",
+  "Pan-Atlantic University, Lagos",
+  "Rivers State University, Port Harcourt",
+  "University of Benin, Benin City",
+  "University of Calabar, Calabar",
+  "University of Ilorin, Ilorin",
+  "University of Jos, Jos",
+  "University of Maiduguri, Maiduguri",
+  "University of Nigeria, Nsukka",
+  "University of Port Harcourt, Port Harcourt",
+  "University of Uyo, Uyo",
+  "Veritas University, Abuja",
+  // ── Not listed above? ───────────────────────────────────────────────────────
+  "Others",
+];
+
+
 // ─── BRAND COLOURS ────────────────────────────────────────────────────────────
 const BRAND = {
   // Navy — primary authority colour (RUNSA logo, legislative bodies worldwide)
@@ -655,18 +731,23 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
 
 // ─── REGISTER VIEW ────────────────────────────────────────────────────────────
 function RegisterView({ onRegister, T }) {
-  const [form, setForm] = useState({ name:"", institution:"", level:"", position:"" });
+  const [form, setForm] = useState({ name:"", institution:"", institutionOther:"", level:"", position:"" });
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
   const set = (k,v) => setForm(f => ({ ...f, [k]:v }));
   const clrErr = k => setErrors(e => ({ ...e, [k]:"" }));
 
+  const isVolunteer = form.position === "Volunteer";
+
   const validate = () => {
     const e = {};
     if (!form.name.trim()) e.name = "Full name is required";
-    if (!form.institution.trim()) e.institution = "Institution is required";
-    if (!form.level) e.level = "Please select your level";
+    if (!isVolunteer) {
+      if (!form.institution) e.institution = "Please select your institution";
+      if (form.institution === "Others" && !form.institutionOther.trim()) e.institutionOther = "Please enter your institution name";
+      if (!form.level) e.level = "Please select your level";
+    }
     if (!form.position) e.position = "Please select your position";
     return e;
   };
@@ -675,15 +756,23 @@ function RegisterView({ onRegister, T }) {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setBusy(true);
-    await onRegister(form);
+    // Resolve institution value
+    const resolvedInstitution = isVolunteer
+      ? "RUNSA Summit Volunteer"
+      : form.institution === "Others"
+        ? form.institutionOther.trim()
+        : form.institution;
+    const resolvedLevel = isVolunteer ? "Volunteer" : form.level;
+    await onRegister({ ...form, institution: resolvedInstitution, level: resolvedLevel });
     setBusy(false);
   };
 
-  const levels = ["100 Level","200 Level","300 Level","400 Level","500 Level","600 Level","ND","HND"];
+  const levels = ["100 Level","200 Level","300 Level","400 Level","500 Level","600 Level","ND","HND","Postgraduate"];
   const positions = [
+    "Volunteer",
     "Speaker / President","Deputy Speaker / Vice President",
     "Chief Whip","Deputy Chief Whip",
-    "Senate President","Legislative Secretary / Secretary General","Committee Chair",
+    "Senate President","Secretary General","Committee Chair",
     "Financial Secretary","Other Legislative Officer",
     "Honourable Member","Departmental Representative","Student","Staff"
   ];
@@ -789,18 +878,50 @@ function RegisterView({ onRegister, T }) {
         </div>
 
         <div style={{ padding:"32px" }}>
+          {/* Volunteer banner */}
+          {isVolunteer && (
+            <div style={{ background:"rgba(57,224,122,0.08)", border:"1px solid rgba(57,224,122,0.25)",
+              borderRadius:10, padding:"12px 16px", marginBottom:20, fontSize:13,
+              color: T.dark ? "#39e07a" : "#1a7a40", lineHeight:1.5 }}>
+              ✅ Registering as a <strong>Volunteer</strong> — no institution or level required.
+              You will receive a personal QR entry pass and can create your attendee card after registration.
+            </div>
+          )}
+
           <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:20, marginBottom:28 }}>
             <FormField label="Full Name" error={errors.name} T={T}>
               <input style={inputStyle(T, !!errors.name)}
                 placeholder="e.g. John Doe" value={form.name}
                 onChange={e => { set("name", e.target.value); clrErr("name"); }} />
             </FormField>
-            <FormField label="Tertiary Institution" error={errors.institution} T={T}>
-              <input style={inputStyle(T, !!errors.institution)}
-                placeholder="e.g. Redeemers' University, Ede" value={form.institution}
-                onChange={e => { set("institution", e.target.value); clrErr("institution"); }} />
+
+            {/* Position — moved up so volunteer selection hides fields below */}
+            <FormField label="Position / Role" error={errors.position} T={T}>
+              <select style={selectStyle(T, !!errors.position)} value={form.position}
+                onChange={e => { set("position", e.target.value); clrErr("position"); }}>
+                <option value="">— Select Position —</option>
+                <option value="Volunteer">🤝 Volunteer</option>
+                <optgroup label="── Legislative Officers ──">
+                  {positions.filter(p => p !== "Volunteer").map(p => <option key={p}>{p}</option>)}
+                </optgroup>
+              </select>
             </FormField>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:20 }}>
+
+            {/* Institution + Level — hidden for volunteers */}
+            {!isVolunteer && (<>
+              <FormField label="Tertiary Institution" error={errors.institution || errors.institutionOther} T={T}>
+                <select style={selectStyle(T, !!(errors.institution))} value={form.institution}
+                  onChange={e => { set("institution", e.target.value); clrErr("institution"); clrErr("institutionOther"); }}>
+                  <option value="">— Select Institution —</option>
+                  {INSTITUTIONS.map(inst => <option key={inst} value={inst}>{inst}</option>)}
+                </select>
+                {form.institution === "Others" && (
+                  <input style={{ ...inputStyle(T, !!errors.institutionOther), marginTop:10 }}
+                    placeholder="Type your institution name"
+                    value={form.institutionOther}
+                    onChange={e => { set("institutionOther", e.target.value); clrErr("institutionOther"); }} />
+                )}
+              </FormField>
               <FormField label="Level" error={errors.level} T={T}>
                 <select style={selectStyle(T, !!errors.level)} value={form.level}
                   onChange={e => { set("level", e.target.value); clrErr("level"); }}>
@@ -808,14 +929,7 @@ function RegisterView({ onRegister, T }) {
                   {levels.map(l => <option key={l}>{l}</option>)}
                 </select>
               </FormField>
-              <FormField label="Position in Legislative Arm" error={errors.position} T={T}>
-                <select style={selectStyle(T, !!errors.position)} value={form.position}
-                  onChange={e => { set("position", e.target.value); clrErr("position"); }}>
-                  <option value="">— Select Position —</option>
-                  {positions.map(p => <option key={p}>{p}</option>)}
-                </select>
-              </FormField>
-            </div>
+            </>)}
           </div>
           <button onClick={submit} disabled={busy} style={{
             width:"100%", padding:"14px 20px",
@@ -1197,8 +1311,11 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
   const [loginTime, setLoginTime] = useState(null);
   const [pin, setPin] = useState("");
   const [pinErr, setPinErr] = useState(false);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [search, setSearch]         = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");     // all | signed | pending
+  const [filterInst, setFilterInst]     = useState("");         // institution
+  const [filterLevel, setFilterLevel]   = useState("");         // level
+  const [filterPos, setFilterPos]       = useState("");         // position
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null); // delegate ID pending delete confirmation
 
@@ -1253,24 +1370,123 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
   );
 
   const downloadList = () => {
-    const headers = ["Ticket ID","Full Name","Institution","Level","Position","Registered","Checked In","Check-In Time"];
-    const rows = regs.map(r => [
-      r.id,
-      `"${(r.name||"").replace(/"/g,'""')}"`,
-      `"${(r.institution||"").replace(/"/g,'""')}"`,
-      `"${(r.level||"").replace(/"/g,'""')}"`,
-      `"${(r.position||"").replace(/"/g,'""')}"`,
-      new Date(r.registeredAt).toLocaleString("en-GB"),
-      r.signedIn ? "Yes" : "No",
-      r.signedInAt ? new Date(r.signedInAt).toLocaleString("en-GB") : "",
+    // SpreadsheetML XLSX — opens in Excel, Google Sheets, LibreOffice
+    // Features: bold navy headers, AutoFilter (sort + filter arrows), frozen header row, alternating rows
+    const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const cols = [
+      {label:"Ticket ID",    width:18}, {label:"Full Name",    width:28},
+      {label:"Institution",  width:32}, {label:"Level",        width:14},
+      {label:"Position",     width:30}, {label:"Registered",   width:22},
+      {label:"Checked In",   width:14}, {label:"Check-In Time",width:22},
+    ];
+    const dataRows = regs.map(r => [
+      r.id, r.name||'', r.institution||'', r.level||'', r.position||'',
+      new Date(r.registeredAt).toLocaleString('en-GB'),
+      r.signedIn ? 'Yes' : 'No',
+      r.signedInAt ? new Date(r.signedInAt).toLocaleString('en-GB') : '',
     ]);
-    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type:"text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `RUNSA-Delegates-${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
+
+    const colWidths = cols.map(c=>`<col width="${c.width}" customWidth="1"/>`).join('');
+    const hdrCells = cols.map((c,i)=>{
+      const col = String.fromCharCode(65+i);
+      return `<c r="${col}1" s="1" t="inlineStr"><is><t>${esc(c.label)}</t></is></c>`;
+    }).join('');
+    const bodyRows = dataRows.map((row,ri)=>{
+      const rn = ri+2;
+      const s = ri%2===0?'2':'3';
+      return '<row r="'+rn+'">'+cols.map((_,ci)=>{
+        const col = String.fromCharCode(65+ci);
+        const val = esc(row[ci]);
+        // Colour Yes/No in checked-in column
+        if(ci===6) return `<c r="${col}${rn}" s="${val==='Yes'?'4':'5'}" t="inlineStr"><is><t>${val}</t></is></c>`;
+        return `<c r="${col}${rn}" s="${s}" t="inlineStr"><is><t>${val}</t></is></c>`;
+      }).join('')+'</row>';
+    }).join('');
+    const lastCol = String.fromCharCode(65+cols.length-1);
+    const lastRow = dataRows.length+1;
+
+    const sheetXML=`<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<sheetFormatPr defaultRowHeight="18"/>
+<cols>${colWidths}</cols>
+<sheetData><row r="1" ht="22" customHeight="1">${hdrCells}</row>${bodyRows}</sheetData>
+<autoFilter ref="A1:${lastCol}${lastRow}"/>
+</worksheet>`;
+
+    const stylesXML=`<?xml version="1.0" encoding="UTF-8"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="4">
+  <font><sz val="11"/><name val="Calibri"/></font>
+  <font><b/><sz val="11"/><color rgb="FFF5D57A"/><name val="Calibri"/></font>
+  <font><sz val="11"/><color rgb="FF2E7D32"/><name val="Calibri"/></font>
+  <font><sz val="11"/><color rgb="FFC62828"/><name val="Calibri"/></font>
+</fonts>
+<fills count="6">
+  <fill><patternFill patternType="none"/></fill>
+  <fill><patternFill patternType="gray125"/></fill>
+  <fill><patternFill patternType="solid"><fgColor rgb="FF0D1E38"/></patternFill></fill>
+  <fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/></patternFill></fill>
+  <fill><patternFill patternType="solid"><fgColor rgb="FFF1F8E9"/></patternFill></fill>
+  <fill><patternFill patternType="solid"><fgColor rgb="FFFFEBEE"/></patternFill></fill>
+</fills>
+<borders count="2">
+  <border><left/><right/><top/><bottom/><diagonal/></border>
+  <border>
+    <left style="thin"><color rgb="FFD0D0D0"/></left>
+    <right style="thin"><color rgb="FFD0D0D0"/></right>
+    <top style="thin"><color rgb="FFD0D0D0"/></top>
+    <bottom style="thin"><color rgb="FFD0D0D0"/></bottom>
+    <diagonal/>
+  </border>
+</borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="6">
+  <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+  <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+  <xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyBorder="1"><alignment vertical="center"/></xf>
+  <xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1"><alignment vertical="center"/></xf>
+  <xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf>
+  <xf numFmtId="0" fontId="3" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf>
+</cellXfs>
+</styleSheet>`;
+
+    const wbXML=`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Delegates" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+    const wbRels=`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+    const appRels=`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+    const ct=`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+
+    // Minimal ZIP builder
+    const enc = s => new TextEncoder().encode(s);
+    const u16 = n => [n&0xFF,(n>>8)&0xFF];
+    const u32 = n => [n&0xFF,(n>>8)&0xFF,(n>>16)&0xFF,(n>>24)&0xFF];
+    const crc32 = buf => { let c=0xFFFFFFFF; const t=new Uint32Array(256).map((_,i)=>{let v=i;for(let k=0;k<8;k++)v=(v&1)?(0xEDB88320^(v>>>1)):(v>>>1);return v;}); for(const b of buf)c=t[(c^b)&0xFF]^(c>>>8); return(c^0xFFFFFFFF)>>>0; };
+
+    const files = {
+      '[Content_Types].xml': ct, '_rels/.rels': appRels,
+      'xl/workbook.xml': wbXML, 'xl/_rels/workbook.xml.rels': wbRels,
+      'xl/worksheets/sheet1.xml': sheetXML, 'xl/styles.xml': stylesXML,
+    };
+
+    const parts=[]; const cdirs=[]; let off=0;
+    for(const [name,content] of Object.entries(files)){
+      const data=enc(content), nb=enc(name), crc=crc32(data);
+      const lh=new Uint8Array([0x50,0x4B,0x03,0x04,20,0,0,0,0,0,0,0,0,0,...u32(crc),...u32(data.length),...u32(data.length),...u16(nb.length),0,0,...nb]);
+      cdirs.push({nb,crc,size:data.length,off,lh});
+      parts.push(lh,data); off+=lh.length+data.length;
+    }
+    const cds=cdirs.map(({nb,crc,size,off:o})=>new Uint8Array([0x50,0x4B,0x01,0x02,20,0,20,0,0,0,0,0,0,0,0,0,...u32(crc),...u32(size),...u32(size),...u16(nb.length),0,0,0,0,0,0,0,0,0,0,0,0,...u16(nb.length),...nb]));
+    const cdSize=cds.reduce((s,b)=>s+b.length,0);
+    const eocd=new Uint8Array([0x50,0x4B,0x05,0x06,0,0,0,0,...u16(cdirs.length),...u16(cdirs.length),...u32(cdSize),...u32(off),0,0]);
+    const all=[...parts,...cds,eocd];
+    const total2=all.reduce((s,b)=>s+b.length,0);
+    const out=new Uint8Array(total2); let pos=0;
+    for(const p of all){out.set(p,pos);pos+=p.length;}
+
+    const blob=new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=`RUNSA-Delegates-${new Date().toISOString().slice(0,10)}.xlsx`; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -1278,12 +1494,23 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
   const filtered = regs.filter(r => {
     const q = search.toLowerCase();
     const ms = !q || [r.name,r.institution,r.position,r.id].some(v => v?.toLowerCase().includes(q));
-    const mf = filter==="all" || (filter==="signed" && r.signedIn) || (filter==="pending" && !r.signedIn);
-    return ms && mf;
+    const mStatus = filterStatus==="all" || (filterStatus==="signed" && r.signedIn) || (filterStatus==="pending" && !r.signedIn);
+    const mInst   = !filterInst  || r.institution === filterInst;
+    const mLevel  = !filterLevel || r.level === filterLevel;
+    const mPos    = !filterPos   || r.position === filterPos;
+    return ms && mStatus && mInst && mLevel && mPos;
   });
 
   const total = regs.length;
+  const filteredTotal = filtered.length;
   const signed = regs.filter(r => r.signedIn).length;
+  const filteredSigned = filtered.filter(r => r.signedIn).length;
+  const hasActiveFilter = filterStatus!=="all" || filterInst || filterLevel || filterPos || search;
+
+  // Unique values for filter dropdowns
+  const uniqueInstitutions = [...new Set(regs.map(r => r.institution).filter(Boolean))].sort();
+  const uniqueLevels = [...new Set(regs.map(r => r.level).filter(Boolean))].sort();
+  const uniquePositions = [...new Set(regs.map(r => r.position).filter(Boolean))].sort();
 
   return (
     <div style={{ maxWidth:1100, margin:"0 auto", padding:"40px 20px" }}>
@@ -1342,14 +1569,15 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",
         gap:14, marginBottom:28 }} className="fade-up-2">
         {[
-          { label:"Total Registered", v:total, c:BRAND.gold },
-          { label:"Signed In", v:signed, c:"#2e9e5b" },
-          { label:"Awaiting Arrival", v:total-signed, c:"#c97a10" },
+          { label: hasActiveFilter ? "Showing" : "Total Registered", v: hasActiveFilter ? filteredTotal : total, c:BRAND.gold, sub: hasActiveFilter ? `of ${total} total` : null },
+          { label: hasActiveFilter ? "Checked In (filtered)" : "Checked In", v: hasActiveFilter ? filteredSigned : signed, c:"#2e9e5b", sub: hasActiveFilter ? `of ${signed} total` : null },
+          { label: hasActiveFilter ? "Pending (filtered)" : "Awaiting Arrival", v: hasActiveFilter ? filteredTotal-filteredSigned : total-signed, c:"#c97a10", sub: null },
         ].map(s => (
           <div key={s.label} style={{ background:T.surface, border:`1px solid ${T.border}`,
             borderRadius:12, padding:"20px", textAlign:"center" }}>
             <div style={{ fontFamily:"'Cinzel', serif", fontSize:40, fontWeight:900, color:s.c, lineHeight:1 }}>{s.v}</div>
             <div style={{ fontSize:11, color:T.textMuted, textTransform:"uppercase", letterSpacing:"0.08em", marginTop:6 }}>{s.label}</div>
+            {s.sub && <div style={{ fontSize:10, color:T.textMuted, marginTop:3 }}>{s.sub}</div>}
           </div>
         ))}
       </div>
@@ -1357,19 +1585,54 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
       {/* ── CHECK-IN GATE TOGGLE ── */}
       <CheckinToggle checkinOpen={checkinOpen} onToggle={onToggleCheckin} superAdmin={superAdmin} T={T} />
 
-      <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap", alignItems:"center" }} className="fade-up-3">
-        <input style={{ ...inputStyle(T, false), flex:1, minWidth:200 }}
-          placeholder="Search name, institution, ID…" value={search} onChange={e => setSearch(e.target.value)} />
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-          {[["all","All"],["signed","✓ Signed In"],["pending","⏳ Pending"]].map(([k,l]) => (
-            <button key={k} onClick={() => setFilter(k)} style={{
-              padding:"10px 16px", borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:500, border:"none",
-              background: filter===k ? `linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})` : T.dark ? "rgba(255,255,255,0.06)" : "rgba(13,31,60,0.06)",
-              color: filter===k ? "#fff" : T.textMuted,
-              outline: filter!==k ? `1px solid ${T.border}` : "none",
-            }}>{l}</button>
-          ))}
+      {/* ── MULTI-FILTER PANEL ── */}
+      <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:14,
+        padding:"18px 20px", marginBottom:20 }} className="fade-up-3">
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+          marginBottom:14, flexWrap:"wrap", gap:8 }}>
+          <div style={{ fontSize:12, fontWeight:600, color: T.dark ? BRAND.goldLight : BRAND.navy,
+            textTransform:"uppercase", letterSpacing:"0.08em" }}>
+            Filters {hasActiveFilter && <span style={{ color:BRAND.gold }}>· Active</span>}
+          </div>
+          {hasActiveFilter && (
+            <button onClick={() => { setSearch(""); setFilterStatus("all"); setFilterInst(""); setFilterLevel(""); setFilterPos(""); }}
+              style={{ fontSize:11, color:"#c0392b", background:"transparent", border:"1px solid rgba(192,57,43,0.3)",
+                borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>
+              ✕ Clear All Filters
+            </button>
+          )}
         </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:10 }}>
+          {/* Search */}
+          <input style={{ ...inputStyle(T, false), fontSize:13 }}
+            placeholder="Search name, ID…" value={search} onChange={e => setSearch(e.target.value)} />
+          {/* Status */}
+          <select style={selectStyle(T, false)} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+            <option value="all">All Statuses</option>
+            <option value="signed">✓ Checked In</option>
+            <option value="pending">⏳ Pending</option>
+          </select>
+          {/* Institution */}
+          <select style={selectStyle(T, false)} value={filterInst} onChange={e => setFilterInst(e.target.value)}>
+            <option value="">All Institutions</option>
+            {uniqueInstitutions.map(i => <option key={i} value={i}>{i}</option>)}
+          </select>
+          {/* Level */}
+          <select style={selectStyle(T, false)} value={filterLevel} onChange={e => setFilterLevel(e.target.value)}>
+            <option value="">All Levels</option>
+            {uniqueLevels.map(l => <option key={l} value={l}>{l}</option>)}
+          </select>
+          {/* Position */}
+          <select style={selectStyle(T, false)} value={filterPos} onChange={e => setFilterPos(e.target.value)}>
+            <option value="">All Positions</option>
+            {uniquePositions.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+        {hasActiveFilter && (
+          <div style={{ marginTop:10, fontSize:12, color:T.textMuted }}>
+            Showing <strong style={{ color: T.dark ? BRAND.goldLight : BRAND.navyDark }}>{filteredTotal}</strong> of <strong>{total}</strong> delegates
+          </div>
+        )}
       </div>
 
       {/* Desktop table */}
