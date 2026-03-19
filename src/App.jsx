@@ -3,7 +3,8 @@ import { useState, useEffect, useRef } from "react";
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const BASE_URL = "https://legislative-summit-registration.vercel.app";
 const ADMIN_PIN = "LS2026";
-const CHECKIN_PIN = "290326"; // separate PIN to toggle check-in
+const CHECKIN_PIN = "290326";    // separate PIN to toggle check-in
+const SUPER_ADMIN_PIN = "Admin2026"; // full unrestricted access — bypasses check-in PIN
 
 // ─── FIREBASE CONFIG ──────────────────────────────────────────────────────────
 // Free Firestore database — shared across ALL devices in real time
@@ -123,6 +124,13 @@ async function fbResetAll() {
   } catch (e) { console.error("Firebase reset error:", e); }
 }
 
+
+async function fbDeleteDelegate(id) {
+  try {
+    const db = await initFirebase();
+    await db.collection(COLLECTION).doc(id).delete();
+  } catch (e) { console.error("Firebase delete error:", e); }
+}
 
 // ─── CHECK-IN GATE (Firebase-controlled) ─────────────────────────────────────
 // Admin toggles check-in open/closed from the Admin panel.
@@ -324,6 +332,11 @@ export default function App() {
     setRegs([]);
   };
 
+  const deleteDelegate = async (id) => {
+    setRegs(prev => prev.filter(r => r.id !== id)); // optimistic
+    fbDeleteDelegate(id); // background — no await
+  };
+
   const T = {
     dark, gold: BRAND.gold, goldLight: BRAND.goldLight, navy: BRAND.navy,
     navyDark: BRAND.navyDark, cream: BRAND.cream, creamDark: BRAND.creamDark,
@@ -475,7 +488,7 @@ export default function App() {
           ? <TicketView ticket={ticket} onBack={() => setView("register")} onCreateCard={() => { window.open("https://legislative-summit-registration.vercel.app/card?prefill=" + encodeURIComponent(ticket.id), "_blank"); }} T={T} />
           : <RegisterView onRegister={handleRegister} T={T} />)}
         {view === "checkin" && <ManualCheckin onSignIn={signIn} T={T} />}
-        {view === "admin" && <AdminView regs={regs} onReset={resetAll} checkinOpen={checkinOpen} onToggleCheckin={async (v) => { setCheckinOpen(v); await fbSetCheckinOpen(v); }} T={T} />}
+        {view === "admin" && <AdminView regs={regs} onReset={resetAll} onDeleteDelegate={deleteDelegate} checkinOpen={checkinOpen} onToggleCheckin={async (v) => { setCheckinOpen(v); await fbSetCheckinOpen(v); }} T={T} />}
       </main>
 
       <footer style={{
@@ -1065,15 +1078,20 @@ function ManualCheckin({ onSignIn, T }) {
 
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
 // ─── CHECKIN TOGGLE ───────────────────────────────────────────────────────────
-function CheckinToggle({ checkinOpen, onToggle, T }) {
+function CheckinToggle({ checkinOpen, onToggle, superAdmin, T }) {
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState("");
   const [pinErr, setPinErr] = useState(false);
 
   const handleToggleClick = () => {
-    setShowPin(true);
-    setPin("");
-    setPinErr(false);
+    if (superAdmin) {
+      // Super admin bypasses the PIN prompt entirely
+      onToggle(!checkinOpen);
+    } else {
+      setShowPin(true);
+      setPin("");
+      setPinErr(false);
+    }
   };
 
   const handleConfirm = () => {
@@ -1173,18 +1191,25 @@ function CheckinToggle({ checkinOpen, onToggle, T }) {
   );
 }
 
-function AdminView({ regs, onReset, checkinOpen, onToggleCheckin, T }) {
+function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheckin, T }) {
   const [unlocked, setUnlocked] = useState(false);
+  const [superAdmin, setSuperAdmin] = useState(false); // bypasses check-in PIN
   const [loginTime, setLoginTime] = useState(null);
   const [pin, setPin] = useState("");
   const [pinErr, setPinErr] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null); // delegate ID pending delete confirmation
 
   const unlock = () => {
-    if (pin === ADMIN_PIN) { setUnlocked(true); setPinErr(false); setLoginTime(Date.now()); }
-    else setPinErr(true);
+    if (pin === SUPER_ADMIN_PIN) {
+      setUnlocked(true); setSuperAdmin(true); setPinErr(false); setLoginTime(Date.now());
+    } else if (pin === ADMIN_PIN) {
+      setUnlocked(true); setSuperAdmin(false); setPinErr(false); setLoginTime(Date.now());
+    } else {
+      setPinErr(true);
+    }
   };
 
   useEffect(() => {
@@ -1330,7 +1355,7 @@ function AdminView({ regs, onReset, checkinOpen, onToggleCheckin, T }) {
       </div>
 
       {/* ── CHECK-IN GATE TOGGLE ── */}
-      <CheckinToggle checkinOpen={checkinOpen} onToggle={onToggleCheckin} T={T} />
+      <CheckinToggle checkinOpen={checkinOpen} onToggle={onToggleCheckin} superAdmin={superAdmin} T={T} />
 
       <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap", alignItems:"center" }} className="fade-up-3">
         <input style={{ ...inputStyle(T, false), flex:1, minWidth:200 }}
@@ -1354,7 +1379,7 @@ function AdminView({ regs, onReset, checkinOpen, onToggleCheckin, T }) {
         <table style={{ width:"100%", borderCollapse:"collapse", minWidth:700 }}>
           <thead>
             <tr style={{ background: T.dark ? "rgba(0,0,0,0.25)" : "rgba(13,31,60,0.04)" }}>
-              {["Ticket ID","Name","Institution","Level","Position","Date","Status"].map(h => (
+              {["Ticket ID","Name","Institution","Level","Position","Date","Status",""].map(h => (
                 <th key={h} style={{ padding:"12px 16px", fontSize:11, fontWeight:600,
                   color: T.dark ? BRAND.goldLight : BRAND.navy,
                   textTransform:"uppercase", letterSpacing:"0.09em",
@@ -1387,7 +1412,7 @@ function AdminView({ regs, onReset, checkinOpen, onToggleCheckin, T }) {
                     <span style={{ display:"inline-block", padding:"4px 10px",
                       background:"rgba(46,158,91,0.12)", border:"1px solid rgba(46,158,91,0.3)",
                       color:"#2e9e5b", borderRadius:5, fontSize:11, fontWeight:600, lineHeight:1.7 }}>
-                      ✓ Signed In<br />
+                      ✓ Checked In<br />
                       <span style={{ fontSize:10, opacity:0.8 }}>{new Date(r.signedInAt).toLocaleTimeString("en-GB")}</span>
                     </span>
                   ) : (
@@ -1395,6 +1420,26 @@ function AdminView({ regs, onReset, checkinOpen, onToggleCheckin, T }) {
                       background:"rgba(201,122,16,0.1)", border:"1px solid rgba(201,122,16,0.3)",
                       color:"#c97a10", borderRadius:5, fontSize:11, fontWeight:600 }}>⏳ Pending</span>
                   )}
+                </td>
+                <td style={{ padding:"8px 16px" }}>
+                  {superAdmin && (confirmDeleteId === r.id ? (
+                    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                      <span style={{ fontSize:11, color:"#c0392b", fontWeight:600 }}>Delete?</span>
+                      <button onClick={() => { onDeleteDelegate(r.id); setConfirmDeleteId(null); }} style={{
+                        padding:"4px 10px", background:"#c0392b", border:"none",
+                        color:"#fff", borderRadius:5, fontSize:11, fontWeight:700, cursor:"pointer" }}>Yes</button>
+                      <button onClick={() => setConfirmDeleteId(null)} style={{
+                        padding:"4px 8px", background:"transparent",
+                        border:`1px solid ${T.border}`, color:T.textMuted,
+                        borderRadius:5, fontSize:11, cursor:"pointer" }}>No</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmDeleteId(r.id)} style={{
+                      padding:"5px 10px", background:"rgba(192,57,43,0.08)",
+                      border:"1px solid rgba(192,57,43,0.3)", color:"#c0392b",
+                      borderRadius:6, fontSize:11, fontWeight:600, cursor:"pointer",
+                      transition:"all 0.15s" }}>✕ Delete</button>
+                  ))}
                 </td>
               </tr>
             ))}
@@ -1415,7 +1460,7 @@ function AdminView({ regs, onReset, checkinOpen, onToggleCheckin, T }) {
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
               <span style={{ fontFamily:"monospace", fontSize:12, color:BRAND.gold, fontWeight:700, letterSpacing:"0.08em" }}>{r.id}</span>
               {r.signedIn ? (
-                <span style={{ padding:"3px 10px", background:"rgba(46,158,91,0.12)", border:"1px solid rgba(46,158,91,0.3)", color:"#2e9e5b", borderRadius:20, fontSize:11, fontWeight:600 }}>✓ Signed In</span>
+                <span style={{ padding:"3px 10px", background:"rgba(46,158,91,0.12)", border:"1px solid rgba(46,158,91,0.3)", color:"#2e9e5b", borderRadius:20, fontSize:11, fontWeight:600 }}>✓ Checked In</span>
               ) : (
                 <span style={{ padding:"3px 10px", background:"rgba(201,122,16,0.1)", border:"1px solid rgba(201,122,16,0.3)", color:"#c97a10", borderRadius:20, fontSize:11, fontWeight:600 }}>⏳ Pending</span>
               )}
@@ -1431,7 +1476,28 @@ function AdminView({ regs, onReset, checkinOpen, onToggleCheckin, T }) {
             </div>
             {r.signedIn && r.signedInAt && (
               <div style={{ fontSize:11, color:"#2e9e5b", marginTop:6, borderTop:`1px solid rgba(46,158,91,0.2)`, paddingTop:6 }}>
-                Signed in at {new Date(r.signedInAt).toLocaleTimeString("en-GB")}
+                Checked in at {new Date(r.signedInAt).toLocaleTimeString("en-GB")}
+              </div>
+            )}
+            {superAdmin && (
+              <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.border}` }}>
+                {confirmDeleteId === r.id ? (
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    <span style={{ fontSize:12, color:"#c0392b", fontWeight:600 }}>Confirm delete?</span>
+                    <button onClick={() => { onDeleteDelegate(r.id); setConfirmDeleteId(null); }} style={{
+                      padding:"5px 12px", background:"#c0392b", border:"none",
+                      color:"#fff", borderRadius:6, fontSize:12, fontWeight:700, cursor:"pointer" }}>Yes, Delete</button>
+                    <button onClick={() => setConfirmDeleteId(null)} style={{
+                      padding:"5px 10px", background:"transparent",
+                      border:`1px solid ${T.border}`, color:T.textMuted,
+                      borderRadius:6, fontSize:12, cursor:"pointer" }}>Cancel</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmDeleteId(r.id)} style={{
+                    padding:"6px 14px", background:"rgba(192,57,43,0.08)",
+                    border:"1px solid rgba(192,57,43,0.3)", color:"#c0392b",
+                    borderRadius:7, fontSize:12, fontWeight:600, cursor:"pointer" }}>✕ Delete Registration</button>
+                )}
               </div>
             )}
           </div>
