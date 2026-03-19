@@ -683,7 +683,7 @@ function RegisterView({ onRegister, T }) {
   const positions = [
     "Speaker / President","Deputy Speaker / Vice President",
     "Chief Whip","Deputy Chief Whip",
-    "Senate President","Secretary General","Committee Chair",
+    "Senate President","Legislative Secretary / Secretary General","Committee Chair",
     "Financial Secretary","Other Legislative Officer",
     "Honourable Member","Departmental Representative","Student","Staff"
   ];
