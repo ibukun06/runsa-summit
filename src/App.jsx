@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const BASE_URL = "https://legislative-summit-registration.vercel.app";
 const ADMIN_PIN = "LS2026";
-const CHECKIN_PIN = "290426"; // separate PIN to toggle check-in
+const CHECKIN_PIN = "290326"; // separate PIN to toggle check-in
 
 // ─── FIREBASE CONFIG ──────────────────────────────────────────────────────────
 // Free Firestore database — shared across ALL devices in real time
@@ -1227,16 +1227,20 @@ function AdminView({ regs, onReset, checkinOpen, onToggleCheckin, T }) {
     </div>
   );
 
-  const downloadCSV = () => {
-    const headers = ["Ticket ID","Name","Institution","Level","Position","Registered","Signed In","Sign-In Time"];
+  const downloadList = () => {
+    const headers = ["Ticket ID","Full Name","Institution","Level","Position","Registered","Checked In","Check-In Time"];
     const rows = regs.map(r => [
-      r.id, `"${r.name}"`, `"${r.institution}"`, r.level, `"${r.position}"`,
+      r.id,
+      `"${(r.name||"").replace(/"/g,'""')}"`,
+      `"${(r.institution||"").replace(/"/g,'""')}"`,
+      `"${(r.level||"").replace(/"/g,'""')}"`,
+      `"${(r.position||"").replace(/"/g,'""')}"`,
       new Date(r.registeredAt).toLocaleString("en-GB"),
       r.signedIn ? "Yes" : "No",
       r.signedInAt ? new Date(r.signedInAt).toLocaleString("en-GB") : "",
     ]);
     const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type:"text/csv" });
+    const blob = new Blob(["\uFEFF" + csv], { type:"text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -1244,6 +1248,7 @@ function AdminView({ regs, onReset, checkinOpen, onToggleCheckin, T }) {
     a.click();
     URL.revokeObjectURL(url);
   };
+
 
   const filtered = regs.filter(r => {
     const q = search.toLowerCase();
@@ -1265,7 +1270,7 @@ function AdminView({ regs, onReset, checkinOpen, onToggleCheckin, T }) {
           <p style={{ fontSize:13, color:T.textMuted }}>RUNSA Legislative Summit · 29th April 2026</p>
         </div>
         <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-          <button onClick={downloadCSV} style={{
+          <button onClick={downloadList} style={{
             padding:"10px 18px", borderRadius:8, cursor:"pointer",
             background:`linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})`,
             color:"#fff", border:"none", fontSize:13, fontWeight:600,
