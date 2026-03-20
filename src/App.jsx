@@ -1548,12 +1548,14 @@ ${hdrRow}${dataRows}
             fontFamily:"'Cinzel', serif", letterSpacing:"0.03em" }}>
             ⬇ Excel (Styled)
           </button>
+          {superAdmin && (
           <button onClick={() => setConfirmReset(true)} style={{
             padding:"10px 18px", borderRadius:8, cursor:"pointer",
             background:"transparent", border:"1.5px solid rgba(192,57,43,0.4)",
             color:"#c0392b", fontSize:13, fontWeight:600 }}>
             🗑 Reset All
           </button>
+          )}
         </div>
       </div>
 
