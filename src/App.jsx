@@ -1412,16 +1412,49 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
   );
 
   const downloadList = () => {
-    // SpreadsheetML XLSX — opens in Excel, Google Sheets, LibreOffice
-    // Features: bold navy headers, AutoFilter (sort + filter arrows), frozen header row, alternating rows
-    const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    // CSV with UTF-8 BOM — opens perfectly in Google Sheets, Excel, LibreOffice, WPS, Numbers
+    // All columns preserved: Ticket ID, Name, Institution, Level, Position, Registered, Checked In, Check-In Time
+    const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;  // RFC 4180 quoting
+
+    const headers = [
+      "Ticket ID", "Full Name", "Institution", "Level", "Position",
+      "Registered", "Checked In", "Check-In Time",
+    ];
+
+    const rows = regs.map(r => [
+      q(r.id),
+      q(r.name || ''),
+      q(normalizeInstitution(r.institution) || ''),
+      q(r.level || ''),
+      q(r.position || ''),
+      q(new Date(r.registeredAt).toLocaleString('en-GB')),
+      q(r.signedIn ? 'Yes' : 'No'),
+      q(r.signedInAt ? new Date(r.signedInAt).toLocaleString('en-GB') : ''),
+    ]);
+
+    // \uFEFF = UTF-8 BOM — tells Google Sheets / Excel to open as UTF-8 correctly
+    const csv = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `RUNSA-Delegates-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // XLSX download — styled version for Excel/LibreOffice
+  // Uses a data: URI approach that is universally compatible
+  const downloadXLSX = () => {
+    const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const cols = [
       {label:"Ticket ID",    width:18}, {label:"Full Name",    width:28},
       {label:"Institution",  width:32}, {label:"Level",        width:14},
       {label:"Position",     width:30}, {label:"Registered",   width:22},
       {label:"Checked In",   width:14}, {label:"Check-In Time",width:22},
     ];
-    const dataRows = regs.map(r => [
+    const rows = regs.map(r => [
       r.id, r.name||'', normalizeInstitution(r.institution)||'', r.level||'', r.position||'',
       new Date(r.registeredAt).toLocaleString('en-GB'),
       r.signedIn ? 'Yes' : 'No',
@@ -1433,105 +1466,71 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
       const col = String.fromCharCode(65+i);
       return `<c r="${col}1" s="1" t="inlineStr"><is><t>${esc(c.label)}</t></is></c>`;
     }).join('');
-    const bodyRows = dataRows.map((row,ri)=>{
-      const rn = ri+2;
-      const s = ri%2===0?'2':'3';
+    const bodyRows = rows.map((row,ri)=>{
+      const rn=ri+2, s=ri%2===0?'2':'3';
       return '<row r="'+rn+'">'+cols.map((_,ci)=>{
-        const col = String.fromCharCode(65+ci);
-        const val = esc(row[ci]);
-        // Colour Yes/No in checked-in column
+        const col=String.fromCharCode(65+ci), val=esc(row[ci]);
         if(ci===6) return `<c r="${col}${rn}" s="${val==='Yes'?'4':'5'}" t="inlineStr"><is><t>${val}</t></is></c>`;
         return `<c r="${col}${rn}" s="${s}" t="inlineStr"><is><t>${val}</t></is></c>`;
       }).join('')+'</row>';
     }).join('');
-    const lastCol = String.fromCharCode(65+cols.length-1);
-    const lastRow = dataRows.length+1;
+    const lastCol=String.fromCharCode(65+cols.length-1), lastRow=rows.length+1;
 
-    const sheetXML=`<?xml version="1.0" encoding="UTF-8"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+    const sheet=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
 <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
-<sheetFormatPr defaultRowHeight="18"/>
-<cols>${colWidths}</cols>
+<sheetFormatPr defaultRowHeight="18"/><cols>${colWidths}</cols>
 <sheetData><row r="1" ht="22" customHeight="1">${hdrCells}</row>${bodyRows}</sheetData>
 <autoFilter ref="A1:${lastCol}${lastRow}"/>
 </worksheet>`;
 
-    const stylesXML=`<?xml version="1.0" encoding="UTF-8"?>
+    const styles=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<fonts count="4">
-  <font><sz val="11"/><name val="Calibri"/></font>
-  <font><b/><sz val="11"/><color rgb="FFF5D57A"/><name val="Calibri"/></font>
-  <font><sz val="11"/><color rgb="FF2E7D32"/><name val="Calibri"/></font>
-  <font><sz val="11"/><color rgb="FFC62828"/><name val="Calibri"/></font>
-</fonts>
-<fills count="6">
-  <fill><patternFill patternType="none"/></fill>
-  <fill><patternFill patternType="gray125"/></fill>
-  <fill><patternFill patternType="solid"><fgColor rgb="FF0D1E38"/></patternFill></fill>
-  <fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/></patternFill></fill>
-  <fill><patternFill patternType="solid"><fgColor rgb="FFF1F8E9"/></patternFill></fill>
-  <fill><patternFill patternType="solid"><fgColor rgb="FFFFEBEE"/></patternFill></fill>
-</fills>
-<borders count="2">
-  <border><left/><right/><top/><bottom/><diagonal/></border>
-  <border>
-    <left style="thin"><color rgb="FFD0D0D0"/></left>
-    <right style="thin"><color rgb="FFD0D0D0"/></right>
-    <top style="thin"><color rgb="FFD0D0D0"/></top>
-    <bottom style="thin"><color rgb="FFD0D0D0"/></bottom>
-    <diagonal/>
-  </border>
-</borders>
+<fonts count="4"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFF5D57A"/><name val="Calibri"/></font><font><sz val="11"/><color rgb="FF2E7D32"/><name val="Calibri"/></font><font><sz val="11"/><color rgb="FFC62828"/><name val="Calibri"/></font></fonts>
+<fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF0D1E38"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F8E9"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFEBEE"/></patternFill></fill></fills>
+<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFD0D0D0"/></left><right style="thin"><color rgb="FFD0D0D0"/></right><top style="thin"><color rgb="FFD0D0D0"/></top><bottom style="thin"><color rgb="FFD0D0D0"/></bottom><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
 <cellXfs count="6">
-  <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
-  <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
-  <xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyBorder="1"><alignment vertical="center"/></xf>
-  <xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1"><alignment vertical="center"/></xf>
-  <xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf>
-  <xf numFmtId="0" fontId="3" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf>
-</cellXfs>
-</styleSheet>`;
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyBorder="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf>
+</cellXfs></styleSheet>`;
 
-    const wbXML=`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Delegates" sheetId="1" r:id="rId1"/></sheets></workbook>`;
-    const wbRels=`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
-    const appRels=`<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
-    const ct=`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+    const wb=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Delegates" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+    const wbRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+    const appRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+    const ct=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
 
-    // Minimal ZIP builder
-    const enc = s => new TextEncoder().encode(s);
-    const u16 = n => [n&0xFF,(n>>8)&0xFF];
-    const u32 = n => [n&0xFF,(n>>8)&0xFF,(n>>16)&0xFF,(n>>24)&0xFF];
-    const crc32 = buf => { let c=0xFFFFFFFF; const t=new Uint32Array(256).map((_,i)=>{let v=i;for(let k=0;k<8;k++)v=(v&1)?(0xEDB88320^(v>>>1)):(v>>>1);return v;}); for(const b of buf)c=t[(c^b)&0xFF]^(c>>>8); return(c^0xFFFFFFFF)>>>0; };
+    const enc=s=>new TextEncoder().encode(s);
+    const u16=n=>[n&0xFF,(n>>8)&0xFF];
+    const u32=n=>[n&0xFF,(n>>8)&0xFF,(n>>16)&0xFF,(n>>24)&0xFF];
+    const crc32=buf=>{let c=0xFFFFFFFF;const t=new Uint32Array(256).map((_,i)=>{let v=i;for(let k=0;k<8;k++)v=(v&1)?(0xEDB88320^(v>>>1)):(v>>>1);return v;});for(const b of buf)c=t[(c^b)&0xFF]^(c>>>8);return(c^0xFFFFFFFF)>>>0;};
 
-    const files = {
-      '[Content_Types].xml': ct, '_rels/.rels': appRels,
-      'xl/workbook.xml': wbXML, 'xl/_rels/workbook.xml.rels': wbRels,
-      'xl/worksheets/sheet1.xml': sheetXML, 'xl/styles.xml': stylesXML,
-    };
-
-    const parts=[]; const cdirs=[]; let off=0;
-    for(const [name,content] of Object.entries(files)){
-      const data=enc(content), nb=enc(name), crc=crc32(data);
+    const files={'[Content_Types].xml':ct,'_rels/.rels':appRels,'xl/workbook.xml':wb,'xl/_rels/workbook.xml.rels':wbRels,'xl/worksheets/sheet1.xml':sheet,'xl/styles.xml':styles};
+    const parts=[],cdirs=[];let off=0;
+    for(const[name,content]of Object.entries(files)){
+      const data=enc(content),nb=enc(name),crc=crc32(data);
+      // dos time: 0 = 1980-01-01 00:00:00 — avoids timezone issues
       const lh=new Uint8Array([0x50,0x4B,0x03,0x04,20,0,0,0,0,0,0,0,0,0,...u32(crc),...u32(data.length),...u32(data.length),...u16(nb.length),0,0,...nb]);
-      cdirs.push({nb,crc,size:data.length,off,lh});
-      parts.push(lh,data); off+=lh.length+data.length;
+      cdirs.push({nb,crc,size:data.length,off});
+      parts.push(lh,data);off+=lh.length+data.length;
     }
     const cds=cdirs.map(({nb,crc,size,off:o})=>new Uint8Array([0x50,0x4B,0x01,0x02,20,0,20,0,0,0,0,0,0,0,0,0,...u32(crc),...u32(size),...u32(size),...u16(nb.length),0,0,0,0,0,0,0,0,0,0,0,0,...u16(nb.length),...nb]));
     const cdSize=cds.reduce((s,b)=>s+b.length,0);
     const eocd=new Uint8Array([0x50,0x4B,0x05,0x06,0,0,0,0,...u16(cdirs.length),...u16(cdirs.length),...u32(cdSize),...u32(off),0,0]);
     const all=[...parts,...cds,eocd];
     const total2=all.reduce((s,b)=>s+b.length,0);
-    const out=new Uint8Array(total2); let pos=0;
+    const out=new Uint8Array(total2);let pos=0;
     for(const p of all){out.set(p,pos);pos+=p.length;}
-
     const blob=new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
-    a.href=url; a.download=`RUNSA-Delegates-${new Date().toISOString().slice(0,10)}.xlsx`; a.click();
+    a.href=url;a.download=`RUNSA-Delegates-${new Date().toISOString().slice(0,10)}.xlsx`;a.click();
     URL.revokeObjectURL(url);
   };
-
 
   const filtered = regs.filter(r => {
     const q = search.toLowerCase();
@@ -1569,8 +1568,16 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
             background:`linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})`,
             color:"#fff", border:"none", fontSize:13, fontWeight:600,
             fontFamily:"'Cinzel', serif", letterSpacing:"0.03em",
-            boxShadow:`0 4px 14px rgba(201,146,10,0.3)` }}>
-            ⬇ Download List
+            boxShadow:`0 4px 14px rgba(201,146,10,0.3)`,
+            title:"Opens perfectly in Google Sheets" }}>
+            ⬇ CSV (Google Sheets)
+          </button>
+          <button onClick={downloadXLSX} style={{
+            padding:"10px 18px", borderRadius:8, cursor:"pointer",
+            background:`linear-gradient(135deg, ${BRAND.navyDark}, ${BRAND.navy})`,
+            color:BRAND.goldLight, border:`1px solid ${BRAND.darkBorderGold}`, fontSize:13, fontWeight:600,
+            fontFamily:"'Cinzel', serif", letterSpacing:"0.03em" }}>
+            ⬇ Excel (Styled)
           </button>
           <button onClick={() => setConfirmReset(true)} style={{
             padding:"10px 18px", borderRadius:8, cursor:"pointer",
