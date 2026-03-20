@@ -200,6 +200,21 @@ async function fbLoadRegs() {
   }
 }
 
+// Real-time listener — pushes updates instantly to the browser
+// Returns an unsubscribe function to clean up when component unmounts
+function fbSubscribeRegs(onChange) {
+  initFirebase().then(db => {
+    const unsub = db.collection(COLLECTION)
+      .orderBy("registeredAt", "desc")
+      .onSnapshot(snap => {
+        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        onChange(data);
+      }, err => console.error("Snapshot error:", err));
+    // Store unsub on window so we can call it later
+    window._runsaUnsub = unsub;
+  });
+}
+
 async function fbAddReg(reg) {
   try {
     const db = await initFirebase();
@@ -389,15 +404,17 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fbLoadRegs().then(r => { setRegs(r); setLoading(false); });
-  }, []);
-
-  // Poll Firebase every 15 seconds so admin sees live updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fbLoadRegs().then(r => setRegs(r));
-    }, 15000);
-    return () => clearInterval(interval);
+    // Real-time listener — updates admin instantly when any device registers
+    // Also handles initial load (replaces the polling interval)
+    setLoading(true);
+    fbSubscribeRegs(data => {
+      setRegs(data);
+      setLoading(false);
+    });
+    return () => {
+      // Clean up listener on unmount
+      if (window._runsaUnsub) { window._runsaUnsub(); window._runsaUnsub = null; }
+    };
   }, []);
 
   // Load check-in gate status
@@ -408,6 +425,17 @@ export default function App() {
   const handleRegister = async form => {
     if (regs.length >= 350) {
       alert("Registration is now closed. The maximum number of delegates (350) has been reached.");
+      return;
+    }
+    // ── Duplicate name check ──────────────────────────────────────────────────
+    // Normalise both names: lowercase, trim, collapse whitespace for comparison
+    const normName = s => s.trim().toLowerCase().replace(/\s+/g, " ");
+    const incoming = normName(form.name);
+    const existing = regs.find(r => normName(r.name || "") === incoming);
+    if (existing) {
+      // Show their existing ticket instead of creating a new one
+      setTicket({ ...existing, _isDuplicate: true });
+      setView("ticket");
       return;
     }
     const id = genId();
@@ -1044,11 +1072,20 @@ function TicketView({ ticket, onBack, onCreateCard, T }) {
   return (
     <div style={{ maxWidth:1100, margin:"0 auto", padding:"40px 20px" }}>
       <div style={{ maxWidth:620, margin:"0 auto" }}>
-        <div style={{ background:"rgba(46,158,91,0.12)", border:"1px solid rgba(46,158,91,0.3)",
-          color:"#2e9e5b", padding:"12px 20px", borderRadius:10, marginBottom:24,
-          fontSize:14, textAlign:"center", fontWeight:500 }} className="fade-up">
-          ✓ Registration successful! Your entry ticket is ready.
-        </div>
+        {ticket._isDuplicate ? (
+          <div style={{ background:"rgba(201,146,10,0.1)", border:"1px solid rgba(201,146,10,0.4)",
+            color: T.dark ? BRAND.goldLight : BRAND.navyDark, padding:"14px 20px", borderRadius:10, marginBottom:24,
+            fontSize:14, textAlign:"center", fontWeight:500, lineHeight:1.6 }} className="fade-up">
+            ⚠️ You have already registered! Here is your existing ticket.
+            <br /><span style={{ fontSize:12, opacity:0.7 }}>No new registration was created.</span>
+          </div>
+        ) : (
+          <div style={{ background:"rgba(46,158,91,0.12)", border:"1px solid rgba(46,158,91,0.3)",
+            color:"#2e9e5b", padding:"12px 20px", borderRadius:10, marginBottom:24,
+            fontSize:14, textAlign:"center", fontWeight:500 }} className="fade-up">
+            ✓ Registration successful! Your entry ticket is ready.
+          </div>
+        )}
 
         <div id="printable-ticket" style={{
           background: BRAND.cream, borderRadius:16, overflow:"hidden",
