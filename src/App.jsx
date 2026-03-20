@@ -125,6 +125,38 @@ function normalizeInstitution(raw) {
 
 
 
+// Similarity score between two strings (0 to 1) using Dice coefficient on bigrams
+// Two strings scoring >= 0.70 are treated as the same institution in filters
+function stringSimilarity(a, b) {
+  const s1 = a.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+  const s2 = b.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+  if (s1 === s2) return 1;
+  if (s1.length < 2 || s2.length < 2) return 0;
+  const bigrams = s => {
+    const set = new Set();
+    for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2));
+    return set;
+  };
+  const b1 = bigrams(s1), b2 = bigrams(s2);
+  let inter = 0;
+  b1.forEach(g => { if (b2.has(g)) inter++; });
+  return (2 * inter) / (b1.size + b2.size);
+}
+
+// Groups similar institution names — returns the canonical (most common) form
+// for any institution that matches >= 70% with an existing canonical name
+function canonicaliseInstitution(raw, existingCanonicals) {
+  const norm = normalizeInstitution(raw);
+  if (!norm) return norm;
+  // First check alias map (exact match)
+  const aliased = normalizeInstitution(raw);
+  // Then fuzzy match against already-seen canonicals
+  for (const canon of existingCanonicals) {
+    if (stringSimilarity(norm, canon) >= 0.70) return canon;
+  }
+  return norm; // no match — this IS a new canonical
+}
+
 // ─── BRAND COLOURS ────────────────────────────────────────────────────────────
 const BRAND = {
   // Navy — primary authority colour (RUNSA logo, legislative bodies worldwide)
@@ -358,11 +390,11 @@ function GlobalStyles({ dark }) {
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [dark, setDark] = useState(() => {
-    // Check localStorage first — user's explicit choice beats system preference
-    const saved = localStorage.getItem("runsa-theme");
+    // sessionStorage — persists while browser is open, clears when browser closes
+    // So manual theme choice survives tab switching but resets on browser close
+    const saved = sessionStorage.getItem("runsa-theme");
     if (saved === "light") return false;
     if (saved === "dark") return true;
-    // Fall back to system preference
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
   });
   const [regs, setRegs] = useState([]);
@@ -381,12 +413,40 @@ export default function App() {
     // Only follow system changes if user has NOT made an explicit choice
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = e => {
-      const saved = localStorage.getItem("runsa-theme");
+      const saved = sessionStorage.getItem("runsa-theme");
       if (!saved) setDark(e.matches); // no saved choice — follow system
     };
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, []);
+
+  // Close menu when user scrolls OUTSIDE the menu area
+  // Uses a ref to track when menu opened so we don't close immediately on reflow
+  const menuOpenTimeRef = useRef(null);
+  useEffect(() => {
+    if (menuOpen) {
+      menuOpenTimeRef.current = Date.now();
+    }
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    let startY = null;
+    const handleTouchStart = e => { startY = e.touches[0].clientY; };
+    const handleTouchMove = e => {
+      if (startY === null) return;
+      const delta = Math.abs(e.touches[0].clientY - startY);
+      // Only close if: menu has been open >300ms AND user moved finger >40px
+      const age = Date.now() - (menuOpenTimeRef.current || 0);
+      if (delta > 40 && age > 300) setMenuOpen(false);
+    };
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     fbLoadRegs().then(r => { setRegs(r); setLoading(false); });
@@ -410,11 +470,12 @@ export default function App() {
       alert("Registration is now closed. The maximum number of delegates (350) has been reached.");
       return;
     }
-    // ── Duplicate name check ──────────────────────────────────────────────────
-    // Normalise both names: lowercase, trim, collapse whitespace for comparison
-    const normName = s => s.trim().toLowerCase().replace(/\s+/g, " ");
-    const incoming = normName(form.name);
-    const existing = regs.find(r => normName(r.name || "") === incoming);
+    // ── Duplicate name check — order-independent, case-insensitive ─────────────
+    // Steps: lowercase → split into words → sort alphabetically → compare sets
+    // So "Oluwafemi Ibukunoluwa" === "Ibukunoluwa Oluwafemi" === "ibukunoluwa oluwafemi"
+    const nameWords = s => s.trim().toLowerCase().replace(/\s+/g, " ").split(" ").filter(Boolean).sort().join(" ");
+    const incomingWords = nameWords(form.name);
+    const existing = regs.find(r => nameWords(r.name || "") === incomingWords);
     if (existing) {
       // Show their existing ticket instead of creating a new one
       setTicket({ ...existing, _isDuplicate: true });
@@ -549,7 +610,7 @@ export default function App() {
                 boxShadow: view === n.key ? "0 2px 12px rgba(201,146,10,0.25)" : "none",
               }}>{n.label}</button>
             ))}
-            <button onClick={() => { const nd = !dark; setDark(nd); localStorage.setItem("runsa-theme", nd ? "dark" : "light"); }} style={{
+            <button onClick={() => { const nd = !dark; setDark(nd); sessionStorage.setItem("runsa-theme", nd ? "dark" : "light"); }} style={{
               marginLeft:6, padding:"6px 10px", borderRadius:6,
               border:`1px solid ${dark ? "rgba(26,58,107,0.45)" : "rgba(26,58,107,0.15)"}`,
               background:"transparent", cursor:"pointer", fontSize:13, fontWeight:500,
@@ -591,7 +652,7 @@ export default function App() {
                 fontFamily:"'Inter', sans-serif",
               }}>{n.label}</button>
             ))}
-            <button onClick={() => { setDark(d => !d); }} style={{
+            <button onClick={() => { const nd = !dark; setDark(nd); sessionStorage.setItem("runsa-theme", nd ? "dark" : "light"); }} style={{
               display:"block", width:"100%", textAlign:"left",
               padding:"13px 16px", borderRadius:8,
               border:`1px solid ${dark ? "rgba(26,58,107,0.4)" : "rgba(26,58,107,0.1)"}`,
@@ -1108,7 +1169,7 @@ function TicketView({ ticket, onBack, onCreateCard, T }) {
               <div style={{ fontFamily:"monospace", fontSize:13, color:BRAND.gold,
                 fontWeight:700, letterSpacing:"0.12em", marginBottom:10 }}>{ticket.id}</div>
               <div style={{ fontFamily:"'Cinzel', serif", fontSize:"clamp(18px,3vw,24px)",
-                fontWeight:700, color:BRAND.navyDark, marginBottom:8, lineHeight:1.2 }}>{ticket.name}</div>
+                fontWeight:700, color:BRAND.navyDark, marginBottom:8, lineHeight:1.2, textTransform:"uppercase" }}>{ticket.name}</div>
               <div style={{ fontSize:13, color:"#444", marginBottom:4 }}>{ticket.position}</div>
               <div style={{ fontSize:13, color:"#444", marginBottom:4 }}>{ticket.institution}</div>
               <div style={{ fontSize:13, color:"#444", marginBottom:12 }}>{ticket.level}</div>
@@ -1525,7 +1586,12 @@ ${hdrRow}${dataRows}
     const q = search.toLowerCase();
     const ms = !q || [r.name,r.institution,r.position,r.id].some(v => v?.toLowerCase().includes(q));
     const mStatus = filterStatus==="all" || (filterStatus==="signed" && r.signedIn) || (filterStatus==="pending" && !r.signedIn);
-    const mInst   = !filterInst  || normalizeInstitution(r.institution) === filterInst;
+    const normInst = normalizeInstitution(r.institution) || "";
+    const mInst = !filterInst || normInst === filterInst ||
+      stringSimilarity(
+        normInst.toLowerCase().replace(/[^a-z0-9 ]/g, ""),
+        filterInst.toLowerCase().replace(/[^a-z0-9 ]/g, "")
+      ) >= 0.70;
     const mLevel  = !filterLevel || r.level === filterLevel;
     const mPos    = !filterPos   || r.position === filterPos;
     return ms && mStatus && mInst && mLevel && mPos;
@@ -1538,7 +1604,20 @@ ${hdrRow}${dataRows}
   const hasActiveFilter = filterStatus!=="all" || filterInst || filterLevel || filterPos || search;
 
   // Unique values for filter dropdowns
-  const uniqueInstitutions = [...new Set(regs.map(r => normalizeInstitution(r.institution)).filter(Boolean))].sort();
+  // Build canonical institution list with fuzzy grouping (70% similarity threshold)
+  const uniqueInstitutions = (() => {
+    const canonicals = [];
+    regs.forEach(r => {
+      const inst = normalizeInstitution(r.institution);
+      if (!inst) return;
+      const matched = canonicals.some(c => stringSimilarity(
+        inst.toLowerCase().replace(/[^a-z0-9 ]/g, ""),
+        c.toLowerCase().replace(/[^a-z0-9 ]/g, "")
+      ) >= 0.70);
+      if (!matched) canonicals.push(inst);
+    });
+    return canonicals.sort();
+  })();
   const uniqueLevels = [...new Set(regs.map(r => r.level).filter(Boolean))].sort();
   const uniquePositions = [...new Set(regs.map(r => r.position).filter(Boolean))].sort();
 
