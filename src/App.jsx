@@ -200,21 +200,6 @@ async function fbLoadRegs() {
   }
 }
 
-// Real-time listener — pushes updates instantly to the browser
-// Returns an unsubscribe function to clean up when component unmounts
-function fbSubscribeRegs(onChange) {
-  initFirebase().then(db => {
-    const unsub = db.collection(COLLECTION)
-      .orderBy("registeredAt", "desc")
-      .onSnapshot(snap => {
-        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        onChange(data);
-      }, err => console.error("Snapshot error:", err));
-    // Store unsub on window so we can call it later
-    window._runsaUnsub = unsub;
-  });
-}
-
 async function fbAddReg(reg) {
   try {
     const db = await initFirebase();
@@ -404,17 +389,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Real-time listener — updates admin instantly when any device registers
-    // Also handles initial load (replaces the polling interval)
-    setLoading(true);
-    fbSubscribeRegs(data => {
-      setRegs(data);
-      setLoading(false);
-    });
-    return () => {
-      // Clean up listener on unmount
-      if (window._runsaUnsub) { window._runsaUnsub(); window._runsaUnsub = null; }
-    };
+    fbLoadRegs().then(r => { setRegs(r); setLoading(false); });
+  }, []);
+
+  // Poll every 5 seconds for near-real-time admin updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fbLoadRegs().then(r => setRegs(r));
+    }, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   // Load check-in gate status
