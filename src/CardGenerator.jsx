@@ -224,11 +224,11 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   const DIV_Y = EV_BASELINE - EV_SIZE - 20;
 
   // Name layout — fits between PHOTO_H and DIV_Y
-  const INFO_START = PHOTO_H + 36;
-  // Reserve space for: name + gap + badge-chip(22) + gap + position(36) + gap + institution(30) + gap to DIV
+  const INFO_START = PHOTO_H + 48;
+  // Generous gaps: name → 28px → badge chip(44px) → 24px → position(40px) → 20px → institution(34px) → 20px → DIV
   const badgeInfo = getBadgeInfo(delegate.badge);
-  const BADGE_CHIP_H = badgeInfo ? 22 + 10 : 0; // badge chip height + gap
-  const FIXED_BELOW = 12 + BADGE_CHIP_H + 36 + 10 + 30 + 16;
+  const BADGE_CHIP_H = badgeInfo ? 44 + 24 : 0;
+  const FIXED_BELOW = 28 + BADGE_CHIP_H + 40 + 20 + 34 + 20;
   const NAME_BUDGET = DIV_Y - INFO_START - FIXED_BELOW;
 
   const nameMaxW = CW - PAD * 2;
@@ -236,10 +236,10 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   while (nfs > 40) {
     ctx.font = `900 ${nfs}px Georgia, serif`;
     const lines = wrapText(ctx, delegate.name, nameMaxW);
-    if (lines.length <= 2 && lines.length * (nfs + 4) <= NAME_BUDGET) break;
+    if (lines.length <= 2 && lines.length * (nfs + 8) <= NAME_BUDGET) break;
     nfs -= 4;
   }
-  const NLH = nfs + 4;
+  const NLH = nfs + 8;
   const nameLines = wrapText(ctx, delegate.name, nameMaxW);
   ctx.fillStyle = TEXT; ctx.textAlign = "left";
   ctx.shadowColor = dark ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.1)"; ctx.shadowBlur = 12;
@@ -247,36 +247,31 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   ctx.shadowBlur = 0;
   const NAME_BOT = INFO_START + nameLines.length * NLH;
 
-  // Badge chip (delegate type label) — NEW: shown below name
-  let afterBadge = NAME_BOT + 12;
+  // Badge chip — 28px gap below name
+  let afterBadge = NAME_BOT + 28;
   if (badgeInfo) {
     const chipText = badgeInfo.label;
-    ctx.font = "700 20px Arial, sans-serif";
-    const chipW = ctx.measureText(chipText).width + 28;
-    const chipH = 34, chipR = 6;
-    // Background
-    ctx.fillStyle = dark ? "rgba(6,13,26,0.75)" : "rgba(255,255,255,0.85)";
+    ctx.font = "800 18px Arial Black, Arial, sans-serif";
+    const chipW = ctx.measureText(chipText).width + 36;
+    const chipH = 44, chipR = 8;
+    ctx.fillStyle = dark ? "rgba(6,13,26,0.8)" : "rgba(255,255,255,0.9)";
     rrect(ctx, PAD, afterBadge, chipW, chipH, chipR); ctx.fill();
-    // Accent left bar
     ctx.fillStyle = badgeInfo.accent;
-    ctx.fillRect(PAD, afterBadge, 5, chipH);
-    // Text
+    ctx.fillRect(PAD, afterBadge, 6, chipH);
     ctx.fillStyle = dark ? "#ffffff" : badgeInfo.color;
-    ctx.font = "700 16px Arial Black, Arial, sans-serif";
-    ctx.letterSpacing = "0.08em";
-    ctx.fillText(chipText, PAD + 18, afterBadge + chipH/2 + 6);
-    afterBadge += chipH + 8;
+    ctx.fillText(chipText, PAD + 22, afterBadge + chipH/2 + 7);
+    afterBadge += chipH + 24;
   }
 
-  // Position (tight below badge chip)
-  ctx.font = "700 32px Arial, sans-serif"; ctx.fillStyle = GOLD2;
-  ctx.fillText(delegate.position ? delegate.position.toUpperCase() : "", PAD, afterBadge + 36);
-  const afterPos = afterBadge + 36;
+  // Position — 40px reserved, gold, bolder
+  ctx.font = "800 36px Arial, sans-serif"; ctx.fillStyle = GOLD2;
+  ctx.fillText(delegate.position ? delegate.position.toUpperCase() : "", PAD, afterBadge + 40);
+  const afterPos = afterBadge + 40;
 
-  // Institution (if present)
+  // Institution — 20px gap + 28px text
   if (delegate.institution) {
-    ctx.font = "400 26px Arial, sans-serif"; ctx.fillStyle = MUTED;
-    ctx.fillText(delegate.institution, PAD, afterPos + 10 + 30);
+    ctx.font = "400 28px Arial, sans-serif"; ctx.fillStyle = MUTED;
+    ctx.fillText(delegate.institution, PAD, afterPos + 20 + 28);
   }
 
   // Divider
@@ -393,66 +388,88 @@ async function renderVolunteerTag(delegate) {
   ctx.fillText("Redeemer's University · 29th April, 2026", CW/2, LOGO_Y + LOGO_R + 52);
 
   // ── SEPARATOR LINE ────────────────────────────────────────────────────────
-  const SEP_Y = LOGO_Y + LOGO_R + 68;
+  const SEP_Y = LOGO_Y + LOGO_R + 72;
   const sepGrad = ctx.createLinearGradient(40, SEP_Y, CW-40, SEP_Y);
   sepGrad.addColorStop(0, "rgba(201,146,10,0)"); sepGrad.addColorStop(0.5, "rgba(201,146,10,0.6)"); sepGrad.addColorStop(1, "rgba(201,146,10,0)");
   ctx.strokeStyle = sepGrad; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(40, SEP_Y); ctx.lineTo(CW-40, SEP_Y); ctx.stroke();
 
-  // ── VOLUNTEER BADGE CHIP ─────────────────────────────────────────────────
-  const CHIP_Y = SEP_Y + 22;
+  // ── QR anchored from bottom ───────────────────────────────────────────────
+  // Do this first so we know exactly where the content zone ends
+  const QR_SIZE = 160, QR_PAD = 12;
+  const QR_CARD_W = QR_SIZE + QR_PAD*2, QR_CARD_H = QR_SIZE + QR_PAD*2;
+  const QR_X = (CW - QR_CARD_W) / 2;
+  const QR_BOT_MARGIN = 36;
+  const QR_Y = CH - QR_BOT_MARGIN - QR_CARD_H;
+
+  // Ticket ID sits just above QR
+  const ID_Y = QR_Y - 16;
+
+  // Content zone: from SEP_Y to just above ticket ID
+  const CONTENT_TOP = SEP_Y + 30;
+  const CONTENT_BOT = ID_Y - 12;
+  const CONTENT_H   = CONTENT_BOT - CONTENT_TOP;
+
+  // ── VOLUNTEER BADGE CHIP (enlarged) ──────────────────────────────────────
   const chipText = "VOLUNTEER";
-  ctx.font = "700 20px Arial Black, Arial, sans-serif";
-  const chipW = Math.min(CW - 80, ctx.measureText(chipText).width + 36);
-  const chipH = 38, chipX = (CW - chipW) / 2;
-  ctx.fillStyle = "rgba(57,224,122,0.12)"; ctx.strokeStyle = "rgba(57,224,122,0.55)"; ctx.lineWidth = 1.5;
-  rrect(ctx, chipX, CHIP_Y, chipW, chipH, 19); ctx.fill(); ctx.stroke();
+  ctx.font = "900 28px Arial Black, Arial, sans-serif";
+  const chipW = Math.min(CW - 60, ctx.measureText(chipText).width + 52);
+  const chipH = 56, chipX = (CW - chipW) / 2;
+  const CHIP_Y = CONTENT_TOP;
+
+  ctx.fillStyle = "rgba(57,224,122,0.14)"; ctx.strokeStyle = "rgba(57,224,122,0.6)"; ctx.lineWidth = 2;
+  rrect(ctx, chipX, CHIP_Y, chipW, chipH, 28); ctx.fill(); ctx.stroke();
+  // Pulsing dot
   ctx.fillStyle = GREEN;
-  ctx.beginPath(); ctx.arc(chipX + 20, CHIP_Y + chipH/2, 5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(chipX + 26, CHIP_Y + chipH/2, 7, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = GREEN; ctx.textAlign = "center";
-  ctx.fillText(chipText, CW/2 + 5, CHIP_Y + chipH/2 + 7);
+  ctx.fillText(chipText, CW/2 + 8, CHIP_Y + chipH/2 + 10);
 
   // ── NAME ──────────────────────────────────────────────────────────────────
-  const NAME_Y_START = CHIP_Y + chipH + 32;
-  let nfs = 60;
+  // Budget: remaining vertical space after chip, gap, position, bottom gap
+  const CHIP_BOT    = CHIP_Y + chipH;
+  const POSITION_H  = 36;       // space for position text
+  const GAP_CHIP_NAME = 48;     // gap between chip bottom and first name baseline
+  const GAP_NAME_POS  = 40;     // gap between last name baseline and position
+  const NAME_BUDGET_H = CONTENT_H - chipH - GAP_CHIP_NAME - GAP_NAME_POS - POSITION_H;
+
   const nameMaxW = CW - 80;
-  while (nfs > 28) {
+  let nfs = 78;
+  while (nfs > 30) {
     ctx.font = `900 ${nfs}px Georgia, serif`;
     const lines = wrapText(ctx, delegate.name, nameMaxW);
-    if (lines.length <= 2 && lines.length * (nfs + 6) <= 150) break;
+    if (lines.length <= 2 && lines.length * (nfs + 10) <= NAME_BUDGET_H) break;
     nfs -= 4;
   }
+  const NLH = nfs + 10;
   const nameLines = wrapText(ctx, delegate.name, nameMaxW);
-  const NLH = nfs + 6;
+  const NAME_Y_START = CHIP_BOT + GAP_CHIP_NAME;
+
   ctx.fillStyle = CREAM; ctx.textAlign = "center";
-  ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 10;
+  ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 14;
   nameLines.forEach((l, i) => ctx.fillText(l, CW/2, NAME_Y_START + (i + 1) * NLH));
   ctx.shadowBlur = 0;
   const NAME_BOT = NAME_Y_START + nameLines.length * NLH;
 
   // ── POSITION / UNIT ───────────────────────────────────────────────────────
   if (delegate.position) {
-    ctx.font = "600 22px Arial, sans-serif"; ctx.fillStyle = GOLD2;
-    ctx.fillText(delegate.position.toUpperCase(), CW/2, NAME_BOT + 18);
-  }
-
-  // ── QR CODE ───────────────────────────────────────────────────────────────
-  const QR_SIZE = 140, QR_PAD = 10;
-  const QR_CARD_W = QR_SIZE + QR_PAD*2, QR_CARD_H = QR_SIZE + QR_PAD*2;
-  const QR_X = (CW - QR_CARD_W) / 2;
-  const QR_Y = CH - 24 - QR_CARD_H;
-
-  const qrURL = delegate.qrURL || `${REG_SITE}?checkin=${delegate.id}`;
-  const qrImg = await generateQRImage(qrURL, 200);
-  if (qrImg) {
-    ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "rgba(201,146,10,0.4)"; ctx.lineWidth = 2;
-    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 10); ctx.fill(); ctx.stroke();
-    ctx.drawImage(qrImg, QR_X + QR_PAD, QR_Y + QR_PAD, QR_SIZE, QR_SIZE);
+    ctx.font = "700 26px Arial, sans-serif"; ctx.fillStyle = GOLD2;
+    ctx.textAlign = "center";
+    ctx.fillText(delegate.position.toUpperCase(), CW/2, NAME_BOT + GAP_NAME_POS);
   }
 
   // ── TICKET ID ─────────────────────────────────────────────────────────────
-  ctx.font = "600 18px monospace, Arial, sans-serif"; ctx.fillStyle = "rgba(232,184,75,0.65)";
-  ctx.textAlign = "center"; ctx.fillText(delegate.id, CW/2, QR_Y - 10);
+  ctx.font = "600 18px monospace, Arial, sans-serif"; ctx.fillStyle = "rgba(232,184,75,0.6)";
+  ctx.textAlign = "center"; ctx.fillText(delegate.id, CW/2, ID_Y);
+
+  // ── QR CODE ───────────────────────────────────────────────────────────────
+  const qrURL = delegate.qrURL || `${REG_SITE}?checkin=${delegate.id}`;
+  const qrImg = await generateQRImage(qrURL, 220);
+  if (qrImg) {
+    ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "rgba(201,146,10,0.4)"; ctx.lineWidth = 2;
+    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 12); ctx.fill(); ctx.stroke();
+    ctx.drawImage(qrImg, QR_X + QR_PAD, QR_Y + QR_PAD, QR_SIZE, QR_SIZE);
+  }
 
   return canvas;
 }

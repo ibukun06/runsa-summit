@@ -956,18 +956,18 @@ function TicketView({ ticket, onBack, onCreateCard, T }) {
             {Array.from({ length: 32 }).map((_, i) => <div key={i} style={{ width:9, height:9, borderRadius:"50%", background:BRAND.navyDark, flexShrink:0 }} />)}
           </div>
 
-          <div style={{ padding:"clamp(16px,3vw,28px) clamp(20px,4vw,32px)", display:"flex", gap:"clamp(16px,4vw,32px)", alignItems:"center", flexWrap:"wrap" }}>
-            <div style={{ flex:1, minWidth:200 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+          <div style={{ padding:"clamp(20px,3vw,32px) clamp(20px,4vw,32px)", display:"flex", gap:"clamp(20px,4vw,36px)", alignItems:"center", flexWrap:"wrap", minHeight:280 }}>
+            <div style={{ flex:1, minWidth:200, display:"flex", flexDirection:"column", gap:14 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
                 <div style={{ fontFamily:"monospace", fontSize:13, color:BRAND.gold, fontWeight:700, letterSpacing:"0.12em" }}>{ticket.id}</div>
                 {badgeObj && (
                   <span style={{ fontSize:9, fontWeight:800, letterSpacing:"0.12em", textTransform:"uppercase", padding:"3px 8px", borderRadius:4, background:badgeObj.bg, color:badgeObj.color, border:`1px solid ${badgeObj.border}` }}>{badgeObj.label}</span>
                 )}
               </div>
-              <div style={{ fontFamily:"'Cinzel', serif", fontSize:"clamp(18px,3vw,24px)", fontWeight:700, color:BRAND.navyDark, marginBottom:8, lineHeight:1.2, textTransform:"uppercase" }}>{ticket.name}</div>
-              <div style={{ fontSize:13, color:"#444", marginBottom:4 }}>{ticket.position}</div>
-              {ticket.institution && <div style={{ fontSize:13, color:"#444", marginBottom:4 }}>{ticket.institution}</div>}
-              {ticket.level && ticket.level !== "N/A" && <div style={{ fontSize:13, color:"#444", marginBottom:12 }}>{ticket.level}</div>}
+              <div style={{ fontFamily:"'Cinzel', serif", fontSize:"clamp(18px,3vw,24px)", fontWeight:700, color:BRAND.navyDark, lineHeight:1.2, textTransform:"uppercase" }}>{ticket.name}</div>
+              <div style={{ fontSize:14, color:"#444", fontWeight:500 }}>{ticket.position}</div>
+              {ticket.institution && <div style={{ fontSize:14, color:"#555" }}>{ticket.institution}</div>}
+              {ticket.level && ticket.level !== "N/A" && <div style={{ fontSize:13, color:"#777" }}>{ticket.level}</div>}
               <div style={{ fontSize:11, color:"#999" }}>Registered {new Date(ticket.registeredAt).toLocaleString("en-GB", { day:"numeric", month:"long", year:"numeric", hour:"2-digit", minute:"2-digit" })}</div>
             </div>
             <div style={{ textAlign:"center", flexShrink:0 }}>
