@@ -212,6 +212,16 @@ async function fbDeleteDelegate(id) {
   } catch (e) { console.error("Firebase delete error:", e); }
 }
 
+// Look up an existing registration by ticket ID
+async function fbLookupById(id) {
+  try {
+    const db = await initFirebase();
+    const snap = await db.collection(COLLECTION).doc(id.trim().toUpperCase()).get();
+    if (!snap.exists) return null;
+    return { id: snap.id, ...snap.data() };
+  } catch (e) { console.error("Firebase lookup error:", e); return null; }
+}
+
 const SETTINGS_DOC = "checkin";
 const SETTINGS_COL = "settings";
 async function fbGetCheckinOpen() {
@@ -227,6 +237,168 @@ async function fbSetCheckinOpen(open) {
     const db = await initFirebase();
     await db.collection(SETTINGS_COL).doc(SETTINGS_DOC).set({ open });
   } catch (e) { console.error("checkin gate write error:", e); }
+}
+// ─── CSV / EXCEL DOWNLOAD ─────────────────────────────────────────────────────
+// Escapes a single cell value for RFC-4180 CSV:
+//   • wraps in double-quotes if the value contains comma, quote, newline or leading/trailing space
+//   • doubles any embedded double-quotes
+function csvCell(val) {
+  if (val === null || val === undefined) return "";
+  const s = String(val);
+  if (/[,"\n\r]/.test(s) || s !== s.trim()) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+// Builds a UTF-8 BOM + CSV string that opens cleanly in both Excel and Google Sheets.
+// BOM (﻿) tells Excel the file is UTF-8 so accented/special characters render correctly.
+function buildCSV(rows) {
+  const headers = ["Ticket ID","Full Name","Delegate Type","Position","Institution","Level","Badge","Registered At","Checked In","Check-In Time"];
+  const lines = [headers.map(csvCell).join(",")];
+  rows.forEach(r => {
+    lines.push([
+      r.id,
+      r.name,
+      r.delegateType || "",
+      r.position || "",
+      r.institution || "",
+      r.level || "",
+      r.badge || "",
+      r.registeredAt ? new Date(r.registeredAt).toLocaleString("en-GB") : "",
+      r.signedIn ? "Yes" : "No",
+      r.signedIn && r.signedInAt ? new Date(r.signedInAt).toLocaleString("en-GB") : "",
+    ].map(csvCell).join(","));
+  });
+  return "\uFEFF" + lines.join("\r\n");   // CRLF line endings for Excel on Windows
+}
+
+// Builds a minimal XLSX file in-browser without any library.
+// Uses the SpreadsheetML (XML-based) format supported by Excel 2007+ and Google Sheets.
+// All values are written as inline strings to avoid any date/number formatting surprises.
+function buildXLSX(rows) {
+  const headers = ["Ticket ID","Full Name","Delegate Type","Position","Institution","Level","Badge","Registered At","Checked In","Check-In Time"];
+
+  // Shared-string table — deduplicates strings to keep file size small
+  const sst = [];
+  const sstIdx = {};
+  function si(val) {
+    const s = val === null || val === undefined ? "" : String(val);
+    if (sstIdx[s] === undefined) { sstIdx[s] = sst.length; sst.push(s); }
+    return sstIdx[s];
+  }
+
+  const dataRows = rows.map(r => [
+    r.id,
+    r.name,
+    r.delegateType || "",
+    r.position || "",
+    r.institution || "",
+    r.level || "",
+    r.badge || "",
+    r.registeredAt ? new Date(r.registeredAt).toLocaleString("en-GB") : "",
+    r.signedIn ? "Yes" : "No",
+    r.signedIn && r.signedInAt ? new Date(r.signedInAt).toLocaleString("en-GB") : "",
+  ]);
+
+  // Pre-compute all shared-string indices (headers first so column A=0, etc.)
+  const headerIdx = headers.map(h => si(h));
+  const dataIdx   = dataRows.map(row => row.map(v => si(v)));
+
+  // Column letter helper (A-Z only — 10 columns, all fine)
+  const colLetter = n => String.fromCharCode(65 + n);
+
+  // Build worksheet XML
+  let sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  sheetXml += '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\n';
+  sheetXml += '<sheetData>\n';
+
+  // Header row (row 1)
+  sheetXml += '<row r="1">';
+  headerIdx.forEach((idx, c) => {
+    sheetXml += `<c r="${colLetter(c)}1" t="s"><v>${idx}</v></c>`;
+  });
+  sheetXml += '</row>\n';
+
+  // Data rows
+  dataIdx.forEach((row, ri) => {
+    const rowNum = ri + 2;
+    sheetXml += `<row r="${rowNum}">`;
+    row.forEach((idx, c) => {
+      sheetXml += `<c r="${colLetter(c)}${rowNum}" t="s"><v>${idx}</v></c>`;
+    });
+    sheetXml += '</row>\n';
+  });
+  sheetXml += '</sheetData>\n</worksheet>';
+
+  // Shared strings XML
+  let sstXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  sstXml += `<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${sst.length}" uniqueCount="${sst.length}">\n`;
+  sst.forEach(s => {
+    // Escape XML special chars; preserve leading/trailing spaces with xml:space
+    const escaped = s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    sstXml += `<si><t xml:space="preserve">${escaped}</t></si>\n`;
+  });
+  sstXml += '</sst>';
+
+  // Workbook XML
+  const wbXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">\n' +
+    '<sheets><sheet name="Delegates" sheetId="1" r:id="rId1"/></sheets>\n</workbook>';
+
+  // Relationships
+  const wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>\n' +
+    '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>\n' +
+    '</Relationships>';
+
+  const pkgRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>\n' +
+    '</Relationships>';
+
+  const contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n' +
+    '<Default Extension="xml" ContentType="application/xml"/>\n' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>\n' +
+    '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>\n' +
+    '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>\n' +
+    '</Types>';
+
+  // Pack into ZIP using JSZip (loaded dynamically)
+  return { wbXml, wbRels, pkgRels, contentTypes, sheetXml, sstXml };
+}
+
+async function downloadXLSX(rows, filename) {
+  // Load JSZip from CDN
+  await new Promise((resolve, reject) => {
+    if (window.JSZip) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+  const parts = buildXLSX(rows);
+  const zip = new window.JSZip();
+  zip.file("[Content_Types].xml", parts.contentTypes);
+  zip.file("_rels/.rels", parts.pkgRels);
+  zip.file("xl/workbook.xml", parts.wbXml);
+  zip.file("xl/_rels/workbook.xml.rels", parts.wbRels);
+  zip.file("xl/worksheets/sheet1.xml", parts.sheetXml);
+  zip.file("xl/sharedStrings.xml", parts.sstXml);
+  const blob = await zip.generateAsync({ type:"blob", mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function downloadCSV(rows, filename) {
+  const csv = buildCSV(rows);
+  const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 // ─── QR CODE ──────────────────────────────────────────────────────────────────
@@ -351,6 +523,12 @@ export default function App() {
   useEffect(() => { fbGetCheckinOpen().then(v => setCheckinOpen(v)); }, []);
 
   const handleRegister = async form => {
+    // _forceTicket: delegate retrieved their existing record via lookup — just show it
+    if (form._forceTicket) {
+      setTicket({ ...form, _isDuplicate: false });
+      setView("ticket");
+      return;
+    }
     if (regs.length >= 350) { alert("Registration is now closed. The maximum number of delegates (350) has been reached."); return; }
     const nameWords = s => s.trim().toLowerCase().replace(/\s+/g, " ").split(" ").filter(Boolean).sort().join(" ");
     const incomingWords = nameWords(form.name);
@@ -898,6 +1076,9 @@ function RegisterView({ onRegister, T }) {
         </a>
       </div>
 
+      {/* ── RETRIEVE OLD TICKET ─────────────────────────────────────────── */}
+      <RetrieveTicket onFound={onRegister} T={T} />
+
       <div style={{ maxWidth:640, margin:"16px auto 0", display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))", gap:12 }}>
         {[{ icon:"🎓", text:"Open to all delegates and guests" }, { icon:"🎫", text:"Instant QR ticket on submission" }].map(({ icon, text }) => (
           <div key={text} style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px", background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, fontSize:12, color:T.textMuted }}>
@@ -905,6 +1086,127 @@ function RegisterView({ onRegister, T }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ─── RETRIEVE EXISTING TICKET ─────────────────────────────────────────────────
+// Delegates who already registered can look up their ticket by ID.
+// This re-renders it with the latest visual design while keeping their original
+// registration number, QR code, and all stored data intact.
+function RetrieveTicket({ onFound, T }) {
+  const [open, setOpen]     = useState(false);
+  const [id, setId]         = useState("");
+  const [busy, setBusy]     = useState(false);
+  const [err, setErr]       = useState("");
+  const [found, setFound]   = useState(null);
+
+  const handleLookup = async () => {
+    if (!id.trim()) return;
+    setBusy(true); setErr(""); setFound(null);
+    const reg = await fbLookupById(id.trim());
+    setBusy(false);
+    if (!reg) {
+      setErr("No registration found for that ID. Check the code and try again.");
+    } else {
+      setFound(reg);
+    }
+  };
+
+  const handleLoad = () => {
+    // Pass the found record back to the parent as a "duplicate" so it shows
+    // the TicketView with the existing data — no new record is created.
+    onFound({ ...found, _forceTicket: true });
+  };
+
+  return (
+    <div style={{ maxWidth:640, margin:"20px auto 0" }}>
+      <button onClick={() => { setOpen(o => !o); setErr(""); setFound(null); setId(""); }}
+        style={{ width:"100%", padding:"13px 20px",
+          background:"transparent",
+          border:`1px solid ${T.dark ? "rgba(26,58,107,0.55)" : "rgba(26,58,107,0.2)"}`,
+          borderRadius:10, fontSize:13, fontWeight:600, cursor:"pointer",
+          color: T.dark ? BRAND.goldLight : BRAND.navyDark,
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          fontFamily:"'Cinzel', serif", letterSpacing:"0.03em" }}>
+        <span>🔍 Already registered? Retrieve your ticket</span>
+        <span style={{ fontSize:11, color:T.textMuted, fontFamily:"'Inter', sans-serif", fontWeight:400 }}>
+          {open ? "▲ hide" : "▼ expand"}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ background:T.surface, border:`1px solid ${T.border}`,
+          borderTop:"none", borderRadius:"0 0 10px 10px",
+          padding:"20px 24px" }} className="fade-up">
+          <p style={{ fontSize:12, color:T.textMuted, marginBottom:14, lineHeight:1.6 }}>
+            Enter your <strong style={{ color: T.dark ? BRAND.goldLight : BRAND.navyDark }}>RLS ticket code</strong> (e.g. <span style={{ fontFamily:"monospace", color:BRAND.gold }}>RLS-A3F7KQ</span>) to retrieve your existing registration. Your ticket ID, QR code, and all details stay the same — but your ticket, attendee card, and volunteer tag will now render with the latest design.
+          </p>
+          <div style={{ display:"flex", gap:10, marginBottom: err || found ? 14 : 0 }}>
+            <input
+              style={{ ...inputStyle(T, !!err), flex:1, letterSpacing:"0.06em", textTransform:"uppercase" }}
+              placeholder="e.g. RLS-A3F7KQ"
+              value={id}
+              onChange={e => { setId(e.target.value.toUpperCase()); setErr(""); setFound(null); }}
+              onKeyDown={e => e.key === "Enter" && handleLookup()} />
+            <button onClick={handleLookup} disabled={busy || !id.trim()}
+              style={{ padding:"12px 20px", background:`linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})`,
+                color:"#fff", border:"none", borderRadius:8,
+                fontSize:13, fontWeight:600, cursor: busy ? "not-allowed" : "pointer",
+                whiteSpace:"nowrap", opacity: busy ? 0.6 : 1 }}>
+              {busy ? "Looking…" : "Find →"}
+            </button>
+          </div>
+
+          {err && (
+            <div style={{ padding:"10px 14px", background:"rgba(192,57,43,0.08)",
+              border:"1px solid rgba(192,57,43,0.3)", borderRadius:8,
+              fontSize:12, color:"#c0392b" }}>❌ {err}</div>
+          )}
+
+          {found && (
+            <div style={{ background: T.dark ? "rgba(255,255,255,0.04)" : "rgba(13,31,60,0.04)",
+              border:`1px solid ${T.border}`, borderRadius:10, padding:"16px 18px" }}
+              className="fade-up">
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, flexWrap:"wrap", marginBottom:12 }}>
+                <div>
+                  <div style={{ fontFamily:"monospace", fontSize:12, color:BRAND.gold, letterSpacing:"0.1em", marginBottom:6 }}>{found.id}</div>
+                  <div style={{ fontFamily:"'Cinzel', serif", fontSize:17, fontWeight:700, color:T.text, marginBottom:4 }}>{found.name}</div>
+                  <div style={{ fontSize:12, color:T.textMuted }}>{found.position}</div>
+                  {found.institution && <div style={{ fontSize:12, color:T.textMuted }}>{found.institution}</div>}
+                </div>
+                {found.badge && (
+                  <span style={{ fontSize:9, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase",
+                    padding:"3px 8px", borderRadius:4, alignSelf:"flex-start",
+                    background: found.badge === "EXTERNAL DELEGATE" ? "rgba(57,224,122,0.1)"
+                      : found.badge === "DISTINGUISHED GUEST" ? "rgba(201,146,10,0.1)"
+                      : "rgba(13,31,60,0.08)",
+                    color: found.badge === "EXTERNAL DELEGATE" ? "#1a7a40"
+                      : found.badge === "DISTINGUISHED GUEST" ? BRAND.gold : BRAND.navy,
+                    border:`1px solid ${found.badge === "EXTERNAL DELEGATE" ? "rgba(57,224,122,0.3)"
+                      : found.badge === "DISTINGUISHED GUEST" ? "rgba(201,146,10,0.3)" : T.border}` }}>
+                    {found.badge}
+                  </span>
+                )}
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:11, color:T.textMuted, marginBottom:14 }}>
+                <span>{found.signedIn ? "✅ Already checked in" : "⏳ Not yet checked in"}</span>
+                <span>·</span>
+                <span>Registered {new Date(found.registeredAt).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })}</span>
+              </div>
+              <button onClick={handleLoad}
+                style={{ width:"100%", padding:"12px 20px",
+                  background:`linear-gradient(135deg, ${BRAND.gold} 0%, ${BRAND.navy} 120%)`,
+                  color:"#fff", border:"none", borderRadius:9,
+                  fontSize:13, fontWeight:700, cursor:"pointer",
+                  fontFamily:"'Cinzel', serif", letterSpacing:"0.04em",
+                  boxShadow:`0 4px 20px rgba(201,146,10,0.3)` }}>
+                🎫 Load My Ticket & Create Card →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1191,8 +1493,8 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
 
       <CheckinToggle checkinOpen={checkinOpen} onToggle={onToggleCheckin} superAdmin={superAdmin} T={T} />
 
-      {/* Filters */}
-      <div style={{ display:"flex", gap:10, marginBottom:18, flexWrap:"wrap" }}>
+      {/* Filters + Download row */}
+      <div style={{ display:"flex", gap:10, marginBottom:12, flexWrap:"wrap" }}>
         <input style={{ ...inputStyle(T, false), flex:2, minWidth:180 }} placeholder="Search name, ID, position…" value={search} onChange={e => setSearch(e.target.value)} />
         <select style={{ ...selectStyle(T, false), flex:1, minWidth:160 }} value={filterInst} onChange={e => setFilterInst(e.target.value)}>
           <option value="">All Institutions</option>
@@ -1202,6 +1504,39 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
           <option value="">All Badge Types</option>
           {allBadges.map(b => <option key={b} value={b}>{b}</option>)}
         </select>
+      </div>
+
+      {/* Download row — both admin levels can download */}
+      <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap", alignItems:"center" }}>
+        <span style={{ fontSize:11, color:T.textMuted, marginRight:4 }}>Export:</span>
+        <button onClick={() => downloadCSV(filtered, `RUNSA-Summit-Delegates-${new Date().toISOString().slice(0,10)}.csv`)}
+          style={{ padding:"7px 16px", background: T.dark ? "rgba(57,224,122,0.1)" : "rgba(26,58,107,0.06)",
+            border:`1px solid ${T.dark ? "rgba(57,224,122,0.35)" : "rgba(26,58,107,0.2)"}`,
+            color: T.dark ? "#39e07a" : BRAND.navyDark, borderRadius:7, fontSize:11, fontWeight:600, cursor:"pointer",
+            display:"flex", alignItems:"center", gap:6 }}>
+          📄 CSV ({filtered.length})
+        </button>
+        <button onClick={async () => { await downloadXLSX(filtered, `RUNSA-Summit-Delegates-${new Date().toISOString().slice(0,10)}.xlsx`); }}
+          style={{ padding:"7px 16px", background: T.dark ? "rgba(201,146,10,0.1)" : "rgba(201,146,10,0.08)",
+            border:`1px solid rgba(201,146,10,0.35)`,
+            color: T.dark ? BRAND.goldLight : BRAND.gold, borderRadius:7, fontSize:11, fontWeight:600, cursor:"pointer",
+            display:"flex", alignItems:"center", gap:6 }}>
+          📊 Excel ({filtered.length})
+        </button>
+        <button onClick={() => downloadCSV(regs, `RUNSA-Summit-ALL-${new Date().toISOString().slice(0,10)}.csv`)}
+          style={{ padding:"7px 16px", background:"transparent",
+            border:`1px solid ${T.border}`,
+            color: T.textMuted, borderRadius:7, fontSize:11, cursor:"pointer",
+            display:"flex", alignItems:"center", gap:6 }}>
+          📄 All CSV ({regs.length})
+        </button>
+        <button onClick={async () => { await downloadXLSX(regs, `RUNSA-Summit-ALL-${new Date().toISOString().slice(0,10)}.xlsx`); }}
+          style={{ padding:"7px 16px", background:"transparent",
+            border:`1px solid ${T.border}`,
+            color: T.textMuted, borderRadius:7, fontSize:11, cursor:"pointer",
+            display:"flex", alignItems:"center", gap:6 }}>
+          📊 All Excel ({regs.length})
+        </button>
       </div>
 
       <div style={{ fontSize:12, color:T.textMuted, marginBottom:12 }}>
