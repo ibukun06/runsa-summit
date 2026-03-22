@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const BASE_URL = "https://legislative-summit-registration.vercel.app";
 const ADMIN_PIN = "LS2026";
-const CHECKIN_PIN = "290326";
+const CHECKIN_PIN = "290426";
 const SUPER_ADMIN_PIN = "Admin2026";
 
 // ─── FIREBASE CONFIG ──────────────────────────────────────────────────────────
