@@ -221,6 +221,155 @@ async function fbLookupById(id) {
     return { id: snap.id, ...snap.data() };
   } catch (e) { console.error("Firebase lookup error:", e); return null; }
 }
+// ─── LEGACY BADGE MIGRATION ───────────────────────────────────────────────────
+// Old records (registered before the delegate-type system was introduced) have
+// empty delegateType and badge fields. This function infers the correct values
+// from the position, institution, and level already stored, then writes them
+// back to Firestore in a single batch so every record is consistent.
+//
+// Rules (in priority order):
+//   1. Already has a badge → skip (already migrated or new-system record)
+//   2. Volunteer position keywords → badge = VOLUNTEER, type = volunteer
+//   3. External institution (not Redeemer's) → badge = EXTERNAL DELEGATE, type = external
+//   4. RUN LC positions (Speaker, Chief Whip, Committee Chair, Honourable Member …)
+//      → badge = RUNSA OFFICIAL, type = runsa-lc-member or runsa-lc-principal
+//   5. RUN exec positions (President, Vice President …) → badge = RUNSA OFFICIAL, type = runsa-exec
+//   6. Everything else at RUN → badge = DELEGATE, type = run-student
+
+const RUNSA_RUN_INSTITUTION_KEYWORDS = [
+  "redeemer", "run", "r.u.n"
+];
+
+function isRunInstitution(inst) {
+  if (!inst) return false;
+  const s = inst.toLowerCase().trim();
+  return RUNSA_RUN_INSTITUTION_KEYWORDS.some(k => s.includes(k));
+}
+
+const LC_PRINCIPAL_POSITIONS = [
+  "speaker", "deputy speaker", "chief whip", "legislative secretary",
+  "speaker / president", "deputy speaker / vice president",
+];
+const LC_MEMBER_POSITIONS = [
+  "honourable member", "committee chair", "other legislative officer",
+  "majority leader", "minority leader", "clerk of the house",
+];
+const EXEC_POSITIONS = [
+  "president", "vice president", "general secretary", "assistant general secretary",
+  "financial secretary", "treasurer", "welfare director", "assistant welfare director",
+  "public relations officer", "sports director", "social director", "chapel president",
+];
+const VOLUNTEER_KEYWORDS = [
+  "volunteer", "ushering", "protocol", "logistics", "registration",
+  "team tech", "anchors", "welfare unit", "general volunteer",
+];
+
+function inferDelegateType(reg) {
+  const pos  = (reg.position || "").toLowerCase().trim();
+  const inst = (reg.institution || "").toLowerCase().trim();
+  const lvl  = (reg.level || "").toLowerCase().trim();
+
+  // Already migrated — don't touch
+  if (reg.badge) return null;
+
+  // Volunteer
+  if (VOLUNTEER_KEYWORDS.some(k => pos.includes(k)) || lvl === "volunteer") {
+    return { delegateType: "volunteer", badge: "VOLUNTEER" };
+  }
+
+  // External (non-RUN institution with a student level, i.e., not just "N/A")
+  if (!isRunInstitution(inst) && inst && lvl && lvl !== "n/a") {
+    return { delegateType: "external", badge: "EXTERNAL DELEGATE" };
+  }
+
+  // RUN LC principal
+  if (LC_PRINCIPAL_POSITIONS.some(p => pos.includes(p))) {
+    return { delegateType: "runsa-lc-principal", badge: "RUNSA OFFICIAL" };
+  }
+
+  // RUN LC member
+  if (LC_MEMBER_POSITIONS.some(p => pos.includes(p))) {
+    return { delegateType: "runsa-lc-member", badge: "RUNSA OFFICIAL" };
+  }
+
+  // RUN Executive
+  if (EXEC_POSITIONS.some(p => pos.includes(p))) {
+    return { delegateType: "runsa-exec", badge: "RUNSA OFFICIAL" };
+  }
+
+  // RUN student (catch-all for RUN with level)
+  if (isRunInstitution(inst) && lvl && lvl !== "n/a") {
+    // If position is "student" or "departmental representative"
+    return { delegateType: "run-student", badge: "DELEGATE" };
+  }
+
+  // Past honourables
+  if (pos.includes("past")) {
+    return { delegateType: "past-hon", badge: "PAST HONOURABLE" };
+  }
+
+  // Distinguished guest
+  if (pos.includes("guest") || pos.includes("panelist") || pos.includes("senator") || pos.includes("house of assembly")) {
+    return { delegateType: "guest", badge: "DISTINGUISHED GUEST" };
+  }
+
+  // Default for anything at RUN with no level (N/A) — likely an official
+  if (isRunInstitution(inst)) {
+    return { delegateType: "runsa-lc-member", badge: "RUNSA OFFICIAL" };
+  }
+
+  return null; // can't determine — leave alone
+}
+
+// Also normalise messy institution names for old records
+function normaliseInstitutionForMigration(inst) {
+  if (!inst) return inst;
+  const s = inst.trim().toLowerCase().replace(/\s+/g, " ");
+  if (RUNSA_RUN_INSTITUTION_KEYWORDS.some(k => s.includes(k))) {
+    return "Redeemer's University, Ede";
+  }
+  return inst.trim();
+}
+
+async function fbMigrateLegacyBadges(regs, onProgress) {
+  // Only process records that need migration
+  const toMigrate = regs.filter(r => !r.badge);
+  if (toMigrate.length === 0) return 0;
+
+  try {
+    const db = await initFirebase();
+    // Firestore batch limit is 500 writes
+    let migrated = 0;
+    const BATCH_SIZE = 400;
+
+    for (let i = 0; i < toMigrate.length; i += BATCH_SIZE) {
+      const chunk = toMigrate.slice(i, i + BATCH_SIZE);
+      const batch = db.batch();
+      let batchWrites = 0;
+
+      chunk.forEach(reg => {
+        const inferred = inferDelegateType(reg);
+        if (!inferred) return;
+        const normInst = normaliseInstitutionForMigration(reg.institution);
+        const updates = { ...inferred };
+        if (normInst !== reg.institution) updates.institution = normInst;
+        const ref = db.collection(COLLECTION).doc(reg.id);
+        batch.update(ref, updates);
+        batchWrites++;
+      });
+
+      if (batchWrites > 0) {
+        await batch.commit();
+        migrated += batchWrites;
+        if (onProgress) onProgress(migrated, toMigrate.length);
+      }
+    }
+    return migrated;
+  } catch (e) {
+    console.error("Migration error:", e);
+    return 0;
+  }
+}
 
 const SETTINGS_DOC = "checkin";
 const SETTINGS_COL = "settings";
@@ -515,12 +664,54 @@ export default function App() {
     return () => { window.removeEventListener("touchstart", handleTouchStart); window.removeEventListener("touchmove", handleTouchMove); };
   }, [menuOpen]);
 
-  useEffect(() => { fbLoadRegs().then(r => { setRegs(r); setLoading(false); }); }, []);
   useEffect(() => {
-    const interval = setInterval(() => { fbLoadRegs().then(r => setRegs(r)); }, 2000);
+    fbLoadRegs().then(async r => {
+      // Apply inferred badges locally immediately so UI renders correctly
+      // even before the Firebase batch write completes
+      const enriched = r.map(reg => {
+        if (reg.badge) return reg; // already good
+        const inferred = inferDelegateType(reg);
+        if (!inferred) return reg;
+        const normInst = normaliseInstitutionForMigration(reg.institution);
+        return { ...reg, ...inferred, institution: normInst };
+      });
+      setRegs(enriched);
+      setLoading(false);
+      // Background: write inferred badges back to Firestore for any unmigrated records
+      const unmigrated = r.filter(reg => !reg.badge);
+      if (unmigrated.length > 0) {
+        fbMigrateLegacyBadges(r, (done, total) => {
+          // silently complete — regs are already enriched in local state
+        }).then(count => {
+          if (count > 0) console.log(`[Migration] Backfilled ${count} legacy records in Firestore.`);
+        });
+      }
+    });
+  }, []);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fbLoadRegs().then(r => {
+        // Apply local enrichment on each poll too, so new records get badges immediately
+        const enriched = r.map(reg => {
+          if (reg.badge) return reg;
+          const inferred = inferDelegateType(reg);
+          if (!inferred) return reg;
+          const normInst = normaliseInstitutionForMigration(reg.institution);
+          return { ...reg, ...inferred, institution: normInst };
+        });
+        setRegs(enriched);
+      });
+    }, 2000);
     return () => clearInterval(interval);
   }, []);
   useEffect(() => { fbGetCheckinOpen().then(v => setCheckinOpen(v)); }, []);
+
+  // Listen for manual migration refreshes triggered from the Admin panel
+  useEffect(() => {
+    const handler = e => { if (e.detail) setRegs(e.detail); };
+    window.addEventListener("runsa-regs-refresh", handler);
+    return () => window.removeEventListener("runsa-regs-refresh", handler);
+  }, []);
 
   const handleRegister = async form => {
     // _forceTicket: delegate retrieved their existing record via lookup — just show it
@@ -739,7 +930,7 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
                   <div style={{ fontFamily:"'EB Garamond', serif", fontSize:22, fontWeight:600, color:T.text, marginBottom:6 }}>{delegate.name}</div>
                   <div style={{ fontSize:13, color:T.textMuted, marginBottom:3 }}>{delegate.position}</div>
                   <div style={{ fontSize:13, color:T.textMuted, marginBottom:3 }}>{delegate.institution}</div>
-                  <div style={{ fontSize:13, color:T.textMuted }}>{delegate.level}</div>
+                  {delegate.level && delegate.level !== "N/A" && <div style={{ fontSize:13, color:T.textMuted }}>{delegate.level}</div>}
                   <div style={{ fontFamily:"monospace", fontSize:12, color:BRAND.gold, marginTop:10, letterSpacing:"0.08em" }}>{delegate.id}</div>
                   {status === "success" && <div style={{ fontSize:12, color:T.textMuted, marginTop:6 }}>Signed in at {new Date(delegate.signedInAt).toLocaleTimeString("en-GB")}</div>}
                 </div>
@@ -800,7 +991,7 @@ const POSITIONS_BY_TYPE = {
     "Staff",
   ],
   "guest": [
-    "Rt. Hon. Speaker / Member, House of Assembly",
+    "Rt. Hon. Speaker, House of Assembly",
     "Honourable Member, House of Assembly",
   ],
   "runsa-lc-principal": [
@@ -829,11 +1020,11 @@ const POSITIONS_BY_TYPE = {
     "Chapel President",
   ],
   "past-hon": [
-    "Immediate Past Speaker",
-    "Immediate Past Deputy Speaker",
-    "Immediate Past Legislative Secretary",
-    "Immediate Past Chief Whip",
-    "Immediate Past Honourable Member",
+    "Speaker",
+    "Deputy Speaker",
+    "Legislative Secretary",
+    "Chief Whip",
+    "Honourable Member",
   ],
   "run-student": [
     "Student",
@@ -852,8 +1043,8 @@ const POSITIONS_BY_TYPE = {
 
 // Which types show the institution dropdown
 const TYPE_SHOWS_INSTITUTION = { external: true };
-// Which types show the level dropdown
-const TYPE_SHOWS_LEVEL = { external: true, "run-student": true };
+// Which types show the level dropdown — ONLY RUN students need level
+const TYPE_SHOWS_LEVEL = { "run-student": true };
 // Fixed institution for non-external types
 const TYPE_INSTITUTION = {
   "runsa-lc-principal": "Redeemer's University, Ede",
@@ -921,7 +1112,7 @@ function RegisterView({ onRegister, T }) {
     const resolvedInstitution = showInstitution
       ? (form.institution === "Others" ? form.institutionOther.trim() : form.institution)
       : (TYPE_INSTITUTION[effectiveType] || "");
-    const resolvedLevel = showLevel ? form.level : (dt === "volunteer" ? "Volunteer" : "N/A");
+    const resolvedLevel = effectiveType === "run-student" && form.level ? form.level : "N/A";
     const badgeObj = getBadge(effectiveType);
     const badge = badgeObj ? badgeObj.label : "";
     await onRegister({
@@ -1140,7 +1331,7 @@ function RetrieveTicket({ onFound, T }) {
           borderTop:"none", borderRadius:"0 0 10px 10px",
           padding:"20px 24px" }} className="fade-up">
           <p style={{ fontSize:12, color:T.textMuted, marginBottom:14, lineHeight:1.6 }}>
-            Enter your <strong style={{ color: T.dark ? BRAND.goldLight : BRAND.navyDark }}>RLS ticket code</strong> (e.g. <span style={{ fontFamily:"monospace", color:BRAND.gold }}>RLS-A3F7KQ</span>) to retrieve your existing registration. Your ticket ID, QR code, and all details stay the same — but your ticket, attendee card, and volunteer tag will now render with the latest design.
+            Enter your <strong style={{ color: T.dark ? BRAND.goldLight : BRAND.navyDark }}>RLS ticket code</strong> (e.g. <span style={{ fontFamily:"monospace", color:BRAND.gold }}>RLS-A3F7KQ</span>) from your original registration. Your ticket ID and QR code stay exactly the same — but your <strong style={{ color: T.dark ? BRAND.goldLight : BRAND.navyDark }}>Ticket, Attendee Card, and Volunteer Tag</strong> will now render with the latest design and correct badges. Download or save them after loading.
           </p>
           <div style={{ display:"flex", gap:10, marginBottom: err || found ? 14 : 0 }}>
             <input
@@ -1201,7 +1392,7 @@ function RetrieveTicket({ onFound, T }) {
                   fontSize:13, fontWeight:700, cursor:"pointer",
                   fontFamily:"'Cinzel', serif", letterSpacing:"0.04em",
                   boxShadow:`0 4px 20px rgba(201,146,10,0.3)` }}>
-                🎫 Load My Ticket & Create Card →
+                🎫 Load Updated Ticket → Save, Print & Create Card
               </button>
             </div>
           )}
@@ -1269,7 +1460,7 @@ function TicketView({ ticket, onBack, onCreateCard, T }) {
               <div style={{ fontFamily:"'Cinzel', serif", fontSize:"clamp(18px,3vw,24px)", fontWeight:700, color:BRAND.navyDark, lineHeight:1.2, textTransform:"uppercase" }}>{ticket.name}</div>
               <div style={{ fontSize:14, color:"#444", fontWeight:500 }}>{ticket.position}</div>
               {ticket.institution && <div style={{ fontSize:14, color:"#555" }}>{ticket.institution}</div>}
-              {ticket.level && ticket.level !== "N/A" && <div style={{ fontSize:13, color:"#777" }}>{ticket.level}</div>}
+              {ticket.delegateType === "run-student" && ticket.level && ticket.level !== "N/A" && <div style={{ fontSize:13, color:"#777" }}>{ticket.level}</div>}
               <div style={{ fontSize:11, color:"#999" }}>Registered {new Date(ticket.registeredAt).toLocaleString("en-GB", { day:"numeric", month:"long", year:"numeric", hour:"2-digit", minute:"2-digit" })}</div>
             </div>
             <div style={{ textAlign:"center", flexShrink:0 }}>
@@ -1404,6 +1595,8 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
   const [filterBadge, setFilterBadge] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
   const [logoutTimer, setLogoutTimer] = useState(null);
+  const [migrating, setMigrating] = useState(false);
+  const [migrateResult, setMigrateResult] = useState(null); // { count, total }
 
   const LOGIN_TIMEOUT_MS = 60 * 60 * 1000;
 
@@ -1492,6 +1685,63 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
       </div>
 
       <CheckinToggle checkinOpen={checkinOpen} onToggle={onToggleCheckin} superAdmin={superAdmin} T={T} />
+
+      {/* ── MIGRATION BANNER ── */}
+      {(() => {
+        const unmigrated = regs.filter(r => !r.badge);
+        const needsMigration = unmigrated.length > 0;
+        return (
+          <div style={{ background: needsMigration
+              ? (T.dark ? "rgba(201,146,10,0.08)" : "rgba(201,146,10,0.06)")
+              : (T.dark ? "rgba(46,158,91,0.06)" : "rgba(46,158,91,0.04)"),
+            border:`1px solid ${needsMigration ? "rgba(201,146,10,0.3)" : "rgba(46,158,91,0.25)"}`,
+            borderRadius:12, padding:"14px 20px", marginBottom:20,
+            display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+            <div>
+              <div style={{ fontSize:12, fontWeight:700,
+                color: needsMigration ? (T.dark ? BRAND.goldLight : BRAND.gold) : "#2e9e5b",
+                marginBottom:3 }}>
+                {migrating ? "⏳ Migrating legacy records…"
+                  : migrateResult ? `✅ ${migrateResult.count} of ${migrateResult.total} legacy records updated with badges & types`
+                  : needsMigration ? `⚠ ${unmigrated.length} legacy record${unmigrated.length > 1 ? "s" : ""} missing badge/type data`
+                  : "✅ All records have badge & delegate-type data"}
+              </div>
+              <div style={{ fontSize:11, color:T.textMuted, lineHeight:1.5 }}>
+                {needsMigration
+                  ? "These were registered before the new delegate-type system. Click to auto-assign badges and types based on their position and institution."
+                  : "Every registration includes delegate type and badge. Exports will show complete data."}
+              </div>
+            </div>
+            {needsMigration && (
+              <button
+                disabled={migrating}
+                onClick={async () => {
+                  setMigrating(true); setMigrateResult(null);
+                  const count = await fbMigrateLegacyBadges(regs, () => {});
+                  setMigrating(false);
+                  setMigrateResult({ count, total: unmigrated.length });
+                  // Reload regs from Firebase to pick up the writes
+                  const fresh = await fbLoadRegs();
+                  const enriched = fresh.map(reg => {
+                    if (reg.badge) return reg;
+                    const inferred = inferDelegateType(reg);
+                    if (!inferred) return reg;
+                    return { ...reg, ...inferred, institution: normaliseInstitutionForMigration(reg.institution) };
+                  });
+                  // Trigger parent to refresh — update via onReset trick won't work; use window event
+                  window.dispatchEvent(new CustomEvent("runsa-regs-refresh", { detail: enriched }));
+                }}
+                style={{ padding:"9px 20px", borderRadius:8, border:"none", cursor: migrating ? "not-allowed" : "pointer",
+                  fontSize:12, fontWeight:700, fontFamily:"'Cinzel', serif", letterSpacing:"0.04em",
+                  background: migrating ? "#888" : `linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})`,
+                  color:"#fff", boxShadow: migrating ? "none" : "0 3px 14px rgba(201,146,10,0.3)",
+                  whiteSpace:"nowrap" }}>
+                {migrating ? "Migrating…" : `🔄 Migrate ${unmigrated.length} Records`}
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Filters + Download row */}
       <div style={{ display:"flex", gap:10, marginBottom:12, flexWrap:"wrap" }}>
@@ -1634,7 +1884,7 @@ function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T }) {
             <div style={{ fontFamily:"'Cinzel', serif", fontSize:16, fontWeight:700, color:T.text, marginBottom:4 }}>{r.name}</div>
             {r.badge && <div style={{ marginBottom:6 }}><BadgeChip badge={r.badge} /></div>}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"4px 12px", marginBottom:8 }}>
-              {[["Institution", r.institution],["Level", r.level],["Position", r.position],["Registered", new Date(r.registeredAt).toLocaleDateString("en-GB")]].map(([label, value]) => (
+              {[["Institution", r.institution],["Level", r.level && r.level !== "N/A" ? r.level : "—"],["Position", r.position],["Registered", new Date(r.registeredAt).toLocaleDateString("en-GB")]].map(([label, value]) => (
                 <div key={label}>
                   <div style={{ fontSize:9, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>{label}</div>
                   <div style={{ fontSize:12, color:T.textMuted, marginTop:1 }}>{value}</div>
