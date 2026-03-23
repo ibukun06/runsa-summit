@@ -177,11 +177,43 @@ async function fbLoadRegs() {
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   } catch (e) { console.error("Firebase load error:", e); return []; }
 }
+// Pending-save queue — IDs registered but not yet confirmed saved to Firestore.
+// Kept in module scope so the polling loop can skip these records (they are
+// already in local state) and retry saving them on the next cycle.
+const _pendingSaves = new Map(); // id → reg object
+
 async function fbAddReg(reg) {
-  try {
-    const db = await initFirebase();
-    await db.collection(COLLECTION).doc(reg.id).set(reg);
-  } catch (e) { console.error("Firebase add error:", e); }
+  _pendingSaves.set(reg.id, reg); // mark as pending immediately
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const db = await initFirebase();
+      await db.collection(COLLECTION).doc(reg.id).set(reg);
+      _pendingSaves.delete(reg.id); // confirmed saved
+      return;
+    } catch (e) {
+      lastErr = e;
+      console.warn(`Firebase add attempt ${attempt} failed:`, e.message);
+      if (attempt < 4) await new Promise(r => setTimeout(r, attempt * 1200));
+    }
+  }
+  console.error("Firebase add FAILED after 4 attempts:", lastErr);
+  // Leave in _pendingSaves so the polling loop retries on next tick
+}
+
+// Retry any pending saves — called inside the polling loop
+async function fbRetryPendingSaves() {
+  if (_pendingSaves.size === 0) return;
+  for (const [id, reg] of [..._pendingSaves.entries()]) {
+    try {
+      const db = await initFirebase();
+      await db.collection(COLLECTION).doc(id).set(reg);
+      _pendingSaves.delete(id);
+      console.log("[Retry] Saved pending registration:", id);
+    } catch (e) {
+      console.warn("[Retry] Still failing for", id, e.message);
+    }
+  }
 }
 async function fbSignIn(id) {
   try {
@@ -689,17 +721,25 @@ export default function App() {
     });
   }, []);
   useEffect(() => {
-    const interval = setInterval(() => {
-      fbLoadRegs().then(r => {
-        // Apply local enrichment on each poll too, so new records get badges immediately
-        const enriched = r.map(reg => {
-          if (reg.badge) return reg;
-          const inferred = inferDelegateType(reg);
-          if (!inferred) return reg;
-          const normInst = normaliseInstitutionForMigration(reg.institution);
-          return { ...reg, ...inferred, institution: normInst };
-        });
-        setRegs(enriched);
+    const interval = setInterval(async () => {
+      // First retry any pending saves that failed on first attempt
+      await fbRetryPendingSaves();
+      // Then fetch latest from Firebase
+      const r = await fbLoadRegs();
+      const enriched = r.map(reg => {
+        if (reg.badge) return reg;
+        const inferred = inferDelegateType(reg);
+        if (!inferred) return reg;
+        const normInst = normaliseInstitutionForMigration(reg.institution);
+        return { ...reg, ...inferred, institution: normInst };
+      });
+      // CRITICAL: merge any pending saves back in — these are registered but
+      // not yet confirmed in Firestore, so they won't appear in the fetch above.
+      // Without this merge they would disappear from the UI on every poll tick.
+      setRegs(prev => {
+        const serverIds = new Set(enriched.map(r => r.id));
+        const pendingOnly = [..._pendingSaves.values()].filter(p => !serverIds.has(p.id));
+        return [...pendingOnly, ...enriched];
       });
     }, 2000);
     return () => clearInterval(interval);
@@ -727,10 +767,13 @@ export default function App() {
     if (existing) { setTicket({ ...existing, _isDuplicate: true }); setView("ticket"); return; }
     const id = genId();
     const t = { id, qrURL: checkinURL(id), ...form, registeredAt: new Date().toISOString(), signedIn: false, signedInAt: null };
+    // Show ticket immediately so the user has their QR code while we save
     setRegs(prev => [t, ...prev]);
     setTicket(t);
     setView("ticket");
-    fbAddReg(t);
+    // AWAIT the save — fbAddReg retries 4 times internally and keeps the record
+    // in _pendingSaves until confirmed. The polling loop will also retry.
+    await fbAddReg(t);
   };
 
   const signIn = async id => {
@@ -993,6 +1036,7 @@ const POSITIONS_BY_TYPE = {
   "guest": [
     "Rt. Hon. Speaker, House of Assembly",
     "Honourable Member, House of Assembly",
+    "Guest Speaker / Panelist",
   ],
   "runsa-lc-principal": [
     "Speaker",
@@ -1744,7 +1788,7 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
       })()}
 
       {/* Filters + Download row */}
-      <div style={{ display:"flex", gap:10, marginBottom:12, flexWrap:"wrap" }}>
+      <div style={{ display:"flex", gap:10, marginBottom:8, flexWrap:"wrap", alignItems:"center" }}>
         <input style={{ ...inputStyle(T, false), flex:2, minWidth:180 }} placeholder="Search name, ID, position…" value={search} onChange={e => setSearch(e.target.value)} />
         <select style={{ ...selectStyle(T, false), flex:1, minWidth:160 }} value={filterInst} onChange={e => setFilterInst(e.target.value)}>
           <option value="">All Institutions</option>
@@ -1754,6 +1798,15 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
           <option value="">All Badge Types</option>
           {allBadges.map(b => <option key={b} value={b}>{b}</option>)}
         </select>
+        {(search || filterInst || filterBadge) && (
+          <button onClick={() => { setSearch(""); setFilterInst(""); setFilterBadge(""); }}
+            style={{ padding:"10px 16px", borderRadius:8, border:`1px solid rgba(192,57,43,0.35)`,
+              background:"rgba(192,57,43,0.06)", color:"#c0392b",
+              fontSize:12, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap",
+              display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+            ✕ Clear Filters
+          </button>
+        )}
       </div>
 
       {/* Download row — both admin levels can download */}
