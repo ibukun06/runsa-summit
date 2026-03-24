@@ -768,7 +768,7 @@ export default function App() {
       setView("ticket");
       return;
     }
-    if (regs.length >= 350) { alert("Registration is now closed. The maximum number of delegates (350) has been reached."); return; }
+    if (regs.length >= 450 { alert("Registration is now closed. The maximum number of delegates (450) has been reached."); return; }
     const nameWords = s => s.trim().toLowerCase().replace(/\s+/g, " ").split(" ").filter(Boolean).sort().join(" ");
     const incomingWords = nameWords(form.name);
     const existing = regs.find(r => nameWords(r.name || "") === incomingWords);
@@ -1765,10 +1765,10 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
       {/* Stats */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:12, marginBottom:24 }} className="fade-up-2">
         {[
-          { label:"Total Registered", value:total, max:350, accent:BRAND.gold },
+          { label:"Total Registered", value:total, max:450, accent:BRAND.gold },
           { label:"Checked In", value:checkedIn, max:total||1, accent:"#2e9e5b" },
           { label:"Pending Entry", value:pending, max:total||1, accent:"#c97a10" },
-          { label:"Spots Remaining", value:350-total, max:350, accent:BRAND.navyMid },
+          { label:"Spots Remaining", value:450-total, max:450, accent:BRAND.navyMid },
         ].map(s => (
           <div key={s.label} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:"16px 18px" }}>
             <div style={{ fontSize:9, color:T.textMuted, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6 }}>{s.label}</div>
