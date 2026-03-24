@@ -134,15 +134,17 @@ const BRAND = {
   cream:       "#f5f0e8",
   creamDark:   "#e8e0d0",
   white:       "#ffffff",
-  darkBg:      "#060d1a",
-  darkSurface: "#0d1e38",
-  darkSurface2:"#111f3a",
-  darkBorder:  "rgba(26,58,107,0.45)",
-  darkBorderAccent: "rgba(57,224,122,0.2)",
-  darkBorderGold: "rgba(200,146,10,0.25)",
-  lightBg:     "#f0ece3",
+  // Dark mode surfaces — slightly warmer/lighter so badges read clearly
+  darkBg:      "#080f1e",
+  darkSurface: "#0f1e36",
+  darkSurface2:"#152440",
+  darkBorder:  "rgba(90,130,200,0.35)",
+  darkBorderAccent: "rgba(57,224,122,0.22)",
+  darkBorderGold: "rgba(200,146,10,0.28)",
+  // Light mode — clean cool off-white instead of cream; much better contrast
+  lightBg:     "#f4f6fb",
   lightSurface:"#ffffff",
-  lightBorder: "rgba(26,58,107,0.16)",
+  lightBorder: "rgba(26,58,107,0.14)",
 };
 
 function genId() {
@@ -291,9 +293,14 @@ const EXEC_POSITIONS = [
   "financial secretary", "treasurer", "welfare director", "assistant welfare director",
   "public relations officer", "sports director", "social director", "chapel president",
 ];
+// Volunteer unit keywords — checked BEFORE exec positions to avoid "welfare" vs "welfare director" clash
+// We check these as EXACT position matches (trimmed lowercase) not substring, to avoid false positives
+const VOLUNTEER_POSITIONS_EXACT = new Set([
+  "ushering & protocol", "logistics", "registration", "team tech",
+  "anchors", "welfare", "welfare unit", "general volunteer", "volunteer",
+]);
 const VOLUNTEER_KEYWORDS = [
-  "volunteer", "ushering", "protocol", "logistics", "registration",
-  "team tech", "anchors", "welfare unit", "general volunteer",
+  "ushering", "team tech", "anchors", "general volunteer",
 ];
 
 function inferDelegateType(reg) {
@@ -304,8 +311,9 @@ function inferDelegateType(reg) {
   // Already migrated — don't touch
   if (reg.badge) return null;
 
-  // Volunteer
-  if (VOLUNTEER_KEYWORDS.some(k => pos.includes(k)) || lvl === "volunteer") {
+  // Volunteer — check exact match first (unit names like "Welfare", "Logistics")
+  // then substring keywords, then level fallback
+  if (VOLUNTEER_POSITIONS_EXACT.has(pos) || VOLUNTEER_KEYWORDS.some(k => pos.includes(k)) || lvl === "volunteer") {
     return { delegateType: "volunteer", badge: "VOLUNTEER" };
   }
 
@@ -901,7 +909,7 @@ export default function App() {
         {view === "admin" && <AdminView regs={regs} onReset={resetAll} onDeleteDelegate={deleteDelegate} checkinOpen={checkinOpen} onToggleCheckin={async v => { setCheckinOpen(v); await fbSetCheckinOpen(v); }} T={T} />}
       </main>
 
-      <footer style={{ borderTop:`1px solid ${dark ? "rgba(26,58,107,0.4)" : "rgba(26,58,107,0.1)"}`, padding:"32px 20px 24px", textAlign:"center", background: dark ? BRAND.darkSurface : "#f0ece3" }}>
+      <footer style={{ borderTop:`1px solid ${dark ? "rgba(26,58,107,0.4)" : "rgba(26,58,107,0.1)"}`, padding:"32px 20px 24px", textAlign:"center", background: dark ? BRAND.darkSurface : BRAND.lightBg }}>
         <div style={{ display:"flex", justifyContent:"center", gap:6, marginBottom:20 }}>
           {Array.from({length:18}).map((_,i) => <div key={i} style={{ width:5, height:5, borderRadius:"50%", background: dark ? `rgba(201,146,10,${i%3===0?0.5:0.2})` : `rgba(26,58,107,${i%3===0?0.3:0.12})` }} />)}
         </div>
@@ -1002,7 +1010,7 @@ const DELEGATE_TYPES = [
   { value:"external",    label:"External Delegate",              desc:"Delegate from another university" },
   { value:"guest",       label:"Distinguished Guest",            desc:"Invited dignitary or special guest" },
   { value:"internal",    label:"Internal Delegate (RUNSA)",      desc:"Current RUNSA official — LC, Executive, or Past LC" },
-  { value:"run-student", label:"Redeemer's University Student",  desc:"RUN student not serving as a RUNSA official" },
+  { value:"run-student", label:"Redeemer's University Student",  desc:"RUN student, association member, or faculty representative" },
   { value:"volunteer",   label:"Volunteer",                      desc:"Summit volunteer team member" },
 ];
 
@@ -1073,6 +1081,8 @@ const POSITIONS_BY_TYPE = {
   "run-student": [
     "Student",
     "Departmental Representative",
+    "Association / Club Representative",
+    "Faculty Representative",
   ],
   "volunteer": [
     "Ushering & Protocol",
@@ -1080,7 +1090,7 @@ const POSITIONS_BY_TYPE = {
     "Registration",
     "Team Tech",
     "Anchors",
-    "Welfare",
+    "Welfare Unit",
     "General Volunteer",
   ],
 };
@@ -1102,16 +1112,58 @@ const TYPE_INSTITUTION = {
 
 // Badge colours and labels
 // Badge: { label, bg, border, color }
-function getBadge(effectiveType) {
+// getBadge returns theme-aware badge styles.
+// Pass dark=true for dark mode, dark=false (or omit) for light mode.
+function getBadge(effectiveType, dark = false) {
   const badges = {
-    "external":          { label:"EXTERNAL DELEGATE", bg:"rgba(57,224,122,0.10)", border:"rgba(57,224,122,0.35)", color:"#1a7a40" },
-    "guest":             { label:"DISTINGUISHED GUEST", bg:"rgba(201,146,10,0.10)", border:"rgba(201,146,10,0.40)", color:BRAND.gold },
-    "runsa-lc-principal":{ label:"RUNSA OFFICIAL", bg:"rgba(13,31,60,0.08)", border:"rgba(13,31,60,0.25)", color:BRAND.navyDark },
-    "runsa-lc-member":   { label:"RUNSA OFFICIAL", bg:"rgba(13,31,60,0.08)", border:"rgba(13,31,60,0.25)", color:BRAND.navyDark },
-    "runsa-exec":        { label:"RUNSA OFFICIAL", bg:"rgba(13,31,60,0.08)", border:"rgba(13,31,60,0.25)", color:BRAND.navyDark },
-    "past-hon":          { label:"PAST HONOURABLE", bg:"rgba(26,58,107,0.10)", border:"rgba(26,58,107,0.30)", color:BRAND.navy },
-    "run-student":       { label:"DELEGATE", bg:"rgba(30,77,140,0.08)", border:"rgba(30,77,140,0.25)", color:BRAND.navyMid },
-    "volunteer":         { label:"VOLUNTEER", bg:"rgba(100,100,110,0.08)", border:"rgba(100,100,110,0.25)", color:"#555" },
+    "external": {
+      label:"EXTERNAL DELEGATE",
+      bg:     dark ? "rgba(57,224,122,0.18)"  : "rgba(57,224,122,0.10)",
+      border: dark ? "rgba(57,224,122,0.55)"  : "rgba(57,224,122,0.35)",
+      color:  dark ? "#5deba0"                : "#1a7a40",
+    },
+    "guest": {
+      label:"DISTINGUISHED GUEST",
+      bg:     dark ? "rgba(232,184,75,0.18)"  : "rgba(201,146,10,0.10)",
+      border: dark ? "rgba(232,184,75,0.55)"  : "rgba(201,146,10,0.40)",
+      color:  dark ? BRAND.goldLight          : BRAND.gold,
+    },
+    "runsa-lc-principal": {
+      label:"RUNSA OFFICIAL",
+      bg:     dark ? "rgba(90,140,230,0.20)"  : "rgba(13,31,60,0.07)",
+      border: dark ? "rgba(120,170,255,0.50)" : "rgba(26,58,107,0.25)",
+      color:  dark ? "#a8c4f5"               : BRAND.navyDark,
+    },
+    "runsa-lc-member": {
+      label:"RUNSA OFFICIAL",
+      bg:     dark ? "rgba(90,140,230,0.20)"  : "rgba(13,31,60,0.07)",
+      border: dark ? "rgba(120,170,255,0.50)" : "rgba(26,58,107,0.25)",
+      color:  dark ? "#a8c4f5"               : BRAND.navyDark,
+    },
+    "runsa-exec": {
+      label:"RUNSA OFFICIAL",
+      bg:     dark ? "rgba(90,140,230,0.20)"  : "rgba(13,31,60,0.07)",
+      border: dark ? "rgba(120,170,255,0.50)" : "rgba(26,58,107,0.25)",
+      color:  dark ? "#a8c4f5"               : BRAND.navyDark,
+    },
+    "past-hon": {
+      label:"PAST HONOURABLE",
+      bg:     dark ? "rgba(160,120,240,0.20)" : "rgba(26,58,107,0.08)",
+      border: dark ? "rgba(180,150,255,0.50)" : "rgba(26,58,107,0.28)",
+      color:  dark ? "#c4a8f5"               : BRAND.navy,
+    },
+    "run-student": {
+      label:"DELEGATE",
+      bg:     dark ? "rgba(70,130,200,0.20)"  : "rgba(30,77,140,0.07)",
+      border: dark ? "rgba(100,160,240,0.50)" : "rgba(30,77,140,0.25)",
+      color:  dark ? "#90bdf5"               : BRAND.navyMid,
+    },
+    "volunteer": {
+      label:"VOLUNTEER",
+      bg:     dark ? "rgba(57,224,122,0.14)"  : "rgba(57,160,100,0.08)",
+      border: dark ? "rgba(57,224,122,0.40)"  : "rgba(57,160,100,0.28)",
+      color:  dark ? "#5deba0"               : "#2a7a50",
+    },
   };
   return badges[effectiveType] || null;
 }
@@ -1177,7 +1229,7 @@ function RegisterView({ onRegister, T }) {
     "runsa-lc-member":    { icon:"🏛️", bg:"rgba(13,31,60,0.08)", border:T.border, color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as a <strong>Current LC Member</strong> — institution auto-set to Redeemer's University." },
     "runsa-exec":         { icon:"🏛️", bg:"rgba(13,31,60,0.08)", border:T.border, color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as a <strong>RUNSA Executive</strong> — institution auto-set to Redeemer's University." },
     "past-hon":           { icon:"🏛️", bg:"rgba(201,146,10,0.07)", border:"rgba(201,146,10,0.3)", color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as an <strong>Immediate Past LC Member</strong> — institution auto-set to Redeemer's University." },
-    "run-student":        { icon:"🎓", bg:"rgba(26,58,107,0.06)", border:T.border, color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as a <strong>Redeemer's University Student</strong> — institution auto-set." },
+    "run-student":        { icon:"🎓", bg:"rgba(26,58,107,0.06)", border:T.border, color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as a <strong>Redeemer's University Student</strong> — includes association members, club officers, and faculty representatives. Institution auto-set." },
     "volunteer":          { icon:"✅", bg:"rgba(57,224,122,0.08)", border:"rgba(57,224,122,0.25)", color: T.dark ? "#39e07a" : "#1a7a40", text:"Registering as a <strong>Volunteer</strong> — no institution or level required." },
     "guest":              { icon:"🌟", bg:"rgba(201,146,10,0.07)", border:"rgba(201,146,10,0.3)", color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as a <strong>Distinguished Guest</strong> — no institution required." },
   };
@@ -1465,7 +1517,7 @@ function selectStyle(T, hasErr) {
 
 // ─── TICKET VIEW ──────────────────────────────────────────────────────────────
 function TicketView({ ticket, onBack, onCreateCard, T }) {
-  const badgeObj = getBadge(ticket.delegateType);
+  const badgeObj = getBadge(ticket.delegateType, T.dark);
   return (
     <div style={{ maxWidth:1100, margin:"0 auto", padding:"40px 20px" }}>
       <div style={{ maxWidth:620, margin:"0 auto" }}>
@@ -1479,7 +1531,7 @@ function TicketView({ ticket, onBack, onCreateCard, T }) {
           </div>
         )}
 
-        <div id="printable-ticket" style={{ background:BRAND.cream, borderRadius:16, overflow:"hidden", boxShadow:"0 20px 64px rgba(0,0,0,0.25)", border:`1px solid ${BRAND.gold}44` }} className="fade-up-2">
+        <div id="printable-ticket" style={{ background:"#ffffff", borderRadius:16, overflow:"hidden", boxShadow:"0 20px 64px rgba(0,0,0,0.25)", border:`1px solid ${BRAND.gold}44` }} className="fade-up-2">
           <div style={{ background:`linear-gradient(135deg, ${BRAND.navyDark}, ${BRAND.navy})`, padding:"clamp(16px,3vw,24px) clamp(20px,4vw,32px)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
             <div>
               <div style={{ fontFamily:"'Cinzel', serif", fontSize:10, color:BRAND.goldLight, letterSpacing:"0.16em", textTransform:"uppercase", marginBottom:4 }}>RUNSA · Legislative Council</div>
@@ -1872,7 +1924,8 @@ function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T }) {
       badge === "PAST HONOURABLE" ? "past-hon" :
       badge === "VOLUNTEER" ? "volunteer" :
       badge === "DELEGATE" ? "run-student" :
-      badge === "RUNSA OFFICIAL" ? "runsa-exec" : null
+      badge === "RUNSA OFFICIAL" ? "runsa-exec" : null,
+      T.dark
     ) : null;
     if (!badgeObj) return <span style={{ fontSize:10, color:T.textMuted }}>—</span>;
     return (
