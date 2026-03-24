@@ -768,7 +768,7 @@ export default function App() {
       setView("ticket");
       return;
     }
-    if (regs.length >= 450 { alert("Registration is now closed. The maximum number of delegates (450) has been reached."); return; }
+    if (regs.length >= 450) { alert("Registration is now closed. The maximum number of delegates (450) has been reached."); return; }
     const nameWords = s => s.trim().toLowerCase().replace(/\s+/g, " ").split(" ").filter(Boolean).sort().join(" ");
     const incomingWords = nameWords(form.name);
     const existing = regs.find(r => nameWords(r.name || "") === incomingWords);
