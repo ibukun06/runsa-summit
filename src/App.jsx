@@ -1082,7 +1082,7 @@ const POSITIONS_BY_TYPE = {
     "Student",
     "Departmental Representative",
     "Association / Club Representative",
-    "Faculty Representative",
+    "Chapel Executive",
   ],
   "volunteer": [
     "Ushering & Protocol",
@@ -1221,7 +1221,7 @@ function RegisterView({ onRegister, T }) {
     setBusy(false);
   };
 
-  const levels = ["100 Level","200 Level","300 Level","400 Level","500 Level","600 Level","ND","HND","Postgraduate"];
+  const levels = ["100 Level","200 Level","300 Level","400 Level","500 Level","600 Level"];
 
   // Banner messages per effective type
   const banners = {
