@@ -644,6 +644,15 @@ function GlobalStyles({ dark }) {
     @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(57,224,122,0.35); } 50% { box-shadow: 0 0 0 12px rgba(57,224,122,0); } }
     @keyframes greenPulse { 0%,100% { opacity:1; } 50% { opacity:0.45; } }
     @keyframes glowLine { 0%,100% { opacity:0.4; } 50% { opacity:1; } }
+    @keyframes rippleAnim { to { transform: translate(-50%,-50%) scale(1); opacity: 0; } }
+    @keyframes slideInRight { from { opacity:0; transform:translateX(32px); } to { opacity:1; transform:translateX(0); } }
+    @keyframes popIn { from { opacity:0; transform:scale(0.88); } to { opacity:1; transform:scale(1); } }
+    @keyframes shimmer { 0% { background-position:-400px 0; } 100% { background-position:400px 0; } }
+    .fade-up { animation: fadeUp 0.38s cubic-bezier(0.34,1.1,0.64,1) both; }
+    .fade-up-2 { animation: fadeUp 0.38s 0.06s cubic-bezier(0.34,1.1,0.64,1) both; }
+    .fade-up-3 { animation: fadeUp 0.38s 0.12s cubic-bezier(0.34,1.1,0.64,1) both; }
+    .pop-in { animation: popIn 0.32s cubic-bezier(0.34,1.56,0.64,1) both; }
+    .slide-in { animation: slideInRight 0.35s cubic-bezier(0.34,1.1,0.64,1) both; }
     .fade-up { animation: fadeUp 0.4s ease both; }
     .fade-up-2 { animation: fadeUp 0.4s 0.08s ease both; }
     .fade-up-3 { animation: fadeUp 0.4s 0.16s ease both; }
@@ -658,6 +667,116 @@ function GlobalStyles({ dark }) {
     }
   `;
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
+}
+
+// ─── CONFETTI BURST ───────────────────────────────────────────────────────────
+function fireConfetti() {
+  const colors = ["#c9920a","#e8b84b","#39e07a","#a8c4f5","#f5d57a","#ffffff"];
+  const canvas = document.createElement("canvas");
+  canvas.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;";
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  const particles = Array.from({length: 90}, () => ({
+    x: Math.random() * canvas.width,
+    y: -10 - Math.random() * 40,
+    vx: (Math.random() - 0.5) * 5,
+    vy: 2 + Math.random() * 4,
+    size: 5 + Math.random() * 6,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    rot: Math.random() * 360,
+    rotV: (Math.random() - 0.5) * 8,
+    shape: Math.random() > 0.5 ? "rect" : "circle",
+    life: 1,
+  }));
+  let frame;
+  const draw = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.rot += p.rotV;
+      p.vy += 0.08; p.life -= 0.012;
+      if (p.y < canvas.height && p.life > 0) { alive = true; }
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      ctx.fillStyle = p.color;
+      if (p.shape === "rect") ctx.fillRect(-p.size/2, -p.size/4, p.size, p.size/2);
+      else { ctx.beginPath(); ctx.arc(0, 0, p.size/2, 0, Math.PI*2); ctx.fill(); }
+      ctx.restore();
+    });
+    if (alive) frame = requestAnimationFrame(draw);
+    else { cancelAnimationFrame(frame); document.body.removeChild(canvas); }
+  };
+  draw();
+}
+
+// ─── TOAST SYSTEM ─────────────────────────────────────────────────────────────
+let _toastContainer = null;
+function getToastContainer() {
+  if (_toastContainer && document.body.contains(_toastContainer)) return _toastContainer;
+  _toastContainer = document.createElement("div");
+  _toastContainer.style.cssText = "position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:10px;max-width:340px;pointer-events:none;";
+  document.body.appendChild(_toastContainer);
+  return _toastContainer;
+}
+
+function showToast(msg, type = "info", duration = 3500) {
+  const c = getToastContainer();
+  const el = document.createElement("div");
+  const bg = type === "success" ? "#1a4a2e" : type === "error" ? "#4a1a1a" : type === "warning" ? "#3a2a00" : "#0f1e36";
+  const border = type === "success" ? "#2e9e5b" : type === "error" ? "#c0392b" : type === "warning" ? "#c9920a" : "#1a3a6b";
+  const icon = type === "success" ? "✅" : type === "error" ? "❌" : type === "warning" ? "⚠️" : "ℹ️";
+  el.style.cssText = `background:${bg};border:1px solid ${border};border-radius:10px;padding:12px 16px;color:#f5f0e8;font-family:'Inter',sans-serif;font-size:13px;line-height:1.5;display:flex;align-items:flex-start;gap:10px;box-shadow:0 8px 32px rgba(0,0,0,0.5);pointer-events:auto;transform:translateX(120%);transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1),opacity 0.3s;`;
+  el.innerHTML = `<span style="font-size:16px;flex-shrink:0">${icon}</span><span>${msg}</span>`;
+  c.appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => { el.style.transform = "translateX(0)"; }));
+  setTimeout(() => {
+    el.style.transform = "translateX(120%)"; el.style.opacity = "0";
+    setTimeout(() => { if (c.contains(el)) c.removeChild(el); }, 350);
+  }, duration);
+}
+
+// ─── ANIMATED COUNTER ─────────────────────────────────────────────────────────
+function useCountUp(target, duration = 800) {
+  const [val, setVal] = useState(0);
+  const prev = useRef(0);
+  useEffect(() => {
+    if (target === prev.current) return;
+    const start = prev.current; const end = target;
+    prev.current = end;
+    const startTime = performance.now();
+    const step = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setVal(Math.round(start + (end - start) * eased));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [target, duration]);
+  return val;
+}
+
+// ─── RIPPLE BUTTON ────────────────────────────────────────────────────────────
+function RippleBtn({ onClick, style, children, disabled, className }) {
+  const ref = useRef(null);
+  const handleClick = e => {
+    if (disabled) return;
+    const btn = ref.current;
+    if (!btn) { onClick && onClick(e); return; }
+    const rect = btn.getBoundingClientRect();
+    const ripple = document.createElement("span");
+    const size = Math.max(rect.width, rect.height) * 2;
+    ripple.style.cssText = `position:absolute;width:${size}px;height:${size}px;background:rgba(255,255,255,0.25);border-radius:50%;pointer-events:none;transform:translate(-50%,-50%) scale(0);animation:rippleAnim 0.55s linear;left:${e.clientX-rect.left}px;top:${e.clientY-rect.top}px;`;
+    btn.style.overflow = "hidden"; btn.style.position = "relative";
+    btn.appendChild(ripple);
+    setTimeout(() => { if (btn.contains(ripple)) btn.removeChild(ripple); }, 600);
+    onClick && onClick(e);
+  };
+  return <button ref={ref} onClick={handleClick} style={style} disabled={disabled} className={className}>{children}</button>;
 }
 
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
@@ -779,6 +898,9 @@ export default function App() {
     setRegs(prev => [t, ...prev]);
     setTicket(t);
     setView("ticket");
+    // Celebrate! 🎉
+    setTimeout(() => fireConfetti(), 200);
+    showToast("Registration successful! Your ticket is ready.", "success");
     // AWAIT the save — fbAddReg retries 4 times internally and keeps the record
     // in _pendingSaves until confirmed. The polling loop will also retry.
     await fbAddReg(t);
@@ -1082,6 +1204,7 @@ const POSITIONS_BY_TYPE = {
     "Student",
     "Departmental Representative",
     "Association / Club Representative",
+    "Faculty Representative",
     "Chapel Executive",
   ],
   "volunteer": [
@@ -1680,6 +1803,45 @@ function CheckinToggle({ checkinOpen, onToggle, superAdmin, T }) {
   );
 }
 
+// ─── STAT CARDS (animated countUp + quick filter) ────────────────────────────
+function StatCards({ total, checkedIn, pending, onFilterCheckin, T }) {
+  const animTotal    = useCountUp(total, 900);
+  const animChecked  = useCountUp(checkedIn, 900);
+  const animPending  = useCountUp(pending, 900);
+  const animSpots    = useCountUp(450 - total, 900);
+  const stats = [
+    { label:"Total Registered", value:animTotal,   raw:total,     max:450,       accent:BRAND.gold,    click:null,        hint:"" },
+    { label:"Checked In",       value:animChecked, raw:checkedIn, max:total||1,  accent:"#2e9e5b",     click:"checked",   hint:"Click to filter" },
+    { label:"Pending Entry",    value:animPending, raw:pending,   max:total||1,  accent:"#c97a10",     click:"pending",   hint:"Click to filter" },
+    { label:"Spots Remaining",  value:animSpots,   raw:450-total, max:450,       accent:BRAND.navyMid, click:null,        hint:"" },
+  ];
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:12, marginBottom:24 }} className="fade-up-2">
+      {stats.map(s => (
+        <div key={s.label}
+          onClick={() => s.click && onFilterCheckin(s.click)}
+          style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:"16px 18px",
+            cursor: s.click ? "pointer" : "default",
+            transition:"transform 0.15s, box-shadow 0.15s",
+          }}
+          onMouseEnter={e => { if (s.click) { e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow=`0 8px 24px rgba(0,0,0,0.15)`; }}}
+          onMouseLeave={e => { e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+            <div style={{ fontSize:9, color:T.textMuted, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6 }}>{s.label}</div>
+            {s.hint && <div style={{ fontSize:8, color:s.accent, opacity:0.7, letterSpacing:"0.05em" }}>TAP</div>}
+          </div>
+          <div style={{ fontFamily:"'Bebas Neue', sans-serif", fontSize:36, color:s.accent, lineHeight:1 }}>{s.value}</div>
+          <div style={{ marginTop:8, height:3, borderRadius:2, background: T.dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" }}>
+            <div style={{ height:"100%", borderRadius:2, background:s.accent,
+              width:`${Math.min(100, (s.raw/(s.max||1))*100)}%`,
+              transition:"width 0.8s cubic-bezier(0.4,0,0.2,1)" }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
 function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheckin, T }) {
   const [pinInput, setPinInput] = useState("");
@@ -1693,6 +1855,14 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
   const [logoutTimer, setLogoutTimer] = useState(null);
   const [migrating, setMigrating] = useState(false);
   const [migrateResult, setMigrateResult] = useState(null); // { count, total }
+  const [filterDelegateType, setFilterDelegateType] = useState("");
+  const [filterCheckinStatus, setFilterCheckinStatus] = useState(""); // "checked" | "pending" | ""
+  const [sortField, setSortField] = useState("registeredAt");
+  const [sortDir, setSortDir] = useState("desc"); // "asc" | "desc"
+  const toggleSort = field => {
+    if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortField(field); setSortDir("asc"); }
+  };
 
   const LOGIN_TIMEOUT_MS = 60 * 60 * 1000;
 
@@ -1736,12 +1906,42 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
     }
   });
 
-  const filtered = regs.filter(r => {
+  const DELEGATE_TYPE_LABELS = {
+    "external":          "External Delegate",
+    "guest":             "Distinguished Guest",
+    "runsa-lc-principal":"LC — Principal Officer",
+    "runsa-lc-member":   "LC — Member",
+    "runsa-exec":        "RUNSA Executive",
+    "past-hon":          "Immediate Past LC",
+    "run-student":       "RUN Student",
+    "volunteer":         "Volunteer",
+  };
+  const allDelegateTypes = [...new Set(regs.map(r => r.delegateType).filter(Boolean))].sort();
+
+  const baseFiltered = regs.filter(r => {
     const q = search.toLowerCase();
-    const matchSearch = !q || r.name?.toLowerCase().includes(q) || r.id?.toLowerCase().includes(q) || r.position?.toLowerCase().includes(q);
+    const matchSearch = !q ||
+      r.name?.toLowerCase().includes(q) ||
+      r.id?.toLowerCase().includes(q) ||
+      r.position?.toLowerCase().includes(q) ||
+      r.institution?.toLowerCase().includes(q);
     const matchInst = !filterInst || canonicaliseInstitution(r.institution || "", canonicals) === filterInst;
     const matchBadge = !filterBadge || (r.badge || "") === filterBadge;
-    return matchSearch && matchInst && matchBadge;
+    const matchType = !filterDelegateType || (r.delegateType || "") === filterDelegateType;
+    const matchCheckin = !filterCheckinStatus || (filterCheckinStatus === "checked" ? r.signedIn : !r.signedIn);
+    return matchSearch && matchInst && matchBadge && matchType && matchCheckin;
+  });
+
+  const filtered = [...baseFiltered].sort((a, b) => {
+    let av, bv;
+    if (sortField === "name")         { av = (a.name||"").toLowerCase(); bv = (b.name||"").toLowerCase(); }
+    else if (sortField === "position"){ av = (a.position||"").toLowerCase(); bv = (b.position||"").toLowerCase(); }
+    else if (sortField === "institution"){ av = (a.institution||"").toLowerCase(); bv = (b.institution||"").toLowerCase(); }
+    else if (sortField === "checkin") { av = a.signedIn ? 1 : 0; bv = b.signedIn ? 1 : 0; }
+    else /* registeredAt */           { av = a.registeredAt||""; bv = b.registeredAt||""; }
+    if (av < bv) return sortDir === "asc" ? -1 : 1;
+    if (av > bv) return sortDir === "asc" ? 1 : -1;
+    return 0;
   });
 
   const total = regs.length;
@@ -1762,23 +1962,9 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
         <button onClick={handleLogout} style={{ padding:"8px 16px", background:"transparent", border:`1px solid ${T.border}`, color:T.textMuted, borderRadius:7, fontSize:12, cursor:"pointer" }}>Sign Out</button>
       </div>
 
-      {/* Stats */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:12, marginBottom:24 }} className="fade-up-2">
-        {[
-          { label:"Total Registered", value:total, max:450, accent:BRAND.gold },
-          { label:"Checked In", value:checkedIn, max:total||1, accent:"#2e9e5b" },
-          { label:"Pending Entry", value:pending, max:total||1, accent:"#c97a10" },
-          { label:"Spots Remaining", value:450-total, max:450, accent:BRAND.navyMid },
-        ].map(s => (
-          <div key={s.label} style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, padding:"16px 18px" }}>
-            <div style={{ fontSize:9, color:T.textMuted, textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:6 }}>{s.label}</div>
-            <div style={{ fontFamily:"'Bebas Neue', sans-serif", fontSize:36, color:s.accent, lineHeight:1 }}>{s.value}</div>
-            <div style={{ marginTop:8, height:3, borderRadius:2, background: T.dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" }}>
-              <div style={{ height:"100%", borderRadius:2, background:s.accent, width:`${Math.min(100, (s.value/s.max)*100)}%`, transition:"width 0.6s ease" }} />
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Stats — animated countUp, clickable quick-filter */}
+      <StatCards total={total} checkedIn={checkedIn} pending={pending}
+        onFilterCheckin={v => setFilterCheckinStatus(v)} T={T} />
 
       <CheckinToggle checkinOpen={checkinOpen} onToggle={onToggleCheckin} superAdmin={superAdmin} T={T} />
 
@@ -1839,27 +2025,50 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
         );
       })()}
 
-      {/* Filters + Download row */}
-      <div style={{ display:"flex", gap:10, marginBottom:8, flexWrap:"wrap", alignItems:"center" }}>
-        <input style={{ ...inputStyle(T, false), flex:2, minWidth:180 }} placeholder="Search name, ID, position…" value={search} onChange={e => setSearch(e.target.value)} />
-        <select style={{ ...selectStyle(T, false), flex:1, minWidth:160 }} value={filterInst} onChange={e => setFilterInst(e.target.value)}>
+      {/* ── FILTERS ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+        {/* Row 1: search + institution */}
+        <input
+          style={{ ...inputStyle(T, false), gridColumn:"1/-1", transition:"box-shadow 0.2s" }}
+          placeholder="🔍  Search name, ID, position, institution…"
+          value={search} onChange={e => setSearch(e.target.value)}
+          onFocus={e => e.target.style.boxShadow = `0 0 0 3px rgba(201,146,10,0.15)`}
+          onBlur={e => e.target.style.boxShadow = "none"} />
+        {/* Row 2: institution + badge */}
+        <select style={selectStyle(T, false)} value={filterInst} onChange={e => setFilterInst(e.target.value)}>
           <option value="">All Institutions</option>
           {canonicals.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select style={{ ...selectStyle(T, false), flex:1, minWidth:160 }} value={filterBadge} onChange={e => setFilterBadge(e.target.value)}>
+        <select style={selectStyle(T, false)} value={filterBadge} onChange={e => setFilterBadge(e.target.value)}>
           <option value="">All Badge Types</option>
           {allBadges.map(b => <option key={b} value={b}>{b}</option>)}
         </select>
-        {(search || filterInst || filterBadge) && (
-          <button onClick={() => { setSearch(""); setFilterInst(""); setFilterBadge(""); }}
-            style={{ padding:"10px 16px", borderRadius:8, border:`1px solid rgba(192,57,43,0.35)`,
-              background:"rgba(192,57,43,0.06)", color:"#c0392b",
-              fontSize:12, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap",
-              display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
-            ✕ Clear Filters
-          </button>
-        )}
+        {/* Row 3: delegate type + check-in status */}
+        <select style={selectStyle(T, false)} value={filterDelegateType} onChange={e => setFilterDelegateType(e.target.value)}>
+          <option value="">All Delegate Types</option>
+          {allDelegateTypes.map(dt => <option key={dt} value={dt}>{DELEGATE_TYPE_LABELS[dt] || dt}</option>)}
+        </select>
+        <select style={selectStyle(T, false)} value={filterCheckinStatus} onChange={e => setFilterCheckinStatus(e.target.value)}>
+          <option value="">All Check-In Statuses</option>
+          <option value="checked">✓ Checked In</option>
+          <option value="pending">⏳ Pending Entry</option>
+        </select>
       </div>
+      {/* Active filter chips + clear button */}
+      {(search || filterInst || filterBadge || filterDelegateType || filterCheckinStatus) && (
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:10 }}>
+          <span style={{ fontSize:11, color:T.textMuted, marginRight:2 }}>Active:</span>
+          {search && <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: T.dark ? "rgba(201,146,10,0.12)" : "rgba(201,146,10,0.08)", border:"1px solid rgba(201,146,10,0.3)", color: T.dark ? BRAND.goldLight : BRAND.gold }}>"{search}"</span>}
+          {filterInst && <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: T.dark ? "rgba(26,58,107,0.2)" : "rgba(26,58,107,0.06)", border:`1px solid ${T.border}`, color:T.text }}>📍 {filterInst.split(",")[0]}</span>}
+          {filterBadge && <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: T.dark ? "rgba(26,58,107,0.2)" : "rgba(26,58,107,0.06)", border:`1px solid ${T.border}`, color:T.text }}>🏷 {filterBadge}</span>}
+          {filterDelegateType && <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: T.dark ? "rgba(90,140,230,0.18)" : "rgba(26,58,107,0.06)", border:`1px solid rgba(90,140,230,0.35)`, color: T.dark ? "#a8c4f5" : BRAND.navyDark }}>{DELEGATE_TYPE_LABELS[filterDelegateType] || filterDelegateType}</span>}
+          {filterCheckinStatus && <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: filterCheckinStatus === "checked" ? "rgba(46,158,91,0.1)" : "rgba(201,122,16,0.1)", border:`1px solid ${filterCheckinStatus === "checked" ? "rgba(46,158,91,0.35)" : "rgba(201,122,16,0.35)"}`, color: filterCheckinStatus === "checked" ? "#2e9e5b" : "#c97a10" }}>{filterCheckinStatus === "checked" ? "✓ Checked In" : "⏳ Pending"}</span>}
+          <button onClick={() => { setSearch(""); setFilterInst(""); setFilterBadge(""); setFilterDelegateType(""); setFilterCheckinStatus(""); }}
+            style={{ fontSize:11, padding:"3px 12px", borderRadius:20, border:"1px solid rgba(192,57,43,0.35)", background:"rgba(192,57,43,0.06)", color:"#c0392b", cursor:"pointer", marginLeft:4, fontWeight:600 }}>
+            ✕ Clear All
+          </button>
+        </div>
+      )}
 
       {/* Download row — both admin levels can download */}
       <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap", alignItems:"center" }}>
@@ -1908,14 +2117,40 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
         )}
       </div>
 
-      <DelegateTable filtered={filtered} superAdmin={superAdmin} onDeleteDelegate={onDeleteDelegate} T={T} />
+      <DelegateTable filtered={filtered} superAdmin={superAdmin} onDeleteDelegate={onDeleteDelegate} T={T} search={search} sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
     </div>
   );
 }
 
-function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T }) {
+// Highlight matching search text
+function HighlightText({ text, query, style }) {
+  if (!query || !text) return <span style={style}>{text}</span>;
+  const q = query.toLowerCase();
+  const idx = text.toLowerCase().indexOf(q);
+  if (idx === -1) return <span style={style}>{text}</span>;
+  return <span style={style}>
+    {text.slice(0, idx)}
+    <mark style={{ background:"rgba(232,184,75,0.45)", color:"inherit", borderRadius:2, padding:"0 1px" }}>{text.slice(idx, idx + query.length)}</mark>
+    {text.slice(idx + query.length)}
+  </span>;
+}
+
+function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T, search = "", sortField, sortDir, onSort }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const headers = ["ID","Name","Institution","Level","Position","Badge","Date","Check-In",""];
+  const SortIcon = ({ field }) => {
+    const active = sortField === field;
+    return <span style={{ marginLeft:4, opacity: active ? 1 : 0.3, fontSize:9 }}>{active && sortDir === "desc" ? "▼" : "▲"}</span>;
+  };
+  const SortTh = ({ field, label, style }) => (
+    <th onClick={() => onSort && onSort(field)}
+      style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700,
+        color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase",
+        letterSpacing:"0.09em", borderBottom:`1px solid ${T.border}`, whiteSpace:"nowrap",
+        cursor:"pointer", userSelect:"none", transition:"color 0.15s",
+        ...style }}>
+      {label}<SortIcon field={field} />
+    </th>
+  );
 
   const BadgeChip = ({ badge }) => {
     const badgeObj = badge ? getBadge(
@@ -1940,7 +2175,15 @@ function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T }) {
         <table style={{ width:"100%", borderCollapse:"collapse", background:T.surface, border:`1px solid ${T.border}`, borderRadius:12, overflow:"hidden" }}>
           <thead>
             <tr style={{ background: T.dark ? "rgba(255,255,255,0.03)" : "rgba(13,31,60,0.03)" }}>
-              {headers.map(h => <th key={h} style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.09em", borderBottom:`1px solid ${T.border}`, whiteSpace:"nowrap" }}>{h}</th>)}
+              <th style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.09em", borderBottom:`1px solid ${T.border}`, whiteSpace:"nowrap" }}>ID</th>
+              <SortTh field="name" label="Name" />
+              <SortTh field="institution" label="Institution" />
+              <th style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.09em", borderBottom:`1px solid ${T.border}` }}>Level</th>
+              <SortTh field="position" label="Position" />
+              <th style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.09em", borderBottom:`1px solid ${T.border}` }}>Badge</th>
+              <SortTh field="registeredAt" label="Date" />
+              <SortTh field="checkin" label="Check-In" />
+              <th style={{ padding:"12px 16px", borderBottom:`1px solid ${T.border}` }}></th>
             </tr>
           </thead>
           <tbody>
@@ -1948,7 +2191,7 @@ function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T }) {
             {filtered.map((r, i) => (
               <tr key={r.id} style={{ borderBottom:`1px solid ${T.border}`, background: r.signedIn ? (T.dark ? "rgba(46,158,91,0.04)" : "rgba(46,158,91,0.03)") : i % 2 === 0 ? "transparent" : T.dark ? "rgba(255,255,255,0.01)" : "rgba(13,31,60,0.01)" }}>
                 <td style={{ padding:"12px 16px", fontFamily:"monospace", fontSize:12, color:BRAND.gold, letterSpacing:"0.08em", whiteSpace:"nowrap" }}>{r.id}</td>
-                <td style={{ padding:"12px 16px", fontWeight:600, color:T.text }}>{r.name}</td>
+                <td style={{ padding:"12px 16px", fontWeight:600, color:T.text }}><HighlightText text={r.name} query={search} /></td>
                 <td style={{ padding:"12px 16px", fontSize:13, color:T.textMuted }}>{r.institution}</td>
                 <td style={{ padding:"12px 16px", fontSize:13, color:T.textMuted }}>{r.level}</td>
                 <td style={{ padding:"12px 16px", fontSize:13, color:T.textMuted }}>{r.position}</td>
