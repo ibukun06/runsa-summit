@@ -1676,9 +1676,60 @@ function selectStyle(T, hasErr) {
   return { ...inputStyle(T, hasErr), cursor:"pointer", appearance:"none", backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='${encodeURIComponent(BRAND.gold)}' stroke-width='1.5' fill='none'/%3E%3C/svg%3E")`, backgroundRepeat:"no-repeat", backgroundPosition:"right 14px center", paddingRight:36 };
 }
 
+// ─── TICKET IMAGE DOWNLOAD (iOS/Mac safe) ─────────────────────────────────────
+// window.print() is unreliable on iOS Safari and macOS Safari — it either opens
+// a confusing system dialog or silently fails. Instead we render the ticket
+// element to a canvas via html2canvas and download as a .jpg image.
+// This works on every device/OS/browser with zero user confusion.
+async function downloadTicketAsImage(elementId, filename) {
+  try {
+    // Dynamically load html2canvas only when needed
+    if (!window.html2canvas) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const canvas = await window.html2canvas(el, {
+      scale: 2,           // 2× for retina sharpness
+      useCORS: true,      // allow cross-origin images (logo)
+      backgroundColor: "#ffffff",
+      logging: false,
+    });
+    const url = canvas.toDataURL("image/jpeg", 0.95);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) {
+    console.error("Ticket image download failed:", e);
+    // Fallback to print dialog if html2canvas fails
+    window.print();
+  }
+}
+
 // ─── TICKET VIEW ──────────────────────────────────────────────────────────────
 function TicketView({ ticket, onBack, onCreateCard, T }) {
   const badgeObj = getBadge(ticket.delegateType, T.dark);
+  const [saving, setSaving] = useState(false);
+
+  // Detect iOS / macOS Safari — these have the unreliable print-to-PDF UX
+  const isApple = typeof navigator !== "undefined" &&
+    /iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent) &&
+    (navigator.maxTouchPoints > 0 || /Safari/.test(navigator.userAgent));
+
+  const handleSave = async () => {
+    setSaving(true);
+    const fname = `RUNSA-Summit-Ticket-${ticket.id}.jpg`;
+    await downloadTicketAsImage("printable-ticket", fname);
+    setSaving(false);
+  };
+
   return (
     <div style={{ maxWidth:1100, margin:"0 auto", padding:"40px 20px" }}>
       <div style={{ maxWidth:620, margin:"0 auto" }}>
@@ -1735,13 +1786,38 @@ function TicketView({ ticket, onBack, onCreateCard, T }) {
           <button onClick={onCreateCard} style={{ flex:1, minWidth:160, padding:"14px 20px", background:`linear-gradient(135deg, ${BRAND.gold} 0%, ${BRAND.navy} 120%)`, color:"#fff", border:"none", borderRadius:10, fontSize:14, fontWeight:700, cursor:"pointer", fontFamily:"'Cinzel', serif", letterSpacing:"0.04em", boxShadow:`0 4px 20px rgba(201,146,10,0.35)` }}>
             🎨 Create Attendee Card
           </button>
-          <button onClick={() => window.print()} style={{ flex:1, minWidth:140, padding:"14px 20px", background:"transparent", border:`1.5px solid ${T.border}`, color:T.dark ? BRAND.goldLight : BRAND.navy, borderRadius:10, fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"'Cinzel', serif" }}>
-            🖨 Save as PDF
+
+          {/* Primary download — canvas image (works on ALL devices including iOS/Mac) */}
+          <button onClick={handleSave} disabled={saving}
+            style={{ flex:1, minWidth:140, padding:"14px 20px",
+              background: saving ? "#888" : `linear-gradient(135deg, ${BRAND.navyDark}, ${BRAND.navyMid})`,
+              color:"#fff", border:"none", borderRadius:10, fontSize:13, fontWeight:600,
+              cursor: saving ? "not-allowed" : "pointer", fontFamily:"'Cinzel', serif",
+              boxShadow: saving ? "none" : "0 3px 14px rgba(10,22,40,0.3)" }}>
+            {saving ? "⏳ Saving…" : "📥 Save Ticket"}
           </button>
-          <button onClick={onBack} style={{ flex:1, minWidth:140, padding:"14px 20px", background:"transparent", border:`1.5px solid ${T.border}`, color:T.dark ? BRAND.goldLight : BRAND.navy, borderRadius:10, fontSize:13, cursor:"pointer" }}>
+
+          {/* Secondary — print/PDF (shown for non-Apple devices where it works reliably) */}
+          {!isApple && (
+            <button onClick={() => window.print()}
+              style={{ flex:1, minWidth:120, padding:"14px 20px", background:"transparent",
+                border:`1.5px solid ${T.border}`, color:T.dark ? BRAND.goldLight : BRAND.navy,
+                borderRadius:10, fontSize:12, cursor:"pointer" }}>
+              🖨 Print / PDF
+            </button>
+          )}
+
+          <button onClick={onBack} style={{ flex:1, minWidth:130, padding:"14px 20px", background:"transparent", border:`1.5px solid ${T.border}`, color:T.dark ? BRAND.goldLight : BRAND.navy, borderRadius:10, fontSize:13, cursor:"pointer" }}>
             + Register Another
           </button>
         </div>
+
+        {/* iOS/Safari hint */}
+        {isApple && (
+          <div style={{ marginTop:12, padding:"10px 16px", background:"rgba(201,146,10,0.07)", border:"1px solid rgba(201,146,10,0.25)", borderRadius:8, fontSize:11, color: T.dark ? BRAND.goldLight : BRAND.navyDark, textAlign:"center", lineHeight:1.6 }}>
+            📱 Ticket saved as an image. To also save as PDF: tap <strong>Share → Print</strong> then pinch-zoom the preview to open in PDF viewer.
+          </div>
+        )}
       </div>
     </div>
   );

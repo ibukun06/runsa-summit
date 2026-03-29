@@ -138,23 +138,27 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   // ── BACKGROUND ──────────────────────────────────────────────────────────────
   ctx.fillStyle = BG; ctx.fillRect(0, 0, CW, CH);
 
-  const PHOTO_H = Math.round(CH * 0.54);
+  // Fix A — 48% photo height (was 54%) gives more visible face zone.
+  // The bottom fade starts later (55% into photo instead of 38%) so the
+  // subject's face and chest are fully visible before the blend begins.
+  const PHOTO_H = Math.round(CH * 0.48);
 
   // ── PHOTO ZONE ──────────────────────────────────────────────────────────────
   if (photoDataUrl) {
     const photo = await loadImg(photoDataUrl);
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, CW, PHOTO_H); ctx.clip();
     drawSmartCover(ctx, photo, 0, 0, CW, PHOTO_H); ctx.restore();
-    // Top vignette
-    const tv = ctx.createLinearGradient(0, 0, 0, 200);
-    tv.addColorStop(0, "rgba(0,0,0,0.6)"); tv.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 200);
-    // Bottom fade
-    const bv = ctx.createLinearGradient(0, PHOTO_H * 0.38, 0, PHOTO_H);
+    // Top vignette — only covers the very top (logo/header zone)
+    const tv = ctx.createLinearGradient(0, 0, 0, 180);
+    tv.addColorStop(0, "rgba(0,0,0,0.55)"); tv.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 180);
+    // Bottom fade — starts at 55% into photo (not 38%) to preserve the face
+    // The blend zone is compact so text below sits cleanly on the BG colour
+    const bv = ctx.createLinearGradient(0, PHOTO_H * 0.55, 0, PHOTO_H);
     bv.addColorStop(0, "rgba(0,0,0,0)");
-    bv.addColorStop(0.55, dark ? "rgba(7,17,30,0.78)" : "rgba(244,246,251,0.78)");
+    bv.addColorStop(0.5, dark ? "rgba(7,17,30,0.65)" : "rgba(244,246,251,0.65)");
     bv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(244,246,251,1)");
-    ctx.fillStyle = bv; ctx.fillRect(0, PHOTO_H * 0.38, CW, PHOTO_H * 0.62);
+    ctx.fillStyle = bv; ctx.fillRect(0, PHOTO_H * 0.55, CW, PHOTO_H * 0.45);
   } else {
     // Geometric placeholder with initials
     const bgMesh = ctx.createLinearGradient(0, 0, CW, PHOTO_H);
@@ -181,21 +185,24 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
     ctx.fillStyle = fv; ctx.fillRect(0, PHOTO_H * 0.5, CW, PHOTO_H * 0.5);
   }
 
-  // ── DIAGONAL ACCENT STRIPE (across the photo/info boundary) ─────────────────
-  const STRIPE_Y = PHOTO_H - 30;
+  // ── DIAGONAL ACCENT STRIPE (Fix B: positioned at photo bottom edge, low opacity) ──
+  // Sits entirely within the already-faded bottom 15% of the photo, never
+  // intersecting the main visible face/subject area above.
+  const STRIPE_Y = PHOTO_H - 18;
   ctx.save();
+  ctx.globalAlpha = 0.55;  // was 1.0 — reduced so it's decorative not dominant
   ctx.beginPath();
-  ctx.moveTo(0, STRIPE_Y + 60);
-  ctx.lineTo(CW * 0.62, STRIPE_Y);
-  ctx.lineTo(CW, STRIPE_Y + 30);
-  ctx.lineTo(CW, STRIPE_Y + 70);
-  ctx.lineTo(CW * 0.62, STRIPE_Y + 40);
-  ctx.lineTo(0, STRIPE_Y + 100);
+  ctx.moveTo(0, STRIPE_Y + 45);
+  ctx.lineTo(CW * 0.65, STRIPE_Y);
+  ctx.lineTo(CW, STRIPE_Y + 18);
+  ctx.lineTo(CW, STRIPE_Y + 52);
+  ctx.lineTo(CW * 0.65, STRIPE_Y + 34);
+  ctx.lineTo(0, STRIPE_Y + 80);
   ctx.closePath();
-  const stripeG = ctx.createLinearGradient(0, STRIPE_Y, CW, STRIPE_Y + 60);
-  stripeG.addColorStop(0, "rgba(201,146,10,0.55)");
-  stripeG.addColorStop(0.5, "rgba(232,184,75,0.7)");
-  stripeG.addColorStop(1, "rgba(57,224,122,0.45)");
+  const stripeG = ctx.createLinearGradient(0, STRIPE_Y, CW, STRIPE_Y + 52);
+  stripeG.addColorStop(0, "rgba(201,146,10,0.7)");
+  stripeG.addColorStop(0.5, "rgba(232,184,75,0.85)");
+  stripeG.addColorStop(1, "rgba(57,224,122,0.55)");
   ctx.fillStyle = stripeG;
   ctx.fill();
   ctx.restore();
@@ -245,21 +252,24 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   ctx.strokeStyle = GREEN; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.moveTo(TR_X - 262, LY + 46); ctx.lineTo(TR_X, LY + 46); ctx.stroke();
 
-  // ── I'M ATTENDING badge (on photo, bottom-left) ──────────────────────────────
-  const ATT_Y = PHOTO_H - 120;
+  // ── I'M ATTENDING badge (Fix A: moved to very bottom of photo strip) ─────────
+  // Previously at PHOTO_H-120 which could overlay the face for portrait shots.
+  // Now at PHOTO_H-76 — inside the vignette zone at the very bottom edge,
+  // where the background is already semi-transparent, never on the face.
+  const ATT_Y = PHOTO_H - 76;
   const attG = ctx.createLinearGradient(48, ATT_Y, 48 + 320, ATT_Y);
-  attG.addColorStop(0, "rgba(201,146,10,0.22)");
-  attG.addColorStop(1, "rgba(57,224,122,0.12)");
+  attG.addColorStop(0, "rgba(201,146,10,0.28)");
+  attG.addColorStop(1, "rgba(57,224,122,0.14)");
   ctx.fillStyle = attG;
-  ctx.strokeStyle = "rgba(201,146,10,0.7)"; ctx.lineWidth = 1.5;
-  rrect(ctx, 48, ATT_Y, 320, 54, 27); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = "rgba(201,146,10,0.72)"; ctx.lineWidth = 1.5;
+  rrect(ctx, 48, ATT_Y, 320, 52, 26); ctx.fill(); ctx.stroke();
   ctx.fillStyle = GREEN;
-  ctx.beginPath(); ctx.arc(48+22, ATT_Y+27, 7, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(48+21, ATT_Y+26, 6.5, 0, Math.PI*2); ctx.fill();
   ctx.textAlign = "left";
-  ctx.font = "700 22px Arial, sans-serif";
-  ctx.shadowColor = "rgba(0,0,0,0.4)"; ctx.shadowBlur = 6;
+  ctx.font = "700 21px Arial, sans-serif";
+  ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 8;
   ctx.fillStyle = GOLD2;
-  ctx.fillText("I'M ATTENDING", 48 + 42, ATT_Y + 27 + 8);
+  ctx.fillText("I'M ATTENDING", 48 + 40, ATT_Y + 26 + 7);
   ctx.shadowBlur = 0;
 
   // ── INFO PANEL ───────────────────────────────────────────────────────────────
