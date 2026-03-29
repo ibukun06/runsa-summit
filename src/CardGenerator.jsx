@@ -8,10 +8,8 @@ const FIREBASE_CONFIG = {
   projectId: "runsa-summit",
 };
 const COLLECTION = "delegates";
-
-// Card dimensions — 4:5 for attendee cards, 54×86mm ratio for volunteer tag
-const ATT_W = 1080, ATT_H = 1350;  // Attendee card (4:5)
-const VOL_W = 630,  VOL_H = 1008;  // Volunteer tag — CR80/ID card landscape ~1:1.586 portrait
+const ATT_W = 1080, ATT_H = 1350;
+const VOL_W = 630,  VOL_H = 1008;
 
 // ─── FIREBASE ─────────────────────────────────────────────────────────────────
 let db = null;
@@ -41,13 +39,13 @@ async function fetchDelegate(id) {
 }
 
 // ─── QR GENERATOR ─────────────────────────────────────────────────────────────
-async function generateQRImage(text, size) {
+async function generateQRImage(text, size, darkColor = "#050d1e") {
   await loadScript("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
   return new Promise((resolve) => {
     const div = document.createElement("div");
     div.style.cssText = "position:fixed;left:-9999px;top:-9999px;";
     document.body.appendChild(div);
-    new window.QRCode(div, { text, width: size, height: size, colorDark: "#050d1e", colorLight: "#ffffff", correctLevel: window.QRCode.CorrectLevel.H });
+    new window.QRCode(div, { text, width: size, height: size, colorDark: darkColor, colorLight: "#ffffff", correctLevel: window.QRCode.CorrectLevel.H });
     setTimeout(() => {
       const el = div.querySelector("canvas") || div.querySelector("img");
       const src = el instanceof HTMLCanvasElement ? el.toDataURL() : el?.src;
@@ -75,9 +73,9 @@ function rrect(ctx, x, y, w, h, r) {
 function wrapText(ctx, text, maxW) {
   const words = text.split(" ");
   const lines = []; let cur = "";
-  for (const word of words) {
-    const test = cur ? cur + " " + word : word;
-    if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = word; }
+  for (const w of words) {
+    const test = cur ? cur + " " + w : w;
+    if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; }
     else cur = test;
   }
   if (cur) lines.push(cur);
@@ -100,374 +98,515 @@ function drawSmartCover(ctx, img, x, y, w, h) {
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
 }
 
-// Helper to get badge label and colour from delegate type string
+// ─── BADGE INFO ───────────────────────────────────────────────────────────────
 function getBadgeInfo(badge) {
   const map = {
-    "EXTERNAL DELEGATE":  { label:"EXTERNAL DELEGATE",  color:"#1a7a40",  accent:"rgba(57,224,122,0.9)" },
-    "DISTINGUISHED GUEST":{ label:"DISTINGUISHED GUEST", color:"#c9920a",  accent:"rgba(232,184,75,0.9)" },
-    "RUNSA OFFICIAL":     { label:"RUNSA OFFICIAL",      color:"#0a1628",  accent:"rgba(26,58,107,0.9)" },
-    "PAST HONOURABLE":    { label:"PAST HONOURABLE",     color:"#1a3a6b",  accent:"rgba(30,77,140,0.9)" },
-    "DELEGATE":           { label:"DELEGATE",            color:"#1e4d8c",  accent:"rgba(30,77,140,0.8)" },
-    "VOLUNTEER":          { label:"VOLUNTEER",           color:"#444",     accent:"rgba(90,90,100,0.8)" },
+    "EXTERNAL DELEGATE":   { label:"EXTERNAL DELEGATE",  textColor:"#fff",    bg:"#1a5c35",     accent:"#39e07a",  glow:"rgba(57,224,122,0.5)"  },
+    "DISTINGUISHED GUEST": { label:"DISTINGUISHED GUEST", textColor:"#fff",    bg:"#7a4a00",     accent:"#e8b84b",  glow:"rgba(232,184,75,0.5)"  },
+    "RUNSA OFFICIAL":      { label:"RUNSA OFFICIAL",      textColor:"#fff",    bg:"#0a1e4a",     accent:"#6a9fe0",  glow:"rgba(106,159,224,0.5)" },
+    "PAST HONOURABLE":     { label:"PAST HONOURABLE",     textColor:"#fff",    bg:"#2a1a5c",     accent:"#c4a8f5",  glow:"rgba(196,168,245,0.5)" },
+    "DELEGATE":            { label:"DELEGATE",            textColor:"#fff",    bg:"#0d2a55",     accent:"#7ab8f5",  glow:"rgba(122,184,245,0.4)" },
+    "VOLUNTEER":           { label:"VOLUNTEER",           textColor:"#060d1a", bg:"#1a5c35",     accent:"#39e07a",  glow:"rgba(57,224,122,0.5)"  },
   };
   return map[badge] || null;
 }
 
-// ─── ATTENDEE CARD RENDERER ───────────────────────────────────────────────────
+// ─── ATTENDEE CARD — REDESIGNED ───────────────────────────────────────────────
+// New design: full-bleed photo top half, rich information panel below
+// with geometric accent elements, gradient badge, and premium typography
 async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   const dark = mode === "dark";
   const CW = ATT_W, CH = ATT_H;
 
-  const GOLD  = "#c9920a", GOLD2 = "#e8b84b", GOLD3 = "#f5d57a";
-  const GREEN = "#39e07a";
-  const BG    = dark ? "#060d1a" : "#f0ece3";
-  const TEXT  = dark ? "#f5f0e8" : "#0a1628";
-  const MUTED = dark ? "rgba(245,240,232,0.58)" : "rgba(10,22,40,0.55)";
-  const LOC   = dark ? "#f5f0e8" : "#0a1628";
-  const LOC2  = dark ? "rgba(245,240,232,0.7)" : "rgba(10,22,40,0.65)";
-  const CORNER= dark ? "rgba(201,146,10,0.58)" : "rgba(201,146,10,0.65)";
-  const DIV   = dark ? "rgba(201,146,10,0.5)" : "rgba(201,146,10,0.45)";
+  // Palette
+  const GOLD    = "#c9920a";
+  const GOLD2   = "#e8b84b";
+  const GOLD3   = "#f5d57a";
+  const GREEN   = "#39e07a";
+  const NAVY    = "#0a1628";
+  const NAVY2   = "#1a3a6b";
+
+  const BG      = dark ? "#07111e" : "#f4f6fb";
+  const SURFACE = dark ? "#0d1e38" : "#ffffff";
+  const TEXT     = dark ? "#f5f0e8" : "#0a1628";
+  const MUTED    = dark ? "rgba(245,240,232,0.55)" : "rgba(10,22,40,0.52)";
 
   const canvas = document.createElement("canvas");
   canvas.width = CW; canvas.height = CH;
   const ctx = canvas.getContext("2d");
 
-  const PAD = 64, CM = 44, CS = 100, INNER_GAP = 18;
-  const LR = 40, LX = CM + INNER_GAP + LR, LY = CM + INNER_GAP + LR;
-  const QR_BOTTOM_MAX = CH - CM - INNER_GAP;
-  const PHOTO_H = Math.round(CH * 0.56);
-
-  // Background
+  // ── BACKGROUND ──────────────────────────────────────────────────────────────
   ctx.fillStyle = BG; ctx.fillRect(0, 0, CW, CH);
 
-  // Photo or initials placeholder
+  const PHOTO_H = Math.round(CH * 0.54);
+
+  // ── PHOTO ZONE ──────────────────────────────────────────────────────────────
   if (photoDataUrl) {
     const photo = await loadImg(photoDataUrl);
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, CW, PHOTO_H); ctx.clip();
     drawSmartCover(ctx, photo, 0, 0, CW, PHOTO_H); ctx.restore();
-    const tv = ctx.createLinearGradient(0, 0, 0, 240);
-    tv.addColorStop(0, "rgba(0,0,0,0.55)"); tv.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 240);
-    const bv = ctx.createLinearGradient(0, PHOTO_H * 0.42, 0, PHOTO_H);
+    // Top vignette
+    const tv = ctx.createLinearGradient(0, 0, 0, 200);
+    tv.addColorStop(0, "rgba(0,0,0,0.6)"); tv.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 200);
+    // Bottom fade
+    const bv = ctx.createLinearGradient(0, PHOTO_H * 0.38, 0, PHOTO_H);
     bv.addColorStop(0, "rgba(0,0,0,0)");
-    bv.addColorStop(0.5, dark ? "rgba(6,13,26,0.72)" : "rgba(240,236,227,0.72)");
-    bv.addColorStop(1, dark ? "rgba(6,13,26,1)" : "rgba(240,236,227,1)");
-    ctx.fillStyle = bv; ctx.fillRect(0, PHOTO_H * 0.42, CW, PHOTO_H * 0.58);
+    bv.addColorStop(0.55, dark ? "rgba(7,17,30,0.78)" : "rgba(244,246,251,0.78)");
+    bv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(244,246,251,1)");
+    ctx.fillStyle = bv; ctx.fillRect(0, PHOTO_H * 0.38, CW, PHOTO_H * 0.62);
   } else {
-    const g = ctx.createLinearGradient(0, 0, CW * 0.8, PHOTO_H);
-    if (dark) { g.addColorStop(0, "#1a3a6b"); g.addColorStop(0.6, "#0d1f3c"); g.addColorStop(1, BG); }
-    else { g.addColorStop(0, "#e8dcc8"); g.addColorStop(0.6, "#d4c8b0"); g.addColorStop(1, BG); }
-    ctx.fillStyle = g; ctx.fillRect(0, 0, CW, PHOTO_H);
+    // Geometric placeholder with initials
+    const bgMesh = ctx.createLinearGradient(0, 0, CW, PHOTO_H);
+    if (dark) {
+      bgMesh.addColorStop(0, "#1a3a6b"); bgMesh.addColorStop(0.5, "#0d1e38"); bgMesh.addColorStop(1, "#07111e");
+    } else {
+      bgMesh.addColorStop(0, "#c8d8f0"); bgMesh.addColorStop(0.5, "#b0c4e8"); bgMesh.addColorStop(1, "#f4f6fb");
+    }
+    ctx.fillStyle = bgMesh; ctx.fillRect(0, 0, CW, PHOTO_H);
+    // Geometric circles
+    ctx.strokeStyle = dark ? "rgba(201,146,10,0.12)" : "rgba(26,58,107,0.1)";
+    ctx.lineWidth = 60;
+    ctx.beginPath(); ctx.arc(CW * 0.75, PHOTO_H * 0.35, 260, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(CW * 0.1, PHOTO_H * 0.7, 180, 0, Math.PI * 2); ctx.stroke();
+    // Initials
     const initials = delegate.name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
-    ctx.font = "900 380px Georgia, serif";
-    ctx.fillStyle = dark ? "rgba(201,146,10,0.08)" : "rgba(10,22,40,0.07)";
-    ctx.textAlign = "center"; ctx.fillText(initials, CW/2, PHOTO_H * 0.74);
-    const fv = ctx.createLinearGradient(0, PHOTO_H*0.52, 0, PHOTO_H);
-    fv.addColorStop(0, "rgba(0,0,0,0)"); fv.addColorStop(1, dark ? "rgba(6,13,26,1)" : "rgba(240,236,227,1)");
-    ctx.fillStyle = fv; ctx.fillRect(0, PHOTO_H*0.52, CW, PHOTO_H*0.48);
-    const tv2 = ctx.createLinearGradient(0,0,0,240);
-    tv2.addColorStop(0,"rgba(0,0,0,0.45)"); tv2.addColorStop(1,"rgba(0,0,0,0)");
-    ctx.fillStyle = tv2; ctx.fillRect(0,0,CW,240);
+    ctx.font = "900 300px Georgia, serif";
+    ctx.fillStyle = dark ? "rgba(201,146,10,0.1)" : "rgba(26,58,107,0.07)";
+    ctx.textAlign = "center"; ctx.fillText(initials, CW/2, PHOTO_H * 0.72);
+    // Fade out to bg
+    const fv = ctx.createLinearGradient(0, PHOTO_H * 0.5, 0, PHOTO_H);
+    fv.addColorStop(0, "rgba(0,0,0,0)");
+    fv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(244,246,251,1)");
+    ctx.fillStyle = fv; ctx.fillRect(0, PHOTO_H * 0.5, CW, PHOTO_H * 0.5);
   }
 
-  // Corner accents
-  ctx.strokeStyle = CORNER; ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.moveTo(CM,CM+CS); ctx.lineTo(CM,CM); ctx.lineTo(CM+CS,CM); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CW-CM-CS,CM); ctx.lineTo(CW-CM,CM); ctx.lineTo(CW-CM,CM+CS); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CM,CH-CM-CS); ctx.lineTo(CM,CH-CM); ctx.lineTo(CM+CS,CH-CM); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CW-CM-CS,CH-CM); ctx.lineTo(CW-CM,CH-CM); ctx.lineTo(CW-CM,CH-CM-CS); ctx.stroke();
+  // ── DIAGONAL ACCENT STRIPE (across the photo/info boundary) ─────────────────
+  const STRIPE_Y = PHOTO_H - 30;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, STRIPE_Y + 60);
+  ctx.lineTo(CW * 0.62, STRIPE_Y);
+  ctx.lineTo(CW, STRIPE_Y + 30);
+  ctx.lineTo(CW, STRIPE_Y + 70);
+  ctx.lineTo(CW * 0.62, STRIPE_Y + 40);
+  ctx.lineTo(0, STRIPE_Y + 100);
+  ctx.closePath();
+  const stripeG = ctx.createLinearGradient(0, STRIPE_Y, CW, STRIPE_Y + 60);
+  stripeG.addColorStop(0, "rgba(201,146,10,0.55)");
+  stripeG.addColorStop(0.5, "rgba(232,184,75,0.7)");
+  stripeG.addColorStop(1, "rgba(57,224,122,0.45)");
+  ctx.fillStyle = stripeG;
+  ctx.fill();
+  ctx.restore();
 
-  // Logo (top-left)
+  // ── CORNER BRACKETS (gold, precise) ─────────────────────────────────────────
+  const CM = 36, CS = 90;
+  ctx.strokeStyle = "rgba(201,146,10,0.65)"; ctx.lineWidth = 4.5;
+  [[CM,CM,CS,0],[CW-CM,CM,CS,1],[CM,CH-CM,CS,2],[CW-CM,CH-CM,CS,3]].forEach(([x,y,s,q]) => {
+    ctx.beginPath();
+    if (q === 0) { ctx.moveTo(x,y+s); ctx.lineTo(x,y); ctx.lineTo(x+s,y); }
+    if (q === 1) { ctx.moveTo(x-s,y); ctx.lineTo(x,y); ctx.lineTo(x,y+s); }
+    if (q === 2) { ctx.moveTo(x,y-s); ctx.lineTo(x,y); ctx.lineTo(x+s,y); }
+    if (q === 3) { ctx.moveTo(x-s,y); ctx.lineTo(x,y); ctx.lineTo(x,y-s); }
+    ctx.stroke();
+  });
+
+  // ── LOGO + SUMMIT LABEL (top, on photo) ─────────────────────────────────────
+  const LR = 38, LX = CM + 18 + LR, LY = CM + 18 + LR;
   try {
     const logo = await loadImg("/legislative-council-logo.jpg");
-    ctx.save(); ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI*2); ctx.closePath(); ctx.clip();
-    ctx.drawImage(logo, LX-LR, LY-LR, LR*2, LR*2); ctx.restore();
-    ctx.strokeStyle = "rgba(232,184,75,0.88)"; ctx.lineWidth = 3;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI*2); ctx.clip();
+    ctx.drawImage(logo, LX-LR, LY-LR, LR*2, LR*2);
+    ctx.restore();
+    // Ring with glow
+    ctx.shadowColor = "rgba(232,184,75,0.7)"; ctx.shadowBlur = 12;
+    ctx.strokeStyle = "rgba(232,184,75,0.9)"; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI*2); ctx.stroke();
+    ctx.shadowBlur = 0;
   } catch {}
 
-  // LEGISLATIVE SUMMIT 2026 (top-right)
-  const TR_X = CW - CM - INNER_GAP;
+  // Summit label top-right
+  const TR_X = CW - CM - 18;
   ctx.textAlign = "right";
-  ctx.shadowColor = "rgba(201,146,10,0.45)"; ctx.shadowBlur = 8;
-  ctx.font = "900 50px Arial Black, Arial, sans-serif";
-  const lgGrad = ctx.createLinearGradient(TR_X-400, LY, TR_X, LY);
-  lgGrad.addColorStop(0, GOLD3); lgGrad.addColorStop(0.5, GOLD2); lgGrad.addColorStop(1, GOLD);
-  ctx.fillStyle = lgGrad; ctx.fillText("LEGISLATIVE", TR_X, LY - 2);
-  ctx.font = "700 36px Arial Black, Arial, sans-serif"; ctx.fillStyle = GOLD2;
-  ctx.fillText("SUMMIT 2026", TR_X, LY + 34); ctx.shadowBlur = 0;
+  ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 14;
+  // "LEGISLATIVE" in gradient
+  const lgG = ctx.createLinearGradient(TR_X - 380, LY, TR_X, LY);
+  lgG.addColorStop(0, GOLD3); lgG.addColorStop(0.55, GOLD2); lgG.addColorStop(1, GOLD);
+  ctx.fillStyle = lgG;
+  ctx.font = "900 48px Arial Black, Arial, sans-serif";
+  ctx.fillText("LEGISLATIVE", TR_X, LY - 4);
+  ctx.font = "700 34px Arial Black, Arial, sans-serif";
+  ctx.fillStyle = GOLD2;
+  ctx.fillText("SUMMIT 2026", TR_X, LY + 34);
+  ctx.shadowBlur = 0;
+  // Green underline
   ctx.strokeStyle = GREEN; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(TR_X-268, LY+46); ctx.lineTo(TR_X, LY+46); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(TR_X - 262, LY + 46); ctx.lineTo(TR_X, LY + 46); ctx.stroke();
 
-  // I'M ATTENDING badge
-  const BADGE_Y = PHOTO_H - 110;
-  const bW = 300, bH = 56;
-  ctx.fillStyle = "rgba(201,146,10,0.15)"; ctx.strokeStyle = "rgba(201,146,10,0.62)"; ctx.lineWidth = 2;
-  rrect(ctx, PAD, BADGE_Y, bW, bH, 28); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = GREEN; ctx.beginPath(); ctx.arc(PAD+22, BADGE_Y+bH/2, 7, 0, Math.PI*2); ctx.fill();
-  ctx.textAlign = "left"; ctx.font = "700 22px Arial, sans-serif"; ctx.fillStyle = GOLD2;
-  ctx.fillText("I'M ATTENDING", PAD+42, BADGE_Y+bH/2+8);
+  // ── I'M ATTENDING badge (on photo, bottom-left) ──────────────────────────────
+  const ATT_Y = PHOTO_H - 120;
+  const attG = ctx.createLinearGradient(48, ATT_Y, 48 + 320, ATT_Y);
+  attG.addColorStop(0, "rgba(201,146,10,0.22)");
+  attG.addColorStop(1, "rgba(57,224,122,0.12)");
+  ctx.fillStyle = attG;
+  ctx.strokeStyle = "rgba(201,146,10,0.7)"; ctx.lineWidth = 1.5;
+  rrect(ctx, 48, ATT_Y, 320, 54, 27); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = GREEN;
+  ctx.beginPath(); ctx.arc(48+22, ATT_Y+27, 7, 0, Math.PI*2); ctx.fill();
+  ctx.textAlign = "left";
+  ctx.font = "700 22px Arial, sans-serif";
+  ctx.shadowColor = "rgba(0,0,0,0.4)"; ctx.shadowBlur = 6;
+  ctx.fillStyle = GOLD2;
+  ctx.fillText("I'M ATTENDING", 48 + 42, ATT_Y + 27 + 8);
+  ctx.shadowBlur = 0;
 
-  // QR layout
-  const QR_SIZE = 160, QR_PAD = 12;
-  const QR_CARD_W = QR_SIZE + QR_PAD * 2, QR_CARD_H = QR_SIZE + QR_PAD * 2;
-  const QR_X = CW - CM - INNER_GAP - QR_CARD_W;
-  const TEXT_MAX = QR_X - PAD - 28;
-  const QR_Y = QR_BOTTOM_MAX - QR_CARD_H;
+  // ── INFO PANEL ───────────────────────────────────────────────────────────────
+  const PAD = 60;
+  const INFO_Y = PHOTO_H + 36;
 
-  // Anchor from bottom
-  const DATE_BOTTOM = CH - CM - INNER_GAP;
-  const DATE_SIZE = 26, DATE_Y = DATE_BOTTOM - 4;
-  const LOC_SIZE = 32, LOC_Y = DATE_Y - DATE_SIZE - 10;
-  const EV_SIZE = 48, EVT_GAP = 24;
-  const EV_BASELINE = LOC_Y - LOC_SIZE - EVT_GAP;
-  const DIV_Y = EV_BASELINE - EV_SIZE - 20;
+  // QR anchored from bottom
+  const QR_SIZE = 168, QR_PAD = 12;
+  const QR_CARD_W = QR_SIZE + QR_PAD*2, QR_CARD_H = QR_SIZE + QR_PAD*2;
+  const QR_X = CW - CM - 18 - QR_CARD_W;
+  const QR_Y_BOT = CH - CM - 18;
+  const QR_Y = QR_Y_BOT - QR_CARD_H;
 
-  // Name layout — fits between PHOTO_H and DIV_Y
-  const INFO_START = PHOTO_H + 48;
-  // Generous gaps: name → 28px → badge chip(44px) → 24px → position(40px) → 20px → institution(34px) → 20px → DIV
-  const badgeInfo = getBadgeInfo(delegate.badge);
-  const BADGE_CHIP_H = badgeInfo ? 44 + 24 : 0;
-  const FIXED_BELOW = 28 + BADGE_CHIP_H + 40 + 20 + 34 + 20;
-  const NAME_BUDGET = DIV_Y - INFO_START - FIXED_BELOW;
+  // Anchored from bottom: date → location → event → divider
+  const D_BOT   = CH - CM - 18;
+  const DATE_Y  = D_BOT - 4;
+  const LOC_Y   = DATE_Y - 28 - 12;
+  const EV_Y    = LOC_Y - 34 - 26;
+  const DIV_Y   = EV_Y - 50 - 18;
 
-  const nameMaxW = CW - PAD * 2;
-  let nfs = 86;
-  while (nfs > 40) {
+  const nameMaxW = QR_X - PAD - 24;
+
+  // Name font sizing
+  let nfs = 84;
+  const NAME_BUDGET = DIV_Y - INFO_Y - 30 - 50 - 28 - 44 - 20 - 34;
+  while (nfs > 38) {
     ctx.font = `900 ${nfs}px Georgia, serif`;
-    const lines = wrapText(ctx, delegate.name, nameMaxW);
-    if (lines.length <= 2 && lines.length * (nfs + 8) <= NAME_BUDGET) break;
+    const nl = wrapText(ctx, delegate.name, nameMaxW);
+    if (nl.length <= 2 && nl.length * (nfs + 10) <= NAME_BUDGET) break;
     nfs -= 4;
   }
-  const NLH = nfs + 8;
+  const NLH = nfs + 10;
   const nameLines = wrapText(ctx, delegate.name, nameMaxW);
   ctx.fillStyle = TEXT; ctx.textAlign = "left";
-  ctx.shadowColor = dark ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.1)"; ctx.shadowBlur = 12;
-  nameLines.forEach((l, i) => ctx.fillText(l, PAD, INFO_START + (i + 1) * NLH));
+  ctx.shadowColor = dark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.08)"; ctx.shadowBlur = 10;
+  nameLines.forEach((l, i) => ctx.fillText(l, PAD, INFO_Y + (i + 1) * NLH));
   ctx.shadowBlur = 0;
-  const NAME_BOT = INFO_START + nameLines.length * NLH;
+  const NAME_BOT = INFO_Y + nameLines.length * NLH;
 
-  // Badge chip — 28px gap below name
-  let afterBadge = NAME_BOT + 28;
+  // Badge chip
+  let cur = NAME_BOT + 28;
+  const badgeInfo = getBadgeInfo(delegate.badge);
   if (badgeInfo) {
-    const chipText = badgeInfo.label;
-    ctx.font = "800 18px Arial Black, Arial, sans-serif";
-    const chipW = ctx.measureText(chipText).width + 36;
-    const chipH = 44, chipR = 8;
-    ctx.fillStyle = dark ? "rgba(6,13,26,0.8)" : "rgba(255,255,255,0.9)";
-    rrect(ctx, PAD, afterBadge, chipW, chipH, chipR); ctx.fill();
+    ctx.font = "800 17px Arial Black, Arial, sans-serif";
+    const bChipW = ctx.measureText(badgeInfo.label).width + 40;
+    const bChipH = 44;
+    // Solid filled chip
+    const chipBgG = ctx.createLinearGradient(PAD, cur, PAD + bChipW, cur);
+    chipBgG.addColorStop(0, badgeInfo.bg);
+    chipBgG.addColorStop(1, dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)");
+    ctx.fillStyle = chipBgG;
+    ctx.shadowColor = badgeInfo.glow; ctx.shadowBlur = 16;
+    rrect(ctx, PAD, cur, bChipW, bChipH, 9); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Accent left bar
     ctx.fillStyle = badgeInfo.accent;
-    ctx.fillRect(PAD, afterBadge, 6, chipH);
-    ctx.fillStyle = dark ? "#ffffff" : badgeInfo.color;
-    ctx.fillText(chipText, PAD + 22, afterBadge + chipH/2 + 7);
-    afterBadge += chipH + 24;
+    rrect(ctx, PAD, cur, 6, bChipH, 3); ctx.fill();
+    // Label
+    ctx.fillStyle = badgeInfo.textColor;
+    ctx.fillText(badgeInfo.label, PAD + 20, cur + bChipH/2 + 7);
+    cur += bChipH + 22;
   }
 
-  // Position — 40px reserved, gold, bolder
-  ctx.font = "800 36px Arial, sans-serif"; ctx.fillStyle = GOLD2;
-  ctx.fillText(delegate.position ? delegate.position.toUpperCase() : "", PAD, afterBadge + 40);
-  const afterPos = afterBadge + 40;
+  // Position
+  ctx.font = "800 34px Arial, sans-serif";
+  const posG = ctx.createLinearGradient(PAD, cur, PAD + 400, cur + 34);
+  posG.addColorStop(0, GOLD2); posG.addColorStop(1, GOLD);
+  ctx.fillStyle = posG;
+  ctx.fillText(delegate.position ? delegate.position.toUpperCase() : "", PAD, cur + 34);
+  cur += 34 + 18;
 
-  // Institution — 20px gap + 28px text
+  // Institution
   if (delegate.institution) {
-    ctx.font = "400 28px Arial, sans-serif"; ctx.fillStyle = MUTED;
-    ctx.fillText(delegate.institution, PAD, afterPos + 20 + 28);
+    ctx.font = "400 26px Arial, sans-serif"; ctx.fillStyle = MUTED;
+    ctx.fillText(delegate.institution, PAD, cur + 26);
   }
 
-  // Divider
-  const dg = ctx.createLinearGradient(PAD, DIV_Y, CW-PAD, DIV_Y);
-  dg.addColorStop(0, DIV); dg.addColorStop(0.6, dark ? "rgba(201,146,10,0.12)" : "rgba(201,146,10,0.1)"); dg.addColorStop(1, "rgba(0,0,0,0)");
+  // Divider — gold to transparent
+  const dg = ctx.createLinearGradient(PAD, DIV_Y, CW - PAD, DIV_Y);
+  dg.addColorStop(0, dark ? "rgba(201,146,10,0.55)" : "rgba(201,146,10,0.45)");
+  dg.addColorStop(0.65, dark ? "rgba(201,146,10,0.12)" : "rgba(201,146,10,0.08)");
+  dg.addColorStop(1, "rgba(0,0,0,0)");
   ctx.strokeStyle = dg; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(PAD, DIV_Y); ctx.lineTo(CW-PAD, DIV_Y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(PAD, DIV_Y); ctx.lineTo(CW - PAD, DIV_Y); ctx.stroke();
 
-  // Event title (bottom anchored)
-  ctx.font = `700 ${EV_SIZE}px Arial Black, Arial, sans-serif`;
-  const etg = ctx.createLinearGradient(PAD, EV_BASELINE - EV_SIZE, PAD + TEXT_MAX, EV_BASELINE);
-  etg.addColorStop(0, GOLD3); etg.addColorStop(1, dark ? GOLD2 : GOLD);
-  ctx.fillStyle = etg; ctx.textAlign = "left";
-  ctx.fillText("LEGISLATIVE SUMMIT 2026", PAD, EV_BASELINE);
+  // Event title (bottom anchored, gradient gold)
+  ctx.font = "700 46px Arial Black, Arial, sans-serif";
+  const etG = ctx.createLinearGradient(PAD, EV_Y - 46, PAD + 580, EV_Y);
+  etG.addColorStop(0, GOLD3); etG.addColorStop(1, dark ? GOLD2 : GOLD);
+  ctx.fillStyle = etG; ctx.textAlign = "left";
+  ctx.fillText("LEGISLATIVE SUMMIT 2026", PAD, EV_Y);
 
   // Location
-  ctx.font = `700 ${LOC_SIZE}px Arial, sans-serif`; ctx.fillStyle = LOC;
+  ctx.font = "700 30px Arial, sans-serif";
+  ctx.fillStyle = dark ? "#f5f0e8" : "#0a1628";
   ctx.fillText("REDEEMER'S UNIVERSITY, EDE", PAD, LOC_Y);
 
   // Date
-  ctx.font = `600 ${DATE_SIZE}px Arial, sans-serif`; ctx.fillStyle = LOC2;
+  ctx.font = "500 24px Arial, sans-serif";
+  ctx.fillStyle = MUTED;
   ctx.fillText("29th April, 2026", PAD, DATE_Y);
 
-  // QR code
+  // QR code (bottom-right, floating white card)
   const qrURL = delegate.qrURL || `${REG_SITE}?checkin=${delegate.id}`;
-  const qrImg = await generateQRImage(qrURL, 220);
+  const qrImg = await generateQRImage(qrURL, 220, NAVY);
   if (qrImg) {
-    ctx.fillStyle = "#ffffff"; ctx.strokeStyle = dark ? "rgba(201,146,10,0.4)" : "rgba(10,22,40,0.14)"; ctx.lineWidth = 2;
-    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 12); ctx.fill(); ctx.stroke();
+    // Shadow for QR card
+    ctx.shadowColor = dark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.15)";
+    ctx.shadowBlur = 20; ctx.shadowOffsetY = 4;
+    ctx.fillStyle = "#ffffff";
+    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 14); ctx.fill();
+    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    // Gold border on QR card
+    ctx.strokeStyle = "rgba(201,146,10,0.35)"; ctx.lineWidth = 1.5;
+    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 14); ctx.stroke();
     ctx.drawImage(qrImg, QR_X + QR_PAD, QR_Y + QR_PAD, QR_SIZE, QR_SIZE);
   }
 
   return canvas;
 }
 
-// ─── VOLUNTEER TAG RENDERER ───────────────────────────────────────────────────
-// ID card / lanyard badge size — portrait 54×86mm ratio (CR80 standard)
+// ─── VOLUNTEER TAG — REDESIGNED ───────────────────────────────────────────────
+// Bold, vibrant, youthful. Full-colour unit identity with large name.
 async function renderVolunteerTag(delegate) {
   const CW = VOL_W, CH = VOL_H;
 
-  const NAVY  = "#0a1628";
-  const NAVY2 = "#1a3a6b";
-  const GOLD  = "#c9920a";
-  const GOLD2 = "#e8b84b";
-  const GOLD3 = "#f5d57a";
-  const GREEN = "#39e07a";
-  const CREAM = "#f5f0e8";
+  // Colours
+  const NAVY    = "#060d1a";
+  const NAVY2   = "#0d1e38";
+  const NAVY3   = "#1a3a6b";
+  const GOLD    = "#c9920a";
+  const GOLD2   = "#e8b84b";
+  const GOLD3   = "#f5d57a";
+  const GREEN   = "#39e07a";
+  const CREAM   = "#f5f0e8";
+
+  // Unit colour map — each volunteer unit gets its own accent
+  const unitColors = {
+    "ushering & protocol": { bg:"#0a1e3a", accent:"#5ba4f5", glow:"rgba(91,164,245,0.5)" },
+    "logistics":           { bg:"#0e2010", accent:"#39e07a", glow:"rgba(57,224,122,0.5)" },
+    "registration":        { bg:"#1e0a0a", accent:"#f56b5b", glow:"rgba(245,107,91,0.5)" },
+    "team tech":           { bg:"#1a0a2e", accent:"#c4a8f5", glow:"rgba(196,168,245,0.5)" },
+    "anchors":             { bg:"#1a150a", accent:"#f5c842", glow:"rgba(245,200,66,0.5)"  },
+    "welfare unit":        { bg:"#0a1e10", accent:"#4ae0a0", glow:"rgba(74,224,160,0.5)"  },
+    "general volunteer":   { bg:"#0d1628", accent:"#e8b84b", glow:"rgba(232,184,75,0.5)"  },
+  };
+  const posLower = (delegate.position || "").toLowerCase();
+  const unitKey = Object.keys(unitColors).find(k => posLower.includes(k)) || "general volunteer";
+  const unit = unitColors[unitKey];
 
   const canvas = document.createElement("canvas");
   canvas.width = CW; canvas.height = CH;
   const ctx = canvas.getContext("2d");
 
-  // ── BACKGROUND — deep navy ────────────────────────────────────────────────
-  const bgGrad = ctx.createLinearGradient(0, 0, CW, CH);
-  bgGrad.addColorStop(0, "#0d1e38");
-  bgGrad.addColorStop(0.6, "#060d1a");
-  bgGrad.addColorStop(1, "#0a1628");
-  ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, CW, CH);
+  // ── BACKGROUND — deep navy with unit tint ────────────────────────────────────
+  const bgG = ctx.createLinearGradient(0, 0, CW * 0.7, CH);
+  bgG.addColorStop(0, unit.bg);
+  bgG.addColorStop(0.7, "#060d1a");
+  bgG.addColorStop(1, "#030810");
+  ctx.fillStyle = bgG; ctx.fillRect(0, 0, CW, CH);
 
-  // Subtle radial shimmer top-right
-  const shimmer = ctx.createRadialGradient(CW * 0.85, CH * 0.1, 0, CW * 0.85, CH * 0.1, CW * 0.7);
-  shimmer.addColorStop(0, "rgba(26,58,107,0.35)");
+  // Radial shimmer — unit accent colour, top-right
+  const shimmer = ctx.createRadialGradient(CW * 0.88, CH * 0.08, 0, CW * 0.88, CH * 0.08, CW * 0.85);
+  shimmer.addColorStop(0, unit.glow.replace("0.5", "0.22"));
+  shimmer.addColorStop(0.5, unit.glow.replace("0.5", "0.06"));
   shimmer.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = shimmer; ctx.fillRect(0, 0, CW, CH);
 
-  // ── TOP PUNCH HOLE STRIP ──────────────────────────────────────────────────
-  // Lanyard tag always has a dark header with punch hole area
-  const HEADER_H = 80;
-  ctx.fillStyle = "#050b16"; ctx.fillRect(0, 0, CW, HEADER_H);
-  // Punch hole circle
-  ctx.fillStyle = "#0d1e38"; ctx.strokeStyle = "rgba(201,146,10,0.4)"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(CW/2, HEADER_H/2, 18, 0, Math.PI*2);
-  ctx.fill(); ctx.stroke();
-  // Inner cut hole
-  ctx.fillStyle = "#000814";
-  ctx.beginPath(); ctx.arc(CW/2, HEADER_H/2, 10, 0, Math.PI*2); ctx.fill();
-  // Thin horizontal line below header
-  ctx.strokeStyle = "rgba(201,146,10,0.5)"; ctx.lineWidth = 2;
+  // Subtle diagonal lines texture
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,0.025)"; ctx.lineWidth = 1;
+  for (let i = -CH; i < CW + CH; i += 28) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + CH, CH); ctx.stroke();
+  }
+  ctx.restore();
+
+  // ── HEADER ZONE (punch hole + branding) ─────────────────────────────────────
+  const HEADER_H = 88;
+  // Header bg — slightly different shade
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fillRect(0, 0, CW, HEADER_H);
+  // Horizontal separator line
+  const sepG = ctx.createLinearGradient(0, HEADER_H, CW, HEADER_H);
+  sepG.addColorStop(0, "rgba(255,255,255,0)");
+  sepG.addColorStop(0.15, unit.glow.replace("0.5","0.7"));
+  sepG.addColorStop(0.5, unit.glow.replace("0.5","1").replace("rgba","rgba").replace(")", ", 1)").replace(", 1)", ")"));
+  sepG.addColorStop(0.85, unit.glow.replace("0.5","0.7"));
+  sepG.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.strokeStyle = sepG; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(0, HEADER_H); ctx.lineTo(CW, HEADER_H); ctx.stroke();
-  // Gold dots flanking the punch
-  ctx.fillStyle = GOLD2;
-  ctx.beginPath(); ctx.arc(CW/2 - 48, HEADER_H/2, 4, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(CW/2 + 48, HEADER_H/2, 4, 0, Math.PI*2); ctx.fill();
 
-  // ── GOLD CORNER BRACKETS ─────────────────────────────────────────────────
-  const CM = 24, CS = 56;
-  ctx.strokeStyle = "rgba(201,146,10,0.45)"; ctx.lineWidth = 3;
-  // Only bottom corners (top is taken by header)
+  // Punch hole
+  ctx.fillStyle = "#020509";
+  ctx.beginPath(); ctx.arc(CW/2, HEADER_H/2, 20, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(CW/2, HEADER_H/2, 20, 0, Math.PI*2); ctx.stroke();
+  // Metal ring effect
+  ctx.strokeStyle = unit.glow.replace("0.5","0.5");
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(CW/2, HEADER_H/2, 14, 0, Math.PI*2); ctx.stroke();
+
+  // Flanking dots
+  ctx.fillStyle = unit.accent;
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath(); ctx.arc(CW/2 - 52, HEADER_H/2, 4.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(CW/2 + 52, HEADER_H/2, 4.5, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // ── CORNER BRACKETS ──────────────────────────────────────────────────────────
+  const CM = 22, CS = 52;
+  ctx.strokeStyle = unit.glow.replace("0.5","0.55");
+  ctx.lineWidth = 3;
+  // Bottom corners
   ctx.beginPath(); ctx.moveTo(CM, CH-CM-CS); ctx.lineTo(CM, CH-CM); ctx.lineTo(CM+CS, CH-CM); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CW-CM-CS, CH-CM); ctx.lineTo(CW-CM, CH-CM); ctx.lineTo(CW-CM, CH-CM-CS); ctx.stroke();
-  // Top corners (start below header)
-  ctx.beginPath(); ctx.moveTo(CM, HEADER_H+8); ctx.lineTo(CM, HEADER_H+8+CS); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CW-CM, HEADER_H+8); ctx.lineTo(CW-CM, HEADER_H+8+CS); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CW-CM-CS,CH-CM); ctx.lineTo(CW-CM,CH-CM); ctx.lineTo(CW-CM,CH-CM-CS); ctx.stroke();
+  // Top corners (below header)
+  ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(CM,HEADER_H+6); ctx.lineTo(CM,HEADER_H+6+CS); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CW-CM,HEADER_H+6); ctx.lineTo(CW-CM,HEADER_H+6+CS); ctx.stroke();
 
-  // ── RUNSA + LC LOGOS ─────────────────────────────────────────────────────
-  const LOGO_Y = HEADER_H + 48;
-  const LOGO_R = 34;
+  // ── LOGO ─────────────────────────────────────────────────────────────────────
+  const LOGO_Y = HEADER_H + 52;
+  const LOGO_R = 36;
   try {
     const lcLogo = await loadImg("/legislative-council-logo.jpg");
-    const logoX = CW/2;
-    ctx.save(); ctx.beginPath(); ctx.arc(logoX, LOGO_Y, LOGO_R, 0, Math.PI*2); ctx.closePath(); ctx.clip();
-    ctx.drawImage(lcLogo, logoX-LOGO_R, LOGO_Y-LOGO_R, LOGO_R*2, LOGO_R*2); ctx.restore();
-    ctx.strokeStyle = "rgba(232,184,75,0.9)"; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(logoX, LOGO_Y, LOGO_R, 0, Math.PI*2); ctx.stroke();
+    ctx.save(); ctx.beginPath(); ctx.arc(CW/2, LOGO_Y, LOGO_R, 0, Math.PI*2); ctx.clip();
+    ctx.drawImage(lcLogo, CW/2-LOGO_R, LOGO_Y-LOGO_R, LOGO_R*2, LOGO_R*2); ctx.restore();
+    // Ring glow
+    ctx.shadowColor = unit.glow.replace("0.5","0.8"); ctx.shadowBlur = 16;
+    ctx.strokeStyle = GOLD2; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(CW/2, LOGO_Y, LOGO_R, 0, Math.PI*2); ctx.stroke();
+    ctx.shadowBlur = 0;
   } catch {}
 
-  // ── LEGISLATIVE COUNCIL label ─────────────────────────────────────────────
+  // Summit title
   ctx.textAlign = "center";
-  ctx.font = "700 22px Arial Black, Arial, sans-serif";
-  ctx.fillStyle = GOLD2; ctx.shadowColor = "rgba(201,146,10,0.5)"; ctx.shadowBlur = 8;
-  ctx.fillText("LEGISLATIVE SUMMIT 2026", CW/2, LOGO_Y + LOGO_R + 30);
+  ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 12;
+  ctx.font = "700 21px Arial Black, Arial, sans-serif";
+  const titleG = ctx.createLinearGradient(40, 0, CW-40, 0);
+  titleG.addColorStop(0, GOLD3); titleG.addColorStop(0.5, GOLD2); titleG.addColorStop(1, GOLD);
+  ctx.fillStyle = titleG;
+  ctx.fillText("LEGISLATIVE SUMMIT 2026", CW/2, LOGO_Y + LOGO_R + 32);
   ctx.shadowBlur = 0;
-  ctx.font = "400 16px Arial, sans-serif"; ctx.fillStyle = "rgba(245,240,232,0.5)";
-  ctx.fillText("Redeemer's University · 29th April, 2026", CW/2, LOGO_Y + LOGO_R + 52);
+  ctx.font = "400 14px Arial, sans-serif";
+  ctx.fillStyle = "rgba(245,240,232,0.45)";
+  ctx.fillText("Redeemer's University · 29th April, 2026", CW/2, LOGO_Y + LOGO_R + 54);
 
-  // ── SEPARATOR LINE ────────────────────────────────────────────────────────
-  const SEP_Y = LOGO_Y + LOGO_R + 72;
-  const sepGrad = ctx.createLinearGradient(40, SEP_Y, CW-40, SEP_Y);
-  sepGrad.addColorStop(0, "rgba(201,146,10,0)"); sepGrad.addColorStop(0.5, "rgba(201,146,10,0.6)"); sepGrad.addColorStop(1, "rgba(201,146,10,0)");
-  ctx.strokeStyle = sepGrad; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(40, SEP_Y); ctx.lineTo(CW-40, SEP_Y); ctx.stroke();
+  // ── SEPARATOR ────────────────────────────────────────────────────────────────
+  const SEP_Y = LOGO_Y + LOGO_R + 74;
+  const sepLG = ctx.createLinearGradient(32, SEP_Y, CW-32, SEP_Y);
+  sepLG.addColorStop(0, "rgba(255,255,255,0)");
+  sepLG.addColorStop(0.5, unit.glow.replace("0.5","0.6"));
+  sepLG.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.strokeStyle = sepLG; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(32, SEP_Y); ctx.lineTo(CW-32, SEP_Y); ctx.stroke();
 
-  // ── QR anchored from bottom ───────────────────────────────────────────────
-  // Do this first so we know exactly where the content zone ends
-  const QR_SIZE = 160, QR_PAD = 12;
+  // ── QR anchored at bottom ─────────────────────────────────────────────────────
+  const QR_SIZE = 158, QR_PAD = 11;
   const QR_CARD_W = QR_SIZE + QR_PAD*2, QR_CARD_H = QR_SIZE + QR_PAD*2;
-  const QR_X = (CW - QR_CARD_W) / 2;
-  const QR_BOT_MARGIN = 36;
-  const QR_Y = CH - QR_BOT_MARGIN - QR_CARD_H;
+  const QR_X = (CW - QR_CARD_W)/2;
+  const QR_Y = CH - 32 - QR_CARD_H;
+  const ID_Y = QR_Y - 14;
 
-  // Ticket ID sits just above QR
-  const ID_Y = QR_Y - 16;
-
-  // Content zone: from SEP_Y to just above ticket ID
-  const CONTENT_TOP = SEP_Y + 30;
-  const CONTENT_BOT = ID_Y - 12;
+  // Content zone
+  const CONTENT_TOP = SEP_Y + 28;
+  const CONTENT_BOT = ID_Y - 8;
   const CONTENT_H   = CONTENT_BOT - CONTENT_TOP;
 
-  // ── VOLUNTEER BADGE CHIP (enlarged) ──────────────────────────────────────
-  const chipText = "VOLUNTEER";
-  ctx.font = "900 28px Arial Black, Arial, sans-serif";
-  const chipW = Math.min(CW - 60, ctx.measureText(chipText).width + 52);
-  const chipH = 56, chipX = (CW - chipW) / 2;
+  // ── UNIT BADGE (large, vibrant) ───────────────────────────────────────────────
+  const chipText = (delegate.position || "VOLUNTEER").toUpperCase();
+  ctx.font = "900 24px Arial Black, Arial, sans-serif";
+  const chipW = Math.min(CW - 56, ctx.measureText(chipText).width + 56);
+  const chipH = 58, chipX = (CW - chipW)/2;
   const CHIP_Y = CONTENT_TOP;
 
-  ctx.fillStyle = "rgba(57,224,122,0.14)"; ctx.strokeStyle = "rgba(57,224,122,0.6)"; ctx.lineWidth = 2;
-  rrect(ctx, chipX, CHIP_Y, chipW, chipH, 28); ctx.fill(); ctx.stroke();
-  // Pulsing dot
-  ctx.fillStyle = GREEN;
+  // Glowing chip background
+  ctx.shadowColor = unit.glow.replace("0.5","0.55");
+  ctx.shadowBlur = 20;
+  const chipBgG = ctx.createLinearGradient(chipX, CHIP_Y, chipX + chipW, CHIP_Y + chipH);
+  chipBgG.addColorStop(0, unit.bg);
+  chipBgG.addColorStop(1, "rgba(255,255,255,0.04)");
+  ctx.fillStyle = chipBgG;
+  rrect(ctx, chipX, CHIP_Y, chipW, chipH, 29); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Border
+  ctx.strokeStyle = unit.glow.replace("0.5","0.65");
+  ctx.lineWidth = 1.5;
+  rrect(ctx, chipX, CHIP_Y, chipW, chipH, 29); ctx.stroke();
+  // Dot indicator
+  ctx.fillStyle = unit.accent;
+  ctx.shadowColor = unit.glow; ctx.shadowBlur = 10;
   ctx.beginPath(); ctx.arc(chipX + 26, CHIP_Y + chipH/2, 7, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = GREEN; ctx.textAlign = "center";
-  ctx.fillText(chipText, CW/2 + 8, CHIP_Y + chipH/2 + 10);
+  ctx.shadowBlur = 0;
+  // Unit text
+  ctx.fillStyle = unit.accent;
+  ctx.textAlign = "center";
+  ctx.fillText(chipText, CW/2 + 8, CHIP_Y + chipH/2 + 9);
 
-  // ── NAME ──────────────────────────────────────────────────────────────────
-  // Budget: remaining vertical space after chip, gap, position, bottom gap
-  const CHIP_BOT    = CHIP_Y + chipH;
-  const POSITION_H  = 36;       // space for position text
-  const GAP_CHIP_NAME = 48;     // gap between chip bottom and first name baseline
-  const GAP_NAME_POS  = 40;     // gap between last name baseline and position
-  const NAME_BUDGET_H = CONTENT_H - chipH - GAP_CHIP_NAME - GAP_NAME_POS - POSITION_H;
+  // ── NAME ──────────────────────────────────────────────────────────────────────
+  const CHIP_BOT = CHIP_Y + chipH;
+  const GAP_CHIP_NAME = 44;
+  const GAP_NAME_POS  = 38;
+  const NAME_BUDGET_H = CONTENT_H - chipH - GAP_CHIP_NAME - GAP_NAME_POS - 32;
 
-  const nameMaxW = CW - 80;
-  let nfs = 78;
-  while (nfs > 30) {
+  const nameMaxW = CW - 72;
+  let nfs = 76;
+  while (nfs > 28) {
     ctx.font = `900 ${nfs}px Georgia, serif`;
-    const lines = wrapText(ctx, delegate.name, nameMaxW);
-    if (lines.length <= 2 && lines.length * (nfs + 10) <= NAME_BUDGET_H) break;
+    const nl = wrapText(ctx, delegate.name, nameMaxW);
+    if (nl.length <= 2 && nl.length * (nfs + 12) <= NAME_BUDGET_H) break;
     nfs -= 4;
   }
-  const NLH = nfs + 10;
+  const NLH = nfs + 12;
   const nameLines = wrapText(ctx, delegate.name, nameMaxW);
-  const NAME_Y_START = CHIP_BOT + GAP_CHIP_NAME;
+  const NAME_START = CHIP_BOT + GAP_CHIP_NAME;
 
   ctx.fillStyle = CREAM; ctx.textAlign = "center";
-  ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 14;
-  nameLines.forEach((l, i) => ctx.fillText(l, CW/2, NAME_Y_START + (i + 1) * NLH));
+  ctx.shadowColor = "rgba(0,0,0,0.65)"; ctx.shadowBlur = 16;
+  nameLines.forEach((l, i) => ctx.fillText(l, CW/2, NAME_START + (i+1) * NLH));
   ctx.shadowBlur = 0;
-  const NAME_BOT = NAME_Y_START + nameLines.length * NLH;
+  const NAME_BOT = NAME_START + nameLines.length * NLH;
 
-  // ── POSITION / UNIT ───────────────────────────────────────────────────────
-  if (delegate.position) {
-    ctx.font = "700 26px Arial, sans-serif"; ctx.fillStyle = GOLD2;
-    ctx.textAlign = "center";
-    ctx.fillText(delegate.position.toUpperCase(), CW/2, NAME_BOT + GAP_NAME_POS);
-  }
+  // Decorative line under name
+  const lineG = ctx.createLinearGradient(80, NAME_BOT + 14, CW - 80, NAME_BOT + 14);
+  lineG.addColorStop(0, "rgba(255,255,255,0)");
+  lineG.addColorStop(0.5, unit.glow.replace("0.5","0.4"));
+  lineG.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.strokeStyle = lineG; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(80, NAME_BOT + 14); ctx.lineTo(CW-80, NAME_BOT + 14); ctx.stroke();
 
-  // ── TICKET ID ─────────────────────────────────────────────────────────────
-  ctx.font = "600 18px monospace, Arial, sans-serif"; ctx.fillStyle = "rgba(232,184,75,0.6)";
-  ctx.textAlign = "center"; ctx.fillText(delegate.id, CW/2, ID_Y);
+  // ── TICKET ID ────────────────────────────────────────────────────────────────
+  ctx.font = "600 16px monospace, Arial, sans-serif";
+  ctx.fillStyle = "rgba(232,184,75,0.55)";
+  ctx.textAlign = "center";
+  ctx.fillText(delegate.id, CW/2, ID_Y);
 
-  // ── QR CODE ───────────────────────────────────────────────────────────────
+  // ── QR CODE ───────────────────────────────────────────────────────────────────
   const qrURL = delegate.qrURL || `${REG_SITE}?checkin=${delegate.id}`;
-  const qrImg = await generateQRImage(qrURL, 220);
+  const qrImg = await generateQRImage(qrURL, 220, NAVY);
   if (qrImg) {
-    ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "rgba(201,146,10,0.4)"; ctx.lineWidth = 2;
-    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 12); ctx.fill(); ctx.stroke();
+    // QR card with unit-tinted border
+    ctx.shadowColor = unit.glow.replace("0.5","0.35"); ctx.shadowBlur = 16;
+    ctx.fillStyle = "#ffffff";
+    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 12); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = unit.glow.replace("0.5","0.45"); ctx.lineWidth = 2;
+    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 12); ctx.stroke();
     ctx.drawImage(qrImg, QR_X + QR_PAD, QR_Y + QR_PAD, QR_SIZE, QR_SIZE);
   }
 
@@ -483,9 +622,9 @@ function isVolunteer(delegate) {
     (delegate.position || "").toLowerCase().includes("ushering") ||
     (delegate.position || "").toLowerCase().includes("logistics") ||
     (delegate.position || "").toLowerCase().includes("registration") ||
-    (delegate.position || "").toLowerCase().includes("tech") ||
+    (delegate.position || "").toLowerCase().includes("team tech") ||
     (delegate.position || "").toLowerCase().includes("anchors") ||
-    (delegate.position || "").toLowerCase().includes("welfare") ||
+    (delegate.position || "").toLowerCase().includes("welfare unit") ||
     (delegate.level || "").toLowerCase() === "volunteer"
   );
 }
@@ -494,150 +633,340 @@ function isVolunteer(delegate) {
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
   :root {
     --navy: #060d1a; --navy2: #0d1e38; --navy3: #1a3a6b;
     --gold: #c9920a; --gold2: #e8b84b; --gold3: #f5d57a;
-    --green: #39e07a; --green2: rgba(57,224,122,0.12); --green3: rgba(57,224,122,0.22);
+    --green: #39e07a;
     --cream: #f5f0e8;
-    --border: rgba(26,58,107,0.4); --border-gold: rgba(201,146,10,0.25);
-    --glass: rgba(26,58,107,0.12); --glass2: rgba(26,58,107,0.2);
+    --border: rgba(26,58,107,0.4);
+    --border-gold: rgba(201,146,10,0.28);
+    --glass: rgba(26,58,107,0.12);
   }
-  html, body { min-height: 100vh; }
+
+  html, body { min-height: 100vh; overflow-x: hidden; }
+
   body {
     background:
-      radial-gradient(ellipse 80% 50% at 50% -5%, rgba(26,58,107,0.35) 0%, transparent 55%),
-      radial-gradient(ellipse 50% 35% at 85% 70%, rgba(201,146,10,0.05) 0%, transparent 50%),
+      radial-gradient(ellipse 90% 55% at 50% -8%, rgba(26,58,107,0.42) 0%, transparent 58%),
+      radial-gradient(ellipse 55% 40% at 88% 72%, rgba(201,146,10,0.06) 0%, transparent 52%),
+      radial-gradient(ellipse 45% 30% at 8% 80%, rgba(57,224,122,0.04) 0%, transparent 50%),
       #060d1a;
     color: var(--cream);
     font-family: 'Inter', sans-serif;
-    overflow-x: hidden;
   }
+
+  /* Noise grain overlay */
   body::after {
-    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.3;
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.22;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
   }
+
   .page { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
 
-  /* Header */
-  .hdr { padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); background: rgba(6,13,26,0.95); backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 rgba(26,58,107,0.3); }
-  .hdr-brand { display: flex; align-items: center; gap: 10px; }
-  .hdr-logo { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--gold2); object-fit: cover; box-shadow: 0 0 12px rgba(201,146,10,0.25); }
-  .hdr-title { font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--gold2); line-height: 1; letter-spacing: 0.1em; }
-  .hdr-sub { font-size: 9px; color: rgba(245,240,232,0.38); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
+  /* ── KEYFRAMES ── */
+  @keyframes fadeUp    { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeIn    { from { opacity:0; } to { opacity:1; } }
+  @keyframes slideUp   { from { opacity:0; transform:translateY(40px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes blink     { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  @keyframes spinRing  { to { transform: rotate(360deg); } }
+  @keyframes shimmerBg { 0%{background-position:-600px 0} 100%{background-position:600px 0} }
+  @keyframes pulseGlow { 0%,100%{box-shadow:0 0 0 0 rgba(201,146,10,0)} 50%{box-shadow:0 0 28px 4px rgba(201,146,10,0.28)} }
+
+  /* ── HEADER ── */
+  .hdr {
+    padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: rgba(6,13,26,0.92);
+    backdrop-filter: blur(24px) saturate(180%);
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 1px 0 rgba(26,58,107,0.3), 0 4px 20px rgba(0,0,0,0.3);
+    animation: fadeIn 0.4s ease both;
+  }
+  .hdr-brand { display: flex; align-items: center; gap: 12px; }
+  .hdr-logo {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 2px solid var(--gold2); object-fit: cover;
+    box-shadow: 0 0 14px rgba(201,146,10,0.3);
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s;
+  }
+  .hdr-logo:hover { transform: scale(1.08) rotate(-4deg); box-shadow: 0 0 22px rgba(201,146,10,0.5); }
+  .hdr-title { font-family: 'Bebas Neue', sans-serif; font-size: 17px; color: var(--gold2); line-height: 1; letter-spacing: 0.1em; }
+  .hdr-sub { font-size: 9px; color: rgba(245,240,232,0.35); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
   .hdr-nav { display: flex; gap: 8px; align-items: center; }
+
   .hdr-reg {
     font-size: 11px; font-weight: 600; color: #fff; text-decoration: none;
     background: linear-gradient(135deg, var(--gold), var(--navy3));
-    padding: 7px 16px; border-radius: 6px; letter-spacing: 0.06em;
-    box-shadow: 0 2px 12px rgba(201,146,10,0.2); transition: all .2s;
+    padding: 7px 16px; border-radius: 7px; letter-spacing: 0.06em;
+    box-shadow: 0 2px 12px rgba(201,146,10,0.22);
+    transition: all 0.22s cubic-bezier(0.34,1.1,0.64,1);
   }
-  .hdr-reg:hover { box-shadow: 0 4px 18px rgba(201,146,10,0.35); transform: translateY(-1px); }
+  .hdr-reg:hover { box-shadow: 0 6px 22px rgba(201,146,10,0.4); transform: translateY(-2px); }
+
   .hdr-reg-sec {
     font-size: 11px; font-weight: 600; text-decoration: none;
-    border: 1px solid rgba(201,146,10,0.4); color: var(--gold2);
-    padding: 6px 14px; border-radius: 6px; transition: all .2s; background: transparent;
+    border: 1px solid rgba(201,146,10,0.38); color: var(--gold2);
+    padding: 6px 14px; border-radius: 7px;
+    transition: all 0.22s; background: transparent;
   }
-  .hdr-reg-sec:hover { background: rgba(201,146,10,0.08); }
+  .hdr-reg-sec:hover { background: rgba(201,146,10,0.1); transform: translateY(-1px); }
 
-  /* Hero */
-  .hero { padding: 56px 24px 40px; text-align: center; max-width: 700px; margin: 0 auto; }
-  .badge { display: inline-flex; align-items: center; gap: 7px; padding: 5px 16px; border: 1px solid var(--border); border-radius: 100px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold2); background: rgba(201,146,10,0.07); margin-bottom: 24px; }
-  .badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--gold2); animation: blink 2s infinite; }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
-  .hero h1 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(42px, 9vw, 84px); line-height: 0.95; letter-spacing: 0.04em; margin-bottom: 16px; background: linear-gradient(135deg, #f5d57a 0%, #e8b84b 50%, #ffffff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-  .hero p { font-size: clamp(13px,2vw,16px); color: rgba(245,240,232,0.48); line-height: 1.7; max-width: 460px; margin: 0 auto 36px; }
+  /* ── HERO ── */
+  .hero {
+    padding: 64px 24px 44px;
+    text-align: center; max-width: 720px; margin: 0 auto;
+    animation: slideUp 0.5s cubic-bezier(0.34,1.1,0.64,1) both;
+  }
 
-  /* Steps */
-  .steps { display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 44px; flex-wrap: wrap; }
-  .step { display: flex; align-items: center; gap: 7px; }
-  .step-n { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--border-gold); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--gold2); flex-shrink: 0; }
-  .step.active .step-n { background: var(--gold); color: #fff; border-color: var(--gold); box-shadow: 0 0 10px rgba(201,146,10,0.35); }
-  .step.done .step-n { background: var(--green); color: #060d1a; border-color: var(--green); font-size: 12px; }
-  .step-lbl { font-size: 11px; color: rgba(245,240,232,0.35); font-weight: 500; }
-  .step.active .step-lbl, .step.done .step-lbl { color: rgba(245,240,232,0.8); }
-  .step-line { width: 24px; height: 1px; background: rgba(26,58,107,0.4); }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 18px; border: 1px solid var(--border); border-radius: 100px;
+    font-size: 10px; letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--gold2); background: rgba(201,146,10,0.07); margin-bottom: 28px;
+    animation: pulseGlow 4s infinite;
+  }
+  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--gold2); animation: blink 2s infinite; flex-shrink:0; }
 
-  /* Main */
-  .main { flex: 1; max-width: 960px; margin: 0 auto; padding: 0 24px 80px; width: 100%; }
+  .hero h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(44px, 9.5vw, 88px);
+    line-height: 0.93; letter-spacing: 0.04em; margin-bottom: 18px;
+    background: linear-gradient(135deg, #f5d57a 0%, #e8b84b 50%, #ffffff 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .hero p { font-size: clamp(13px,2vw,16px); color: rgba(245,240,232,0.45); line-height: 1.75; max-width: 480px; margin: 0 auto 40px; }
 
-  /* Panel */
-  .panel { background: rgba(6,13,26,0.75); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(26,58,107,0.15); }
-  .phead { background: linear-gradient(135deg, rgba(6,13,26,0.98), rgba(13,30,56,0.9)); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
-  .picon { width: 34px; height: 34px; border-radius: 8px; background: var(--glass2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
-  .ptitle { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; color: var(--gold2); letter-spacing: 0.05em; }
-  .pdesc { font-size: 11px; color: rgba(245,240,232,0.38); margin-top: 2px; }
-  .pbody { padding: 24px; }
+  /* ── STEPS ── */
+  .steps { display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 48px; flex-wrap: wrap; }
+  .step { display: flex; align-items: center; gap: 8px; }
+  .step-n {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 1.5px solid var(--border-gold);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: var(--gold2); flex-shrink: 0;
+    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .step.active .step-n { background: var(--gold); color: #fff; border-color: var(--gold); box-shadow: 0 0 14px rgba(201,146,10,0.5), 0 0 0 4px rgba(201,146,10,0.12); transform: scale(1.1); }
+  .step.done .step-n { background: var(--green); color: #060d1a; border-color: var(--green); font-size: 13px; }
+  .step-lbl { font-size: 11px; color: rgba(245,240,232,0.32); font-weight: 500; transition: color 0.3s; }
+  .step.active .step-lbl, .step.done .step-lbl { color: rgba(245,240,232,0.82); }
+  .step-line { width: 28px; height: 1px; background: rgba(26,58,107,0.4); }
 
-  /* Volunteer tag notice */
-  .vol-notice { background: rgba(57,224,122,0.07); border: 1px solid rgba(57,224,122,0.25); border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; font-size: 12px; color: #39e07a; line-height: 1.6; }
+  /* ── MAIN ── */
+  .main { flex: 1; max-width: 980px; margin: 0 auto; padding: 0 24px 88px; width: 100%; }
 
-  /* Inputs */
+  /* ── PANELS ── */
+  .panel {
+    background: rgba(7,13,26,0.8);
+    border: 1px solid var(--border);
+    border-radius: 18px; overflow: hidden; margin-bottom: 20px;
+    box-shadow: 0 4px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(26,58,107,0.18);
+    transition: transform 0.22s cubic-bezier(0.34,1.1,0.64,1), box-shadow 0.22s;
+  }
+  .panel:hover { transform: translateY(-1px); box-shadow: 0 8px 36px rgba(0,0,0,0.55), inset 0 1px 0 rgba(26,58,107,0.2); }
+
+  .phead {
+    background: linear-gradient(135deg, rgba(7,13,26,0.99), rgba(15,32,60,0.92));
+    border-bottom: 1px solid var(--border);
+    padding: 18px 26px; display: flex; align-items: center; gap: 14px;
+  }
+  .picon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: rgba(26,58,107,0.22); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .ptitle { font-family: 'Cinzel', serif; font-size: 14px; font-weight: 700; color: var(--gold2); letter-spacing: 0.05em; }
+  .pdesc { font-size: 11px; color: rgba(245,240,232,0.35); margin-top: 3px; }
+  .pbody { padding: 26px; }
+
+  .vol-notice { background: rgba(57,224,122,0.07); border: 1px solid rgba(57,224,122,0.28); border-radius: 11px; padding: 13px 17px; margin-bottom: 20px; font-size: 12px; color: #39e07a; line-height: 1.65; }
+
+  /* ── TICKET INPUT ── */
   .tick-row { display: flex; gap: 10px; }
-  .tick-in { flex: 1; padding: 13px 16px; background: rgba(26,58,107,0.08); border: 1.5px solid var(--border); border-radius: 9px; color: var(--cream); font-family: 'Inter', sans-serif; font-size: 14px; letter-spacing: 0.06em; outline: none; transition: border-color .2s; text-transform: uppercase; }
-  .tick-in:focus { border-color: var(--gold2); box-shadow: 0 0 0 3px rgba(201,146,10,0.1); }
-  .tick-in::placeholder { text-transform: none; color: rgba(245,240,232,0.22); letter-spacing: 0; }
-  .btn-fetch { padding: 13px 20px; background: linear-gradient(135deg, var(--gold), var(--navy3)); border: none; border-radius: 9px; color: #fff; font-family: 'Cinzel', serif; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 14px rgba(201,146,10,0.22); transition: all .2s; }
-  .btn-fetch:hover { box-shadow: 0 4px 20px rgba(201,146,10,0.35); transform: translateY(-1px); }
-  .btn-fetch:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+  .tick-in {
+    flex: 1; padding: 14px 16px;
+    background: rgba(26,58,107,0.09); border: 1.5px solid var(--border);
+    border-radius: 10px; color: var(--cream);
+    font-family: 'Inter', sans-serif; font-size: 14px;
+    letter-spacing: 0.07em; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    text-transform: uppercase;
+  }
+  .tick-in:focus { border-color: var(--gold2); box-shadow: 0 0 0 3px rgba(201,146,10,0.12); }
+  .tick-in::placeholder { text-transform: none; color: rgba(245,240,232,0.2); letter-spacing: 0; }
 
-  /* Delegate card */
-  .del-card { display: flex; align-items: center; gap: 14px; padding: 14px; background: rgba(26,58,107,0.1); border: 1px solid rgba(26,58,107,0.4); border-radius: 10px; margin-top: 14px; animation: fadeUp .3s ease both; }
-  .del-av { width: 40px; height: 40px; border-radius: 50%; background: rgba(26,58,107,0.15); border: 1.5px solid var(--gold2); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .btn-fetch {
+    padding: 14px 22px;
+    background: linear-gradient(135deg, var(--gold), var(--navy3));
+    border: none; border-radius: 10px; color: #fff;
+    font-family: 'Cinzel', serif; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.07em; cursor: pointer; white-space: nowrap;
+    box-shadow: 0 2px 16px rgba(201,146,10,0.26);
+    transition: all 0.22s cubic-bezier(0.34,1.1,0.64,1);
+  }
+  .btn-fetch:hover { box-shadow: 0 6px 24px rgba(201,146,10,0.42); transform: translateY(-2px); }
+  .btn-fetch:active { transform: scale(0.97); }
+  .btn-fetch:disabled { opacity: .38; cursor: not-allowed; transform: none; }
+
+  /* ── DELEGATE CARD ── */
+  .del-card {
+    display: flex; align-items: center; gap: 14px; padding: 16px;
+    background: rgba(26,58,107,0.12); border: 1px solid rgba(26,58,107,0.45);
+    border-radius: 12px; margin-top: 16px;
+    animation: fadeUp 0.35s cubic-bezier(0.34,1.1,0.64,1) both;
+    transition: border-color 0.2s;
+  }
+  .del-card:hover { border-color: rgba(201,146,10,0.3); }
+  .del-av { width: 42px; height: 42px; border-radius: 50%; background: rgba(26,58,107,0.18); border: 1.5px solid var(--gold2); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
   .del-name { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; color: var(--cream); margin-bottom: 3px; }
-  .del-meta { font-size: 11px; color: rgba(245,240,232,0.45); }
-  .del-id { margin-left: auto; font-family: monospace; font-size: 11px; color: var(--gold2); letter-spacing: .08em; flex-shrink: 0; }
-  .del-badge { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; margin-top: 4px; }
-  .err { margin-top: 12px; padding: 11px 15px; background: rgba(192,57,43,.08); border: 1px solid rgba(192,57,43,.3); border-radius: 8px; color: #e74c3c; font-size: 12px; }
+  .del-meta { font-size: 11px; color: rgba(245,240,232,0.42); }
+  .del-id { margin-left: auto; font-family: monospace; font-size: 11px; color: var(--gold2); letter-spacing: .09em; flex-shrink: 0; }
+  .del-badge { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; margin-top: 5px; }
 
-  /* Mode toggle */
-  .mode-toggle { display: flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; margin-bottom: 18px; }
-  .mode-btn { flex: 1; padding: 11px; border: none; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; transition: all .2s; background: transparent; color: rgba(245,240,232,0.35); letter-spacing: 0.04em; }
+  .err { margin-top: 13px; padding: 12px 16px; background: rgba(192,57,43,.09); border: 1px solid rgba(192,57,43,.32); border-radius: 9px; color: #e74c3c; font-size: 12px; animation: fadeUp 0.3s ease both; }
+
+  /* ── MODE TOGGLE ── */
+  .mode-toggle { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
+  .mode-btn { flex: 1; padding: 12px; border: none; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; transition: all 0.22s; background: transparent; color: rgba(245,240,232,0.32); letter-spacing: 0.04em; }
   .mode-btn.dk { background: var(--navy2); color: var(--gold2); border-bottom: 2px solid var(--gold2); }
-  .mode-btn.lt { background: #f5f0e8; color: #060f0a; border-bottom: 2px solid #060f0a; }
+  .mode-btn.lt { background: #f5f0e8; color: #06100f; border-bottom: 2px solid #06100f; }
 
-  /* Upload */
-  .upload-zone { border: 1.5px dashed rgba(26,58,107,0.45); border-radius: 12px; padding: 32px 20px; text-align: center; cursor: pointer; transition: all .2s; background: var(--glass); }
-  .upload-zone:hover, .upload-zone.drag { border-color: var(--gold2); background: rgba(201,146,10,0.05); box-shadow: 0 0 18px rgba(201,146,10,0.08); }
-  .up-icon { font-size: 32px; margin-bottom: 10px; }
-  .up-title { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; color: var(--gold2); margin-bottom: 4px; }
-  .up-sub { font-size: 11px; color: rgba(245,240,232,0.35); }
-  .photo-row { display: flex; align-items: center; gap: 16px; }
-  .photo-row img { width: 100px; height: 100px; object-fit: cover; border-radius: 10px; border: 1.5px solid var(--gold2); display: block; flex-shrink: 0; }
-  .photo-rm { padding: 6px 12px; background: rgba(192,57,43,0.85); border: none; color: #fff; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; }
-  .photo-info { font-size: 12px; color: rgba(245,240,232,0.45); line-height: 1.7; }
+  /* ── UPLOAD ── */
+  .upload-zone {
+    border: 1.5px dashed rgba(26,58,107,0.48); border-radius: 14px;
+    padding: 36px 24px; text-align: center; cursor: pointer;
+    transition: all 0.24s cubic-bezier(0.34,1.1,0.64,1);
+    background: var(--glass);
+  }
+  .upload-zone:hover, .upload-zone.drag {
+    border-color: var(--gold2); background: rgba(201,146,10,0.06);
+    box-shadow: 0 0 24px rgba(201,146,10,0.1); transform: scale(1.01);
+  }
+  .up-icon { font-size: 36px; margin-bottom: 12px; animation: fadeUp 0.4s 0.1s ease both; }
+  .up-title { font-family: 'Cinzel', serif; font-size: 14px; font-weight: 700; color: var(--gold2); margin-bottom: 5px; }
+  .up-sub { font-size: 11px; color: rgba(245,240,232,0.32); }
+  .photo-row { display: flex; align-items: center; gap: 18px; }
+  .photo-row img { width: 106px; height: 106px; object-fit: cover; border-radius: 12px; border: 2px solid var(--gold2); display: block; flex-shrink: 0; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+  .photo-rm { padding: 7px 14px; background: rgba(192,57,43,0.88); border: none; color: #fff; border-radius: 7px; font-size: 11px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+  .photo-rm:hover { background: #c0392b; transform: scale(1.03); }
+  .photo-info { font-size: 12px; color: rgba(245,240,232,0.42); line-height: 1.7; }
 
-  .btn-gen { width: 100%; padding: 15px; margin-top: 18px; background: linear-gradient(135deg, var(--gold) 0%, #1a3a6b 120%); border: none; border-radius: 12px; color: #fff; font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 0.12em; cursor: pointer; box-shadow: 0 6px 24px rgba(201,146,10,0.25); transition: all .2s; }
-  .btn-gen:hover { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(201,146,10,0.35); }
-  .btn-gen:disabled { opacity: .38; cursor: not-allowed; transform: none; }
+  /* ── GENERATE BUTTON ── */
+  .btn-gen {
+    width: 100%; padding: 16px; margin-top: 20px;
+    background: linear-gradient(135deg, var(--gold) 0%, #1a3a6b 120%);
+    border: none; border-radius: 13px; color: #fff;
+    font-family: 'Bebas Neue', sans-serif; font-size: 20px;
+    letter-spacing: 0.14em; cursor: pointer;
+    box-shadow: 0 6px 28px rgba(201,146,10,0.3);
+    transition: all 0.24s cubic-bezier(0.34,1.1,0.64,1);
+    position: relative; overflow: hidden;
+  }
+  .btn-gen::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmerBg 2.4s linear infinite;
+  }
+  .btn-gen:hover { transform: translateY(-3px); box-shadow: 0 12px 36px rgba(201,146,10,0.42); }
+  .btn-gen:active { transform: scale(0.98); }
+  .btn-gen:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+  .btn-gen:disabled::after { display: none; }
 
-  /* Preview */
-  .preview { text-align: center; animation: fadeUp .5s ease both; }
-  .preview-lbl { font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold2); margin-bottom: 20px; }
-  /* Volunteer tag gets a smaller narrower preview */
-  .card-wrap { display: inline-block; max-width: 320px; width: 100%; border-radius: 18px; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(201,146,10,0.2); }
-  .card-wrap.vol { max-width: 200px; border-radius: 12px; }
+  /* ── PREVIEW ── */
+  .preview { text-align: center; animation: slideUp 0.45s cubic-bezier(0.34,1.1,0.64,1) both; }
+  .preview-lbl {
+    font-family: 'Bebas Neue', sans-serif; font-size: 16px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--gold2); margin-bottom: 24px;
+  }
+
+  .card-wrap {
+    display: inline-block; max-width: 340px; width: 100%;
+    border-radius: 20px; overflow: hidden;
+    box-shadow:
+      0 28px 72px rgba(0,0,0,0.72),
+      0 0 0 1px rgba(201,146,10,0.22),
+      0 0 50px rgba(26,58,107,0.18);
+    transition: transform 0.4s cubic-bezier(0.34,1.1,0.64,1), box-shadow 0.4s;
+    animation: popIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+  .card-wrap:hover { transform: scale(1.025) translateY(-4px); box-shadow: 0 36px 88px rgba(0,0,0,0.8), 0 0 0 1px rgba(201,146,10,0.35), 0 0 60px rgba(26,58,107,0.22); }
+  .card-wrap.vol { max-width: 210px; border-radius: 14px; }
   .card-wrap img { width: 100%; display: block; }
 
-  .act-row { display: flex; gap: 10px; margin-top: 20px; justify-content: center; flex-wrap: wrap; }
-  .btn-share { padding: 12px 22px; background: linear-gradient(135deg, var(--green), #1a7a40); border: none; border-radius: 9px; color: #060f0a; font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 0.1em; cursor: pointer; box-shadow: 0 3px 16px rgba(57,224,122,0.22); transition: all .2s; }
-  .btn-share:hover { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(57,224,122,0.32); }
-  .btn-dl { padding: 12px 22px; background: linear-gradient(135deg, var(--gold), #1a3a6b); border: none; border-radius: 9px; color: #fff; font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: 0.1em; cursor: pointer; box-shadow: 0 3px 16px rgba(201,146,10,0.22); transition: all .2s; }
-  .btn-dl:hover { transform: translateY(-1px); }
-  .btn-sec { padding: 12px 18px; background: transparent; border: 1px solid var(--border); border-radius: 9px; color: rgba(245,240,232,0.5); font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: all .2s; }
-  .btn-sec:hover { border-color: var(--green); color: var(--green); }
+  /* ── ACTION BUTTONS ── */
+  .act-row { display: flex; gap: 10px; margin-top: 22px; justify-content: center; flex-wrap: wrap; }
 
-  .cap-box { margin: 20px auto 0; padding: 16px 20px; background: rgba(6,13,26,0.7); border: 1px solid var(--border); border-radius: 12px; max-width: 380px; text-align: left; }
-  .cap-lbl { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold2); font-weight: 600; margin-bottom: 8px; }
-  .cap-txt { font-size: 12px; color: rgba(245,240,232,0.62); line-height: 1.65; user-select: all; white-space: pre-line; }
-  .btn-copy { margin-top: 10px; padding: 7px 16px; background: rgba(26,58,107,0.15); border: 1px solid var(--border); border-radius: 6px; color: var(--gold2); font-size: 11px; cursor: pointer; transition: all .2s; font-weight: 600; }
-  .btn-copy:hover { background: rgba(201,146,10,0.1); }
+  .btn-share {
+    padding: 13px 24px;
+    background: linear-gradient(135deg, #1a5c35, var(--green));
+    border: none; border-radius: 10px; color: #060d1a;
+    font-family: 'Bebas Neue', sans-serif; font-size: 16px;
+    letter-spacing: 0.11em; cursor: pointer;
+    box-shadow: 0 3px 18px rgba(57,224,122,0.28);
+    transition: all 0.24s cubic-bezier(0.34,1.1,0.64,1);
+  }
+  .btn-share:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(57,224,122,0.42); }
 
-  .footer-dots { display: flex; justify-content: center; gap: 5px; padding: 20px 0 0; }
-  .footer-dots span { width: 4px; height: 4px; border-radius: 50%; background: rgba(26,58,107,0.4); display: block; }
-  .footer-dots span:nth-child(3n) { background: rgba(201,146,10,0.5); }
+  .btn-dl {
+    padding: 13px 24px;
+    background: linear-gradient(135deg, var(--gold), #1a3a6b);
+    border: none; border-radius: 10px; color: #fff;
+    font-family: 'Bebas Neue', sans-serif; font-size: 16px;
+    letter-spacing: 0.11em; cursor: pointer;
+    box-shadow: 0 3px 18px rgba(201,146,10,0.28);
+    transition: all 0.24s cubic-bezier(0.34,1.1,0.64,1);
+  }
+  .btn-dl:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(201,146,10,0.42); }
 
-  @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
-  @media(max-width:480px) { .tick-row{flex-direction:column} .del-id{display:none} .hdr-reg-sec{display:none} }
+  .btn-sec {
+    padding: 13px 20px; background: transparent;
+    border: 1px solid var(--border); border-radius: 10px;
+    color: rgba(245,240,232,0.45);
+    font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.34,1.1,0.64,1);
+  }
+  .btn-sec:hover { border-color: var(--gold2); color: var(--gold2); transform: translateY(-1px); }
+
+  /* ── CAPTION BOX ── */
+  .cap-box {
+    margin: 22px auto 0; padding: 18px 22px;
+    background: rgba(7,13,26,0.72); border: 1px solid var(--border);
+    border-radius: 14px; max-width: 400px; text-align: left;
+    animation: fadeUp 0.4s 0.1s ease both;
+  }
+  .cap-lbl { font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold2); font-weight: 700; margin-bottom: 9px; font-family: 'Inter', sans-serif; }
+  .cap-txt { font-size: 12px; color: rgba(245,240,232,0.58); line-height: 1.7; user-select: all; white-space: pre-line; }
+
+  .btn-copy {
+    margin-top: 12px; padding: 8px 18px;
+    background: rgba(26,58,107,0.18); border: 1px solid var(--border);
+    border-radius: 7px; color: var(--gold2); font-size: 11px; font-weight: 600;
+    cursor: pointer;
+    transition: all 0.22s;
+  }
+  .btn-copy:hover { background: rgba(201,146,10,0.12); border-color: var(--gold2); }
+
+  /* ── FOOTER DOTS ── */
+  .footer-dots { display: flex; justify-content: center; gap: 5px; padding: 24px 0 0; }
+  .footer-dots span { width: 4px; height: 4px; border-radius: 50%; background: rgba(26,58,107,0.4); display: block; transition: background 0.3s; }
+  .footer-dots span:nth-child(3n) { background: rgba(201,146,10,0.48); }
+  .footer-dots span:nth-child(5n) { background: rgba(57,224,122,0.28); }
+
+  @keyframes popIn { from { opacity:0; transform:scale(0.88); } to { opacity:1; transform:scale(1); } }
+
+  @media (max-width: 480px) {
+    .tick-row { flex-direction: column; }
+    .del-id { display: none; }
+    .hdr-reg-sec { display: none; }
+    .act-row { gap: 8px; }
+  }
 `;
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
@@ -653,7 +982,6 @@ export default function CardGenerator() {
   const [cardUrl, setCardUrl]       = useState(null);
   const [copied, setCopied]         = useState(false);
 
-  // Auto-fill ticket ID from ?prefill= query param
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const pre = params.get("prefill");
@@ -684,7 +1012,7 @@ export default function CardGenerator() {
     input.type = "file"; input.accept = "image/*";
     input.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0;";
     const cleanup = () => { try { document.body.removeChild(input); } catch {} };
-    input.onchange = e => { const file = e.target.files?.[0]; if (file) handlePhoto(file); cleanup(); };
+    input.onchange = e => { const f = e.target.files?.[0]; if (f) handlePhoto(f); cleanup(); };
     input.addEventListener("cancel", cleanup);
     setTimeout(cleanup, 300000);
     document.body.appendChild(input); input.click();
@@ -697,7 +1025,7 @@ export default function CardGenerator() {
       const canvas = vol
         ? await renderVolunteerTag(delegate)
         : await renderAttendeeCard(delegate, photo, cardMode);
-      setCardUrl(canvas.toDataURL("image/jpeg", 0.94));
+      setCardUrl(canvas.toDataURL("image/jpeg", 0.93));
     } catch (e) { console.error(e); }
     setGenerating(false);
   };
@@ -732,31 +1060,29 @@ export default function CardGenerator() {
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(caption).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+    navigator.clipboard.writeText(caption).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2200); });
   };
 
-  const steps = [{ n: 1, label: "Verify Ticket" }, { n: 2, label: "Customise" }, { n: 3, label: "Download & Share" }];
-
-  // Badge display helper for delegate card in Step 1
   const BadgeDisplay = ({ badge }) => {
     const b = badge ? getBadgeInfo(badge) : null;
     if (!b) return null;
     return (
-      <span className="del-badge" style={{ background: "rgba(26,58,107,0.15)", color: b.accent, border: `1px solid ${b.accent}44` }}>
+      <span className="del-badge" style={{ background: b.bg, color: b.textColor, border: `1px solid ${b.glow.replace("0.5","0.4")}` }}>
         {b.label}
       </span>
     );
   };
+
+  const steps = [{ n:1, label:"Verify Ticket" }, { n:2, label:"Customise" }, { n:3, label:"Download & Share" }];
 
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="page">
 
-        {/* Header — larger logo, cross-link to register */}
         <header className="hdr">
           <div className="hdr-brand">
-            <img src="/legislative-council-logo.jpg" alt="" className="hdr-logo" onError={e => e.target.style.display = "none"} />
+            <img src="/legislative-council-logo.jpg" alt="" className="hdr-logo" onError={e => e.target.style.display="none"} />
             <div>
               <div className="hdr-title">Redeemer's University Students' Association · Legislative Council</div>
               <div className="hdr-sub">Summit Card Generator</div>
@@ -770,11 +1096,11 @@ export default function CardGenerator() {
 
         <div className="hero">
           <div className="badge">Summit 2026 · Card Generator</div>
-          <h1>Show the World<br />You're In.</h1>
-          <p>Generate your personal attendee card for the RUNSA Legislative Summit 2026. Share it. Drive the hype.</p>
+          <h1>Your Card.<br />Your Moment.</h1>
+          <p>Generate your personal attendee card for the RUNSA Legislative Summit 2026. Share it. Announce your presence. Drive the hype.</p>
           <div className="steps">
             {steps.map((s, i) => (
-              <div key={s.n} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div key={s.n} style={{ display:"flex", alignItems:"center", gap:8 }}>
                 {i > 0 && <div className="step-line" />}
                 <div className={`step ${step === s.n ? "active" : step > s.n ? "done" : ""}`}>
                   <div className="step-n">{step > s.n ? "✓" : s.n}</div>
@@ -787,7 +1113,7 @@ export default function CardGenerator() {
 
         <div className="main">
 
-          {/* Step 1 — Verify Ticket */}
+          {/* Step 1 */}
           {!cardUrl && (
             <div className="panel">
               <div className="phead">
@@ -811,48 +1137,47 @@ export default function CardGenerator() {
                 {delegate && (
                   <div className="del-card">
                     <div className="del-av">🎓</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ flex:1, minWidth:0 }}>
                       <div className="del-name">{delegate.name}</div>
                       <div className="del-meta">{delegate.position}{delegate.institution ? ` · ${delegate.institution}` : ""}</div>
                       {delegate.badge && <BadgeDisplay badge={delegate.badge} />}
-                      {vol && <div style={{ fontSize: 10, color: "#39e07a", marginTop: 4 }}>✅ Volunteer tag format will be generated</div>}
+                      {vol && <div style={{ fontSize:10, color:"#39e07a", marginTop:4 }}>✅ Volunteer tag format — unit colour theme applied</div>}
                     </div>
                     <div className="del-id">{delegate.id}</div>
                   </div>
                 )}
-                {/* Cross-link: didn't register yet? */}
-                <div style={{ marginTop: 18, textAlign: "center" }}>
-                  <span style={{ fontSize: 11, color: "rgba(245,240,232,0.35)" }}>Haven't registered yet? </span>
-                  <a href={REG_SITE} style={{ fontSize: 11, color: "var(--gold2)", textDecoration: "none", fontWeight: 600 }}>Register here →</a>
+                <div style={{ marginTop:18, textAlign:"center" }}>
+                  <span style={{ fontSize:11, color:"rgba(245,240,232,0.32)" }}>Haven't registered yet? </span>
+                  <a href={REG_SITE} style={{ fontSize:11, color:"var(--gold2)", textDecoration:"none", fontWeight:600 }}>Register here →</a>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Step 2 — Customise */}
+          {/* Step 2 */}
           {delegate && !cardUrl && (
-            <div className="panel" style={{ animation: "fadeUp .4s ease both" }}>
+            <div className="panel" style={{ animation:"fadeUp 0.4s 0.05s cubic-bezier(0.34,1.1,0.64,1) both" }}>
               <div className="phead">
                 <div className="picon">🎨</div>
                 <div>
                   <div className="ptitle">Step 2 — Customise Your Card</div>
-                  <div className="pdesc">{vol ? "Volunteer tag — no customisation needed, just generate" : "Pick your style and upload your photo"}</div>
+                  <div className="pdesc">{vol ? "Volunteer tag — unit colour theme auto-applied, just generate" : "Pick your style and upload your photo"}</div>
                 </div>
               </div>
               <div className="pbody">
                 {vol ? (
                   <div className="vol-notice">
-                    🏷️ As a <strong>Volunteer</strong>, you'll get a <strong>lanyard tag</strong> sized for a standard ID card holder — not the social media card. Just tap Generate!
+                    🏷️ As a <strong>Volunteer</strong>, you get a <strong>lanyard tag</strong> with your unit's unique colour theme. Perfect for standard ID card holders. Just tap Generate!
                   </div>
                 ) : (
                   <>
-                    <p style={{ fontSize: 12, color: "rgba(245,240,232,.5)", marginBottom: 10 }}>Card Style</p>
+                    <p style={{ fontSize:12, color:"rgba(245,240,232,.48)", marginBottom:12 }}>Card Style</p>
                     <div className="mode-toggle">
                       <button className={`mode-btn ${cardMode === "dark" ? "dk" : ""}`} onClick={() => setCardMode("dark")}>🌙 Dark Mode</button>
                       <button className={`mode-btn ${cardMode === "light" ? "lt" : ""}`} onClick={() => setCardMode("light")}>☀️ Light Mode</button>
                     </div>
-                    <p style={{ fontSize: 12, color: "rgba(245,240,232,.5)", marginBottom: 10, marginTop: 20 }}>
-                      Your Photo <span style={{ color: "rgba(245,240,232,.3)" }}>(Recommended)</span>
+                    <p style={{ fontSize:12, color:"rgba(245,240,232,.48)", marginBottom:12, marginTop:22 }}>
+                      Your Photo <span style={{ color:"rgba(245,240,232,.28)" }}>(Recommended for best results)</span>
                     </p>
                     {!photo ? (
                       <div className={`upload-zone ${drag ? "drag" : ""}`}
@@ -861,14 +1186,14 @@ export default function CardGenerator() {
                         onDrop={e => { e.preventDefault(); setDrag(false); handlePhoto(e.dataTransfer.files[0]); }}
                         onClick={openFilePicker}>
                         <div className="up-icon">📷</div>
-                        <div className="up-title">Tap to upload your photo</div>
+                        <div className="up-title">Tap or drop your photo</div>
                         <div className="up-sub">JPG or PNG · Front-facing photo works best</div>
                       </div>
                     ) : (
                       <div className="photo-row">
                         <img src={photo} alt="Preview" />
                         <div>
-                          <div className="photo-info" style={{ marginBottom: 10 }}>✅ Photo uploaded!<br /><span style={{ fontSize: 11, color: "rgba(245,240,232,.3)" }}>Remove and re-upload to change it.</span></div>
+                          <div className="photo-info" style={{ marginBottom:12 }}>✅ Photo ready!<br /><span style={{ fontSize:11, color:"rgba(245,240,232,.28)" }}>Remove and re-upload to change it.</span></div>
                           <button className="photo-rm" onClick={() => setPhoto(null)}>✕ Remove</button>
                         </div>
                       </div>
@@ -882,7 +1207,7 @@ export default function CardGenerator() {
             </div>
           )}
 
-          {/* Step 3 — Preview & Download */}
+          {/* Step 3 */}
           {cardUrl && (
             <div className="preview">
               <div className="preview-lbl">{vol ? "✦ Your Volunteer Tag ✦" : "✦ Your Attendee Card ✦"}</div>
@@ -890,8 +1215,8 @@ export default function CardGenerator() {
                 <img src={cardUrl} alt={vol ? "Your volunteer tag" : "Your summit card"} />
               </div>
               {vol && (
-                <p style={{ fontSize: 11, color: "rgba(245,240,232,0.38)", marginTop: 12, lineHeight: 1.6 }}>
-                  Print at ID card size (54×86mm) and insert into a standard neck lanyard holder.
+                <p style={{ fontSize:11, color:"rgba(245,240,232,0.35)", marginTop:14, lineHeight:1.65 }}>
+                  Print at ID card size (54×86mm) and slide into a standard neck lanyard holder.
                 </p>
               )}
               <div className="act-row">
@@ -916,7 +1241,7 @@ export default function CardGenerator() {
 
         </div>
 
-        <div className="footer-dots">{Array.from({length: 20}).map((_,i) => <span key={i} />)}</div>
+        <div className="footer-dots">{Array.from({length:22}).map((_,i) => <span key={i} />)}</div>
       </div>
     </>
   );

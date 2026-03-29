@@ -648,18 +648,24 @@ function GlobalStyles({ dark }) {
     @keyframes slideInRight { from { opacity:0; transform:translateX(32px); } to { opacity:1; transform:translateX(0); } }
     @keyframes popIn { from { opacity:0; transform:scale(0.88); } to { opacity:1; transform:scale(1); } }
     @keyframes shimmer { 0% { background-position:-400px 0; } 100% { background-position:400px 0; } }
-    .fade-up { animation: fadeUp 0.38s cubic-bezier(0.34,1.1,0.64,1) both; }
-    .fade-up-2 { animation: fadeUp 0.38s 0.06s cubic-bezier(0.34,1.1,0.64,1) both; }
-    .fade-up-3 { animation: fadeUp 0.38s 0.12s cubic-bezier(0.34,1.1,0.64,1) both; }
-    .pop-in { animation: popIn 0.32s cubic-bezier(0.34,1.56,0.64,1) both; }
+    .fade-up  { animation: fadeUp 0.38s cubic-bezier(0.34,1.1,0.64,1) both; }
+    .fade-up-2{ animation: fadeUp 0.38s 0.07s cubic-bezier(0.34,1.1,0.64,1) both; }
+    .fade-up-3{ animation: fadeUp 0.38s 0.14s cubic-bezier(0.34,1.1,0.64,1) both; }
+    .pop-in   { animation: popIn 0.32s cubic-bezier(0.34,1.56,0.64,1) both; }
     .slide-in { animation: slideInRight 0.35s cubic-bezier(0.34,1.1,0.64,1) both; }
-    .fade-up { animation: fadeUp 0.4s ease both; }
-    .fade-up-2 { animation: fadeUp 0.4s 0.08s ease both; }
-    .fade-up-3 { animation: fadeUp 0.4s 0.16s ease both; }
     .live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:${BRAND.green}; animation:greenPulse 2s infinite; }
     ::-webkit-scrollbar { width: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: ${dark ? "rgba(26,58,107,0.6)" : "rgba(201,146,10,0.22)"}; border-radius: 3px; }
+    input:focus, select:focus { outline: none; border-color: ${BRAND.goldLight} !important; box-shadow: 0 0 0 3px rgba(232,184,75,0.14); transition: border-color 0.2s, box-shadow 0.2s; }
+    button { transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s; }
+    button:active:not(:disabled) { transform: scale(0.97); }
+    a { transition: color 0.15s, opacity 0.15s; }
+    @keyframes navSlide { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+    .nav-active-bar { position:absolute; bottom:-1px; left:0; right:0; height:2px; background:linear-gradient(90deg,${BRAND.gold},${BRAND.goldLight}); border-radius:2px; animation:navSlide 0.2s ease; transform-origin:left; }
+    @keyframes floatLabel { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+    .form-field-enter { animation: floatLabel 0.22s cubic-bezier(0.34,1.1,0.64,1) both; }
+    @keyframes checkmarkDraw { from{stroke-dashoffset:30} to{stroke-dashoffset:0} }
     @media print {
       body * { visibility: hidden !important; }
       #printable-ticket, #printable-ticket * { visibility: visible !important; }
@@ -777,6 +783,36 @@ function RippleBtn({ onClick, style, children, disabled, className }) {
     onClick && onClick(e);
   };
   return <button ref={ref} onClick={handleClick} style={style} disabled={disabled} className={className}>{children}</button>;
+}
+
+// ─── VIEW TRANSITION ─────────────────────────────────────────────────────────
+// Wraps each view in a fade+slide transition. Uses a key to re-mount on change.
+// GPU-accelerated with will-change: transform. Zero layout shift.
+function ViewTransition({ viewKey, children }) {
+  const [displayKey, setDisplayKey] = useState(viewKey);
+  const [phase, setPhase] = useState("in"); // "in" | "out"
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (viewKey === displayKey) return;
+    // Phase 1: fade out current
+    setPhase("out");
+    timerRef.current = setTimeout(() => {
+      // Phase 2: swap content + fade in new
+      setDisplayKey(viewKey);
+      setPhase("in");
+    }, 180);
+    return () => clearTimeout(timerRef.current);
+  }, [viewKey]);
+
+  const style = {
+    willChange: "opacity, transform",
+    transition: "opacity 0.18s ease, transform 0.18s ease",
+    opacity: phase === "out" ? 0 : 1,
+    transform: phase === "out" ? "translateY(6px)" : "translateY(0)",
+  };
+
+  return <div style={style}>{children}</div>;
 }
 
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
@@ -1022,13 +1058,15 @@ export default function App() {
         )}
       </header>
 
-      <main style={{ minHeight:"calc(100vh - 64px)" }}>
-        {view === "register" && <RegisterView onRegister={handleRegister} T={T} />}
-        {view === "ticket" && (ticket
-          ? <TicketView ticket={ticket} onBack={() => setView("register")} onCreateCard={() => { window.open(`${BASE_URL}/card?prefill=${encodeURIComponent(ticket.id)}`, "_blank"); }} T={T} />
-          : <RegisterView onRegister={handleRegister} T={T} />)}
-        {view === "checkin" && <ManualCheckin onSignIn={signIn} T={T} />}
-        {view === "admin" && <AdminView regs={regs} onReset={resetAll} onDeleteDelegate={deleteDelegate} checkinOpen={checkinOpen} onToggleCheckin={async v => { setCheckinOpen(v); await fbSetCheckinOpen(v); }} T={T} />}
+      <main style={{ minHeight:"calc(100vh - 64px)", position:"relative", overflow:"hidden" }}>
+        <ViewTransition viewKey={view}>
+          {view === "register" && <RegisterView onRegister={handleRegister} T={T} />}
+          {view === "ticket" && (ticket
+            ? <TicketView ticket={ticket} onBack={() => setView("register")} onCreateCard={() => { window.open(`${BASE_URL}/card?prefill=${encodeURIComponent(ticket.id)}`, "_blank"); }} T={T} />
+            : <RegisterView onRegister={handleRegister} T={T} />)}
+          {view === "checkin" && <ManualCheckin onSignIn={signIn} T={T} />}
+          {view === "admin" && <AdminView regs={regs} onReset={resetAll} onDeleteDelegate={deleteDelegate} checkinOpen={checkinOpen} onToggleCheckin={async v => { setCheckinOpen(v); await fbSetCheckinOpen(v); }} T={T} />}
+        </ViewTransition>
       </main>
 
       <footer style={{ borderTop:`1px solid ${dark ? "rgba(26,58,107,0.4)" : "rgba(26,58,107,0.1)"}`, padding:"32px 20px 24px", textAlign:"center", background: dark ? BRAND.darkSurface : BRAND.lightBg }}>
@@ -1864,6 +1902,26 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
     else { setSortField(field); setSortDir("asc"); }
   };
 
+  // Keyboard shortcuts
+  const searchRef = useRef(null);
+  useEffect(() => {
+    if (!authed) return;
+    const handler = e => {
+      // Ctrl/Cmd + F → focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+      // Escape → clear all filters
+      if (e.key === "Escape" && (search || filterInst || filterBadge || filterDelegateType || filterCheckinStatus)) {
+        setSearch(""); setFilterInst(""); setFilterBadge("");
+        setFilterDelegateType(""); setFilterCheckinStatus("");
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [authed, search, filterInst, filterBadge, filterDelegateType, filterCheckinStatus]);
+
   const LOGIN_TIMEOUT_MS = 60 * 60 * 1000;
 
   const handleLogin = () => {
@@ -2029,10 +2087,11 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
         {/* Row 1: search + institution */}
         <input
+          ref={searchRef}
           style={{ ...inputStyle(T, false), gridColumn:"1/-1", transition:"box-shadow 0.2s" }}
-          placeholder="🔍  Search name, ID, position, institution…"
+          placeholder="🔍  Search name, ID, position, institution…  (Ctrl+F)"
           value={search} onChange={e => setSearch(e.target.value)}
-          onFocus={e => e.target.style.boxShadow = `0 0 0 3px rgba(201,146,10,0.15)`}
+          onFocus={e => e.target.style.boxShadow = "0 0 0 3px rgba(201,146,10,0.15)"}
           onBlur={e => e.target.style.boxShadow = "none"} />
         {/* Row 2: institution + badge */}
         <select style={selectStyle(T, false)} value={filterInst} onChange={e => setFilterInst(e.target.value)}>
