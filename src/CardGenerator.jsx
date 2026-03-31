@@ -39,23 +39,23 @@ async function fetchDelegate(id) {
 }
 
 // ─── QR GENERATOR ─────────────────────────────────────────────────────────────
+// Uses qrcode@1.5.4 (jsdelivr) — Promise-based toCanvas() API, no race
+// conditions, no arbitrary setTimeout hacks. Loads the script exactly once
+// via loadScript()'s existing deduplication guard.
 async function generateQRImage(text, size, darkColor = "#050d1e") {
-  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
+  await loadScript("https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js");
+  const canvas = document.createElement("canvas");
+  await window.QRCode.toCanvas(canvas, text, {
+    width: size,
+    color: { dark: darkColor, light: "#ffffff" },
+    errorCorrectionLevel: "H",
+    margin: 2,
+  });
   return new Promise((resolve) => {
-    const div = document.createElement("div");
-    div.style.cssText = "position:fixed;left:-9999px;top:-9999px;";
-    document.body.appendChild(div);
-    new window.QRCode(div, { text, width: size, height: size, colorDark: darkColor, colorLight: "#ffffff", correctLevel: window.QRCode.CorrectLevel.H });
-    setTimeout(() => {
-      const el = div.querySelector("canvas") || div.querySelector("img");
-      const src = el instanceof HTMLCanvasElement ? el.toDataURL() : el?.src;
-      document.body.removeChild(div);
-      if (!src) { resolve(null); return; }
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => resolve(null);
-      img.src = src;
-    }, 600);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = canvas.toDataURL();
   });
 }
 
