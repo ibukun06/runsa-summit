@@ -2414,14 +2414,3 @@ function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T, search = "",
     </div>
   );
 }
-                ) : (
-                  <button onClick={() => setConfirmDeleteId(r.id)} style={{ padding:"6px 14px", background:"rgba(192,57,43,0.08)", border:"1px solid rgba(192,57,43,0.3)", color:"#c0392b", borderRadius:7, fontSize:12, fontWeight:600, cursor:"pointer" }}>✕ Delete Registration</button>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
