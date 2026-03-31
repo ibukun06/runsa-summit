@@ -1299,8 +1299,6 @@ const POSITIONS_BY_TYPE = {
   "run-student": [
     "Student",
     "Departmental Representative",
-    "Association / Club Representative",
-    "Faculty Representative",
     "Chapel Executive",
   ],
   "volunteer": [
