@@ -441,7 +441,7 @@ function csvCell(val) {
 // Builds a UTF-8 BOM + CSV string that opens cleanly in both Excel and Google Sheets.
 // BOM (﻿) tells Excel the file is UTF-8 so accented/special characters render correctly.
 function buildCSV(rows) {
-  const headers = ["Ticket ID","Full Name","Delegate Type","Position","Institution","Level","Badge","Registered At","Checked In","Check-In Time"];
+  const headers = ["Ticket ID","Full Name","Delegate Type","Position","Institution","Department / Level","Badge","Registered At","Checked In","Check-In Time"];
   const lines = [headers.map(csvCell).join(",")];
   rows.forEach(r => {
     lines.push([
@@ -450,7 +450,7 @@ function buildCSV(rows) {
       r.delegateType || "",
       r.position || "",
       r.institution || "",
-      r.level || "",
+      r.department || r.level || "",
       r.badge || "",
       r.registeredAt ? new Date(r.registeredAt).toLocaleString("en-GB") : "",
       r.signedIn ? "Yes" : "No",
@@ -464,7 +464,7 @@ function buildCSV(rows) {
 // Uses the SpreadsheetML (XML-based) format supported by Excel 2007+ and Google Sheets.
 // All values are written as inline strings to avoid any date/number formatting surprises.
 function buildXLSX(rows) {
-  const headers = ["Ticket ID","Full Name","Delegate Type","Position","Institution","Level","Badge","Registered At","Checked In","Check-In Time"];
+  const headers = ["Ticket ID","Full Name","Delegate Type","Position","Institution","Department / Level","Badge","Registered At","Checked In","Check-In Time"];
 
   // Shared-string table — deduplicates strings to keep file size small
   const sst = [];
@@ -481,7 +481,7 @@ function buildXLSX(rows) {
     r.delegateType || "",
     r.position || "",
     r.institution || "",
-    r.level || "",
+    r.department || r.level || "",
     r.badge || "",
     r.registeredAt ? new Date(r.registeredAt).toLocaleString("en-GB") : "",
     r.signedIn ? "Yes" : "No",
@@ -1141,7 +1141,7 @@ function AutoCheckin({ id, onSignIn, onHome, T }) {
                   <div style={{ fontFamily:"'EB Garamond', serif", fontSize:22, fontWeight:600, color:T.text, marginBottom:6 }}>{delegate.name}</div>
                   <div style={{ fontSize:13, color:T.textMuted, marginBottom:3 }}>{delegate.position}</div>
                   <div style={{ fontSize:13, color:T.textMuted, marginBottom:3 }}>{delegate.institution}</div>
-                  {delegate.level && delegate.level !== "N/A" && <div style={{ fontSize:13, color:T.textMuted }}>{delegate.level}</div>}
+                  {(delegate.department || delegate.level) && (delegate.department || delegate.level) !== "N/A" && <div style={{ fontSize:13, color:T.textMuted }}>{delegate.department || delegate.level}</div>}
                   <div style={{ fontFamily:"monospace", fontSize:12, color:BRAND.gold, marginTop:10, letterSpacing:"0.08em" }}>{delegate.id}</div>
                   {status === "success" && <div style={{ fontSize:12, color:T.textMuted, marginTop:6 }}>Signed in at {new Date(delegate.signedInAt).toLocaleTimeString("en-GB")}</div>}
                 </div>
@@ -1258,8 +1258,27 @@ const POSITIONS_BY_TYPE = {
 
 // Which types show the institution dropdown
 const TYPE_SHOWS_INSTITUTION = { external: true };
-// Which types show the level dropdown — ONLY RUN students need level
-const TYPE_SHOWS_LEVEL = { "run-student": true };
+const DEPARTMENTS = [
+  "Accounting", "Actuarial Science", "Architecture", "Banking & Finance", 
+  "Biochemistry", "Building Technology", "Business Administration", 
+  "Christian Religious Studies", "Civil Engineering", "Computer Engineering", 
+  "Computer Science", "Cyber Security", "Economics", "Educational Management", 
+  "Educational Technology", "Electrical & Electronic Engineering", "English", 
+  "Environmental Management & Toxicology", "Estate Management", "French", 
+  "Geology", "History & International Studies", "Hospitality & Tourism Management", 
+  "Human Anatomy", "Human Physiology", "Industrial Chemistry", "Industrial Mathematics", 
+  "Industrial Mathematics & Computer Science", "Industrial Technology Education", 
+  "Information Technology", "Insurance", "Law", "Marketing", "Mass Communication", 
+  "Mechanical Engineering", "Medical Laboratory Science", "Microbiology", 
+  "Nursing Science", "Petroleum Chemistry", "Philosophy", "Physics with Electronics", 
+  "Physiotherapy", "Political Science", "Psychology", "Public Administration", 
+  "Public Health", "Quantity Surveying", "Social Work", "Sociology", 
+  "Statistics", "Statistics & Data Science", "Technical Education", 
+  "Theatre Arts", "Transport Management", "Urban & Regional Planning"
+];
+// Which types show the department dropdown — ONLY RUN students need department
+
+const TYPE_SHOWS_DEPARTMENT = { "run-student": true };
 // Fixed institution for non-external types
 const TYPE_INSTITUTION = {
   "runsa-lc-principal": "Redeemer's University, Ede",
@@ -1331,7 +1350,7 @@ function getBadge(effectiveType, dark = false) {
 
 // ─── REGISTER VIEW ────────────────────────────────────────────────────────────
 function RegisterView({ onRegister, T }) {
-  const [form, setForm] = useState({ name:"", delegateType:"", subRole:"", institution:"", institutionOther:"", level:"", position:"" });
+  const [form, setForm] = useState({ name:"", delegateType:"", subRole:"", institution:"", institutionOther:"", department:"", position:"" });
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
@@ -1344,7 +1363,7 @@ function RegisterView({ onRegister, T }) {
 
   const showSubRole      = dt === "internal";
   const showInstitution  = !!TYPE_SHOWS_INSTITUTION[effectiveType];
-  const showLevel        = !!TYPE_SHOWS_LEVEL[effectiveType];
+  const showDepartment   = !!TYPE_SHOWS_DEPARTMENT[effectiveType];
   const showPosition     = !!effectiveType && effectiveType !== "internal";
   const positions        = effectiveType ? (POSITIONS_BY_TYPE[effectiveType] || []) : [];
 
@@ -1357,7 +1376,7 @@ function RegisterView({ onRegister, T }) {
       if (!form.institution)        e.institution   = "Please select your institution";
       if (form.institution === "Others" && !form.institutionOther.trim()) e.institutionOther = "Please enter your institution name";
     }
-    if (showLevel && !form.level)   e.level         = "Please select your level";
+    if (showDepartment && !form.department) e.department = "Please select your department";
     if (showPosition && !form.position) e.position  = "Please select your position";
     return e;
   };
@@ -1369,21 +1388,19 @@ function RegisterView({ onRegister, T }) {
     const resolvedInstitution = showInstitution
       ? (form.institution === "Others" ? form.institutionOther.trim() : form.institution)
       : (TYPE_INSTITUTION[effectiveType] || "");
-    const resolvedLevel = effectiveType === "run-student" && form.level ? form.level : "N/A";
+    const resolvedDepartment = effectiveType === "run-student" && form.department ? form.department : "N/A";
     const badgeObj = getBadge(effectiveType);
     const badge = badgeObj ? badgeObj.label : "";
     await onRegister({
       ...form,
-      delegateType: effectiveType, // store the effective type (not "internal")
+      delegateType: effectiveType,
       institution: resolvedInstitution,
-      level: resolvedLevel,
+      department: resolvedDepartment,
       badge,
     });
     setBusy(false);
   };
-
-  const levels = ["100 Level","200 Level","300 Level","400 Level","500 Level","600 Level"];
-
+  
   // Banner messages per effective type
   const banners = {
     "runsa-lc-principal": { icon:"🏛️", bg:"rgba(13,31,60,0.08)", border:T.border, color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as a <strong>Current LC Principal Officer</strong> — institution auto-set to Redeemer's University." },
@@ -1498,13 +1515,13 @@ function RegisterView({ onRegister, T }) {
               </FormField>
             )}
 
-            {/* Level (External + RUN Student) */}
-            {showLevel && (
-              <FormField label="Level" error={errors.level} T={T}>
-                <select style={selectStyle(T, !!errors.level)} value={form.level}
-                  onChange={e => { set("level", e.target.value); clrErr("level"); }}>
-                  <option value="">— Select Level —</option>
-                  {levels.map(l => <option key={l}>{l}</option>)}
+            {/* Department (RUN Student) */}
+            {showDepartment && (
+              <FormField label="Department" error={errors.department} T={T}>
+                <select style={selectStyle(T, !!errors.department)} value={form.department}
+                  onChange={e => { set("department", e.target.value); clrErr("department"); }}>
+                  <option value="">— Select Department —</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </FormField>
             )}
@@ -1768,7 +1785,7 @@ function TicketView({ ticket, onBack, onCreateCard, T }) {
               <div style={{ fontFamily:"'Cinzel', serif", fontSize:"clamp(18px,3vw,24px)", fontWeight:700, color:BRAND.navyDark, lineHeight:1.2, textTransform:"uppercase" }}>{ticket.name}</div>
               <div style={{ fontSize:14, color:"#444", fontWeight:500 }}>{ticket.position}</div>
               {ticket.institution && <div style={{ fontSize:14, color:"#555" }}>{ticket.institution}</div>}
-              {ticket.delegateType === "run-student" && ticket.level && ticket.level !== "N/A" && <div style={{ fontSize:13, color:"#777" }}>{ticket.level}</div>}
+              {ticket.delegateType === "run-student" && (ticket.department || ticket.level) && (ticket.department || ticket.level) !== "N/A" && <div style={{ fontSize:13, color:"#777" }}>{ticket.department || ticket.level}</div>}
               <div style={{ fontSize:11, color:"#999" }}>Registered {new Date(ticket.registeredAt).toLocaleString("en-GB", { day:"numeric", month:"long", year:"numeric", hour:"2-digit", minute:"2-digit" })}</div>
             </div>
             <div style={{ textAlign:"center", flexShrink:0 }}>
@@ -2272,10 +2289,12 @@ function HighlightText({ text, query, style }) {
 
 function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T, search = "", sortField, sortDir, onSort }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  
   const SortIcon = ({ field }) => {
     const active = sortField === field;
     return <span style={{ marginLeft:4, opacity: active ? 1 : 0.3, fontSize:9 }}>{active && sortDir === "desc" ? "▼" : "▲"}</span>;
   };
+  
   const SortTh = ({ field, label, style }) => (
     <th onClick={() => onSort && onSort(field)}
       style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700,
@@ -2313,7 +2332,7 @@ function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T, search = "",
               <th style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.09em", borderBottom:`1px solid ${T.border}`, whiteSpace:"nowrap" }}>ID</th>
               <SortTh field="name" label="Name" />
               <SortTh field="institution" label="Institution" />
-              <th style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.09em", borderBottom:`1px solid ${T.border}` }}>Level</th>
+              <th style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.09em", borderBottom:`1px solid ${T.border}` }}>Department</th>
               <SortTh field="position" label="Position" />
               <th style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.09em", borderBottom:`1px solid ${T.border}` }}>Badge</th>
               <SortTh field="registeredAt" label="Date" />
@@ -2328,7 +2347,7 @@ function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T, search = "",
                 <td style={{ padding:"12px 16px", fontFamily:"monospace", fontSize:12, color:BRAND.gold, letterSpacing:"0.08em", whiteSpace:"nowrap" }}>{r.id}</td>
                 <td style={{ padding:"12px 16px", fontWeight:600, color:T.text }}><HighlightText text={r.name} query={search} /></td>
                 <td style={{ padding:"12px 16px", fontSize:13, color:T.textMuted }}>{r.institution}</td>
-                <td style={{ padding:"12px 16px", fontSize:13, color:T.textMuted }}>{r.level}</td>
+                <td style={{ padding:"12px 16px", fontSize:13, color:T.textMuted }}>{r.department || r.level}</td>
                 <td style={{ padding:"12px 16px", fontSize:13, color:T.textMuted }}>{r.position}</td>
                 <td style={{ padding:"8px 16px" }}><BadgeChip badge={r.badge} /></td>
                 <td style={{ padding:"12px 16px", fontSize:12, color:T.textMuted, whiteSpace:"nowrap" }}>{new Date(r.registeredAt).toLocaleDateString("en-GB")}</td>
@@ -2368,7 +2387,7 @@ function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T, search = "",
             <div style={{ fontFamily:"'Cinzel', serif", fontSize:16, fontWeight:700, color:T.text, marginBottom:4 }}>{r.name}</div>
             {r.badge && <div style={{ marginBottom:6 }}><BadgeChip badge={r.badge} /></div>}
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"4px 12px", marginBottom:8 }}>
-              {[["Institution", r.institution],["Level", r.level && r.level !== "N/A" ? r.level : "—"],["Position", r.position],["Registered", new Date(r.registeredAt).toLocaleDateString("en-GB")]].map(([label, value]) => (
+              {[["Institution", r.institution],["Department", (r.department || r.level) && (r.department || r.level) !== "N/A" ? (r.department || r.level) : "—"],["Position", r.position],["Registered", new Date(r.registeredAt).toLocaleDateString("en-GB")]].map(([label, value]) => (
                 <div key={label}>
                   <div style={{ fontSize:9, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:600 }}>{label}</div>
                   <div style={{ fontSize:12, color:T.textMuted, marginTop:1 }}>{value}</div>
@@ -2384,6 +2403,17 @@ function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T, search = "",
                     <button onClick={() => { onDeleteDelegate(r.id); setConfirmDeleteId(null); }} style={{ padding:"5px 12px", background:"#c0392b", border:"none", color:"#fff", borderRadius:6, fontSize:12, fontWeight:700, cursor:"pointer" }}>Yes, Delete</button>
                     <button onClick={() => setConfirmDeleteId(null)} style={{ padding:"5px 10px", background:"transparent", border:`1px solid ${T.border}`, color:T.textMuted, borderRadius:6, fontSize:12, cursor:"pointer" }}>Cancel</button>
                   </div>
+                ) : (
+                  <button onClick={() => setConfirmDeleteId(r.id)} style={{ padding:"6px 14px", background:"rgba(192,57,43,0.08)", border:"1px solid rgba(192,57,43,0.3)", color:"#c0392b", borderRadius:7, fontSize:12, fontWeight:600, cursor:"pointer" }}>✕ Delete Registration</button>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
                 ) : (
                   <button onClick={() => setConfirmDeleteId(r.id)} style={{ padding:"6px 14px", background:"rgba(192,57,43,0.08)", border:"1px solid rgba(192,57,43,0.3)", color:"#c0392b", borderRadius:7, fontSize:12, fontWeight:600, cursor:"pointer" }}>✕ Delete Registration</button>
                 )}
