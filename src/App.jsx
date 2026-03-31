@@ -1578,23 +1578,13 @@ function RegisterView({ onRegister, T }) {
             )}
 
             {/* Department (Departmental Reps Only) */}
+            {/* Department (Departmental Reps Only) */}
             {showDepartment && (
               <FormField label="Department" error={errors.department || errors.departmentOther} T={T}>
-                <select style={selectStyle(T, !!errors.department)} value={form.department}
-                  onChange={e => { set("department", e.target.value); clrErr("department"); clrErr("departmentOther"); }}>
-                  <option value="">— Select Department —</option>
-                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-                {form.department === "Others" && (
-                  <input 
-                    style={{ ...inputStyle(T, !!errors.departmentOther), marginTop:10 }} 
-                    placeholder="Type your department name" 
-                    value={form.departmentOther || ""} 
-                    onChange={e => { set("departmentOther", e.target.value); clrErr("departmentOther"); }} 
-                  />
-                )}
+                {/* ... inside the form field ... */}
               </FormField>
             )}
+          </div>
 
           <button onClick={submit} disabled={busy} style={{ width:"100%", padding:"14px 20px", background: busy ? "#888" : `linear-gradient(135deg, ${BRAND.gold} 0%, ${BRAND.navy} 120%)`, color:"#fff", border:"none", borderRadius:10, fontSize:15, fontWeight:600, cursor: busy ? "not-allowed" : "pointer", fontFamily:"'Cinzel', serif", letterSpacing:"0.05em", boxShadow: busy ? "none" : `0 4px 20px rgba(201,146,10,0.35)`, transition:"all 0.2s" }}>
             {busy ? "Generating your ticket…" : "Register & Get My Ticket →"}
