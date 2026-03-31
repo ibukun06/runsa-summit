@@ -616,43 +616,67 @@ function loadQRLib() {
   });
 }
 
+// ─── QR CODE ──────────────────────────────────────────────────────────────────
 function QRCode({ data, size = 160, darkColor = "#0d1f3c" }) {
-  const canvasRef = useRef(null);
+  const ref = useRef(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!data) return;
-    let cancelled = false;
+    if (!data || !ref.current) return;
+    
+    // Flag to prevent race conditions if the component unmounts quickly
+    let isMounted = true; 
     setReady(false);
 
-    (async () => {
-      try {
-        await loadQRLib();
-        if (cancelled || !canvasRef.current) return;
-        await window.QRCode.toCanvas(canvasRef.current, data, {
-          width: size,
-          color: { dark: darkColor, light: "#ffffff" },
-          errorCorrectionLevel: "H",
-          margin: 2,
+    const draw = () => {
+      if (!isMounted || !ref.current) return;
+      
+      // CRITICAL FIX: Aggressively clear the container before drawing
+      ref.current.innerHTML = ""; 
+      
+      if (window.QRCode) {
+        new window.QRCode(ref.current, { 
+          text: data, 
+          width: size, 
+          height: size, 
+          colorDark: darkColor, 
+          colorLight: "#ffffff", 
+          correctLevel: window.QRCode.CorrectLevel.H 
         });
-        if (!cancelled) setReady(true);
-      } catch (e) {
-        console.error("QR render error:", e);
+        setReady(true);
       }
-    })();
+    };
 
-    return () => { cancelled = true; };
+    const existingScript = document.getElementById("qr-lib");
+
+    if (window.QRCode) {
+      draw();
+    } else if (existingScript) {
+      existingScript.addEventListener("load", draw);
+    } else {
+      const script = document.createElement("script");
+      script.id = "qr-lib";
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+      script.onload = draw;
+      document.head.appendChild(script);
+    }
+
+    // CRITICAL FIX: The Cleanup Function (This was missing from your file!)
+    return () => {
+      isMounted = false;
+      if (existingScript) {
+        existingScript.removeEventListener("load", draw);
+      }
+      if (ref.current) {
+        ref.current.innerHTML = ""; 
+      }
+    };
   }, [data, size, darkColor]);
 
   return (
     <div style={{ position:"relative", width:size, height:size, margin:"0 auto" }}>
-      {!ready && (
-        <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"#f0f0f0", borderRadius:6, fontSize:11, color:"#888" }}>
-          Generating…
-        </div>
-      )}
-      <canvas ref={canvasRef} width={size} height={size}
-        style={{ display: ready ? "block" : "none", borderRadius:4 }} />
+      {!ready && <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"#f0f0f0", borderRadius:6, fontSize:11, color:"#888" }}>Generating…</div>}
+      <div ref={ref} />
     </div>
   );
 }
@@ -1310,9 +1334,7 @@ const DEPARTMENTS = [
   "Statistics", "Statistics & Data Science", "Technical Education", 
   "Theatre Arts", "Transport Management", "Urban & Regional Planning"
 ];
-// Which types show the department dropdown — ONLY RUN students need department
 
-const TYPE_SHOWS_DEPARTMENT = { "run-student": true };
 // Fixed institution for non-external types
 const TYPE_INSTITUTION = {
   "runsa-lc-principal": "Redeemer's University, Ede",
@@ -1397,7 +1419,8 @@ function RegisterView({ onRegister, T }) {
 
   const showSubRole      = dt === "internal";
   const showInstitution  = !!TYPE_SHOWS_INSTITUTION[effectiveType];
-  const showDepartment   = !!TYPE_SHOWS_DEPARTMENT[effectiveType];
+  // Only show department if they are a RUN student AND their position is exactly "Departmental Representative"
+  const showDepartment   = effectiveType === "run-student" && form.position === "Departmental Representative";
   const showPosition     = !!effectiveType && effectiveType !== "internal";
   const positions        = effectiveType ? (POSITIONS_BY_TYPE[effectiveType] || []) : [];
 
@@ -1410,7 +1433,10 @@ function RegisterView({ onRegister, T }) {
       if (!form.institution)        e.institution   = "Please select your institution";
       if (form.institution === "Others" && !form.institutionOther.trim()) e.institutionOther = "Please enter your institution name";
     }
-    if (showDepartment && !form.department) e.department = "Please select your department";
+    if (showDepartment) {
+      if (!form.department)         e.department    = "Please select your department";
+      if (form.department === "Others" && !form.departmentOther.trim()) e.departmentOther = "Please enter your department name";
+    }
     if (showPosition && !form.position) e.position  = "Please select your position";
     return e;
   };
@@ -1422,7 +1448,11 @@ function RegisterView({ onRegister, T }) {
     const resolvedInstitution = showInstitution
       ? (form.institution === "Others" ? form.institutionOther.trim() : form.institution)
       : (TYPE_INSTITUTION[effectiveType] || "");
-    const resolvedDepartment = effectiveType === "run-student" && form.department ? form.department : "N/A";
+      
+    // Only resolve the department if the field was actually shown (i.e. they are a Dept Rep)
+    const resolvedDepartment = showDepartment && form.department
+      ? (form.department === "Others" ? form.departmentOther.trim() : form.department)
+      : "N/A";
     const badgeObj = getBadge(effectiveType);
     const badge = badgeObj ? badgeObj.label : "";
     await onRegister({
@@ -1549,17 +1579,24 @@ function RegisterView({ onRegister, T }) {
               </FormField>
             )}
 
-            {/* Department (RUN Student) */}
+            {/* Department (Departmental Reps Only) */}
             {showDepartment && (
-              <FormField label="Department" error={errors.department} T={T}>
+              <FormField label="Department" error={errors.department || errors.departmentOther} T={T}>
                 <select style={selectStyle(T, !!errors.department)} value={form.department}
-                  onChange={e => { set("department", e.target.value); clrErr("department"); }}>
+                  onChange={e => { set("department", e.target.value); clrErr("department"); clrErr("departmentOther"); }}>
                   <option value="">— Select Department —</option>
                   {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
+                {form.department === "Others" && (
+                  <input 
+                    style={{ ...inputStyle(T, !!errors.departmentOther), marginTop:10 }} 
+                    placeholder="Type your department name" 
+                    value={form.departmentOther || ""} 
+                    onChange={e => { set("departmentOther", e.target.value); clrErr("departmentOther"); }} 
+                  />
+                )}
               </FormField>
             )}
-          </div>
 
           <button onClick={submit} disabled={busy} style={{ width:"100%", padding:"14px 20px", background: busy ? "#888" : `linear-gradient(135deg, ${BRAND.gold} 0%, ${BRAND.navy} 120%)`, color:"#fff", border:"none", borderRadius:10, fontSize:15, fontWeight:600, cursor: busy ? "not-allowed" : "pointer", fontFamily:"'Cinzel', serif", letterSpacing:"0.05em", boxShadow: busy ? "none" : `0 4px 20px rgba(201,146,10,0.35)`, transition:"all 0.2s" }}>
             {busy ? "Generating your ticket…" : "Register & Get My Ticket →"}
