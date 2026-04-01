@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+.import { useState, useRef, useEffect } from "react";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const REG_SITE = "https://legislative-summit-registration.vercel.app";
@@ -152,13 +152,14 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
     const tv = ctx.createLinearGradient(0, 0, 0, 180);
     tv.addColorStop(0, "rgba(0,0,0,0.55)"); tv.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 180);
-    // Bottom fade — starts at 55% into photo (not 38%) to preserve the face
-    // The blend zone is compact so text below sits cleanly on the BG colour
-    const bv = ctx.createLinearGradient(0, PHOTO_H * 0.55, 0, PHOTO_H);
+    // Bottom fade — pushed down to 82% into photo zone to keep the face crystal clear
+    const FADE_START = 0.82;
+    const bv = ctx.createLinearGradient(0, PHOTO_H * FADE_START, 0, PHOTO_H);
     bv.addColorStop(0, "rgba(0,0,0,0)");
-    bv.addColorStop(0.5, dark ? "rgba(7,17,30,0.65)" : "rgba(244,246,251,0.65)");
+    bv.addColorStop(0.7, dark ? "rgba(7,17,30,0.35)" : "rgba(244,246,251,0.35)"); // Greatly reduced mid-intensity
     bv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(244,246,251,1)");
-    ctx.fillStyle = bv; ctx.fillRect(0, PHOTO_H * 0.55, CW, PHOTO_H * 0.45);
+    ctx.fillStyle = bv; 
+    ctx.fillRect(0, PHOTO_H * FADE_START, CW, PHOTO_H * (1 - FADE_START));
   } else {
     // Geometric placeholder with initials
     const bgMesh = ctx.createLinearGradient(0, 0, CW, PHOTO_H);
