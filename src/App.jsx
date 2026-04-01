@@ -591,82 +591,34 @@ function downloadCSV(rows, filename) {
 }
 
 // ─── QR CODE ──────────────────────────────────────────────────────────────────
-let _qrLibState = "idle"; // "idle" | "loading" | "ready" | "error"
-const _qrLibQueue = [];
-
-function loadQRLib() {
-  return new Promise((resolve, reject) => {
-    if (_qrLibState === "ready" && window.QRCode?.toCanvas) { resolve(); return; }
-    if (_qrLibState === "error") { reject(new Error("QR lib failed to load")); return; }
-    
-    // Fast-path: check if CardGenerator or a previous render already loaded it
-    if (window.QRCode && typeof window.QRCode.toCanvas === "function") {
-      _qrLibState = "ready";
-      resolve(); return;
-    }
-
-    _qrLibQueue.push({ resolve, reject });
-    if (_qrLibState === "loading") return; 
-    _qrLibState = "loading";
-
-    // Use the exact same modern library as CardGenerator
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js";
-    s.onload = () => {
-      _qrLibState = "ready";
-      _qrLibQueue.splice(0).forEach(cb => cb.resolve());
-    };
-    s.onerror = (e) => {
-      _qrLibState = "error";
-      _qrLibQueue.splice(0).forEach(cb => cb.reject(e));
-    };
-    document.head.appendChild(s);
-  });
-}
-
 function QRCode({ data, size = 160, darkColor = "#0d1f3c" }) {
-  const [imgSrc, setImgSrc] = useState(null);
-
+  const ref = useRef(null);
+  const [ready, setReady] = useState(false);
   useEffect(() => {
-    if (!data) return;
-    let cancelled = false;
-    setImgSrc(null); // Reset if data changes
-
-    (async () => {
-      try {
-        await loadQRLib(); 
-        if (cancelled) return;
-
-        // 1. Build the QR code blazing-fast in off-screen memory
-        const canvas = document.createElement("canvas");
-        await window.QRCode.toCanvas(canvas, data, {
-          width: size,
-          color: { dark: darkColor, light: "#ffffff" },
-          errorCorrectionLevel: "H",
-          margin: 2,
-        });
-
-        // 2. Convert to a standard image URL (Immune to iOS Safari canvas bugs)
-        if (!cancelled) {
-          setImgSrc(canvas.toDataURL("image/png"));
-        }
-      } catch (e) {
-        console.error("QR render error:", e);
+    if (!data || !ref.current) return;
+    ref.current.innerHTML = "";
+    setReady(false);
+    const draw = () => {
+      if (window.QRCode && ref.current) {
+        ref.current.innerHTML = "";
+        new window.QRCode(ref.current, { text: data, width: size, height: size, colorDark: darkColor, colorLight: "#ffffff", correctLevel: window.QRCode.CorrectLevel.H });
+        setReady(true);
       }
-    })();
-
-    return () => { cancelled = true; };
+    };
+    const s = document.getElementById("qr-lib");
+    if (s && window.QRCode) draw();
+    else if (!s) {
+      const el = document.createElement("script");
+      el.id = "qr-lib";
+      el.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+      el.onload = draw;
+      document.head.appendChild(el);
+    } else s.addEventListener("load", draw);
   }, [data, size, darkColor]);
-
   return (
     <div style={{ position:"relative", width:size, height:size, margin:"0 auto" }}>
-      {!imgSrc ? (
-        <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"#f0f0f0", borderRadius:6, fontSize:11, color:"#888" }}>
-          Generating…
-        </div>
-      ) : (
-        <img src={imgSrc} alt="QR Code" style={{ width: size, height: size, display: "block", borderRadius: 4 }} />
-      )}
+      {!ready && <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"#f0f0f0", borderRadius:6, fontSize:11, color:"#888" }}>Generating…</div>}
+      <div ref={ref} />
     </div>
   );
 }
