@@ -1,4 +1,4 @@
-.import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const REG_SITE = "https://legislative-summit-registration.vercel.app";
