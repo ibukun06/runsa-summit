@@ -617,66 +617,74 @@ function loadQRLib() {
 }
 
 // ─── QR CODE ──────────────────────────────────────────────────────────────────
+// Uses qrcode@1.5.4 toCanvas() API — the SAME library as CardGenerator.
+// This eliminates the window.QRCode conflict that caused the "Generating…"
+// spinner to hang forever when both pages were visited in the same session.
+// The old qrcodejs/1.0.0 used a constructor API with CorrectLevel which is
+// incompatible with 1.5.4's toCanvas API — never load both in the same page.
+const QR_LIB_SRC = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js";
+
+function ensureQRLib() {
+  return new Promise((resolve, reject) => {
+    // Already loaded and is the right version (has toCanvas)
+    if (window.QRCode && typeof window.QRCode.toCanvas === "function") {
+      resolve(); return;
+    }
+    // Script tag already in DOM — attach listeners
+    const existing = document.querySelector(`script[src="${QR_LIB_SRC}"]`);
+    if (existing) {
+      existing.addEventListener("load", resolve);
+      existing.addEventListener("error", reject);
+      // Guard: script may have already loaded before we attached listeners
+      if (window.QRCode && typeof window.QRCode.toCanvas === "function") {
+        resolve();
+      }
+      return;
+    }
+    // First load
+    const s = document.createElement("script");
+    s.src = QR_LIB_SRC;
+    s.onload = resolve; s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
 function QRCode({ data, size = 160, darkColor = "#0d1f3c" }) {
-  const ref = useRef(null);
+  const canvasRef = useRef(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!data || !ref.current) return;
-    
-    // Flag to prevent race conditions if the component unmounts quickly
-    let isMounted = true; 
+    if (!data || !canvasRef.current) return;
+    let cancelled = false;
     setReady(false);
 
-    const draw = () => {
-      if (!isMounted || !ref.current) return;
-      
-      // CRITICAL FIX: Aggressively clear the container before drawing
-      ref.current.innerHTML = ""; 
-      
-      if (window.QRCode) {
-        new window.QRCode(ref.current, { 
-          text: data, 
-          width: size, 
-          height: size, 
-          colorDark: darkColor, 
-          colorLight: "#ffffff", 
-          correctLevel: window.QRCode.CorrectLevel.H 
+    (async () => {
+      try {
+        await ensureQRLib();
+        if (cancelled || !canvasRef.current) return;
+        await window.QRCode.toCanvas(canvasRef.current, data, {
+          width: size,
+          color: { dark: darkColor, light: "#ffffff" },
+          errorCorrectionLevel: "H",
+          margin: 2,
         });
-        setReady(true);
+        if (!cancelled) setReady(true);
+      } catch (e) {
+        console.error("QR render error:", e);
       }
-    };
+    })();
 
-    const existingScript = document.getElementById("qr-lib");
-
-    if (window.QRCode) {
-      draw();
-    } else if (existingScript) {
-      existingScript.addEventListener("load", draw);
-    } else {
-      const script = document.createElement("script");
-      script.id = "qr-lib";
-      script.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
-      script.onload = draw;
-      document.head.appendChild(script);
-    }
-
-    // CRITICAL FIX: The Cleanup Function (This was missing from your file!)
-    return () => {
-      isMounted = false;
-      if (existingScript) {
-        existingScript.removeEventListener("load", draw);
-      }
-      if (ref.current) {
-        ref.current.innerHTML = ""; 
-      }
-    };
+    return () => { cancelled = true; };
   }, [data, size, darkColor]);
 
   return (
     <div style={{ position:"relative", width:size, height:size, margin:"0 auto" }}>
-      {!ready && <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"#f0f0f0", borderRadius:6, fontSize:11, color:"#888" }}>Generating…</div>}
-      <div ref={ref} />
+      {!ready && (
+        <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"#f0f0f0", borderRadius:6, fontSize:11, color:"#888" }}>
+          Generating…
+        </div>
+      )}
+      <canvas ref={canvasRef} style={{ display: ready ? "block" : "none", borderRadius:4 }} />
     </div>
   );
 }

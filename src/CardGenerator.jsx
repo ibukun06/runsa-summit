@@ -40,27 +40,77 @@ async function fetchDelegate(id) {
 
 // ─── QR GENERATOR ─────────────────────────────────────────────────────────────
 // Uses qrcode@1.5.4 (jsdelivr) — same library as App.jsx QRCode component.
-// CRITICAL: Always checks for the toCanvas API before calling it.
-// If qrcodejs/1.0.0 (old constructor API) was loaded by App.jsx first,
-// window.QRCode.toCanvas will be undefined — this guard catches that case
-// and forces a fresh load of the correct 1.5.4 version.
+//
+// FIX (v5): Replaced the old double-load / "?v=force" retry pattern which
+// caused a race condition on slow connections (3G / poor signal):
+//   • loadScript() returned immediately when the <script> tag already existed
+//     in the DOM (loaded by App.jsx), but window.QRCode.toCanvas was still
+//     undefined if the script hadn't finished initialising yet.
+//   • The "last-resort" ?v=force append was async — toCanvas() was called
+//     before it resolved, throwing a TypeError with no message, which the
+//     outer handleGenerate catch rendered as "unknown error".
+//
+// The fix mirrors App.jsx's own ensureQRLib() approach: a single promise
+// queue so all concurrent callers wait on ONE script load, with an explicit
+// check for an existing <script> tag that attaches load/error listeners
+// rather than resolving immediately.
 const _QR_SRC_CG = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js";
+let _cgQrState = "idle"; // "idle" | "loading" | "ready" | "error"
+const _cgQrQueue = [];
+
+function ensureQRLibCG() {
+  return new Promise((resolve, reject) => {
+    // Already loaded and is the correct version (has toCanvas)
+    if (_cgQrState === "ready" && typeof window.QRCode?.toCanvas === "function") {
+      resolve(); return;
+    }
+    if (_cgQrState === "error") { reject(new Error("QR lib failed to load")); return; }
+    _cgQrQueue.push({ resolve, reject });
+    if (_cgQrState === "loading") return; // already in-flight — queued above
+    _cgQrState = "loading";
+    // Fast-path: the right version is already on window (e.g. loaded by App.jsx)
+    if (typeof window.QRCode?.toCanvas === "function") {
+      _cgQrState = "ready";
+      _cgQrQueue.splice(0).forEach(cb => cb.resolve());
+      return;
+    }
+    // Script tag already in the DOM — attach listeners instead of resolving instantly.
+    // This is the critical fix: the old loadScript() returned immediately when the
+    // tag existed, even if window.QRCode wasn't ready yet.
+    const existing = document.querySelector(`script[src="${_QR_SRC_CG}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => {
+        _cgQrState = "ready";
+        _cgQrQueue.splice(0).forEach(cb => cb.resolve());
+      });
+      existing.addEventListener("error", (e) => {
+        _cgQrState = "error";
+        _cgQrQueue.splice(0).forEach(cb => cb.reject(e));
+      });
+      // If the script already fired load before we attached (race), check again
+      if (typeof window.QRCode?.toCanvas === "function") {
+        _cgQrState = "ready";
+        _cgQrQueue.splice(0).forEach(cb => cb.resolve());
+      }
+      return;
+    }
+    // First load ever
+    const s = document.createElement("script");
+    s.src = _QR_SRC_CG;
+    s.onload = () => {
+      _cgQrState = "ready";
+      _cgQrQueue.splice(0).forEach(cb => cb.resolve());
+    };
+    s.onerror = (e) => {
+      _cgQrState = "error";
+      _cgQrQueue.splice(0).forEach(cb => cb.reject(e));
+    };
+    document.head.appendChild(s);
+  });
+}
+
 async function generateQRImage(text, size, darkColor = "#050d1e") {
-  // If toCanvas is missing, the wrong library version is loaded — reload the right one
-  if (!window.QRCode || typeof window.QRCode.toCanvas !== "function") {
-    await loadScript(_QR_SRC_CG);
-  }
-  // If still wrong after load (e.g. old script already locked window.QRCode),
-  // forcibly append the correct version under a temp name and swap it back
-  if (typeof window.QRCode?.toCanvas !== "function") {
-    // Last-resort: create a fresh script and wait
-    await new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = _QR_SRC_CG + "?v=force";
-      s.onload = resolve; s.onerror = reject;
-      document.head.appendChild(s);
-    });
-  }
+  await ensureQRLibCG();
   const canvas = document.createElement("canvas");
   await window.QRCode.toCanvas(canvas, text, {
     width: size,
@@ -175,9 +225,13 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   ctx.beginPath(); ctx.moveTo(0, HDR_H); ctx.lineTo(CW, HDR_H); ctx.stroke();
 
   // Logo (left, inside header band — 36px radius so fits in 68px)
+  // Use absolute URL so the logo loads whether CardGenerator is on the same
+  // origin as the registration site or a separate Vercel deployment.
   const LR = 28, LX = 50, LY = HDR_H / 2;
   try {
-    const logo = await loadImg("/legislative-council-logo.jpg");
+    const logoSrc = document.querySelector("img[src*='legislative-council-logo']")?.src
+      || `${REG_SITE}/legislative-council-logo.jpg`;
+    const logo = await loadImg(logoSrc);
     ctx.save();
     ctx.shadowColor = "rgba(232,184,75,0.5)"; ctx.shadowBlur = 8;
     ctx.strokeStyle = "rgba(232,184,75,0.85)"; ctx.lineWidth = 2;
@@ -518,7 +572,9 @@ async function renderVolunteerTag(delegate) {
   const LOGO_Y = HEADER_H + 52;
   const LOGO_R = 36;
   try {
-    const lcLogo = await loadImg("/legislative-council-logo.jpg");
+    const logoSrc = document.querySelector("img[src*='legislative-council-logo']")?.src
+      || `${REG_SITE}/legislative-council-logo.jpg`;
+    const lcLogo = await loadImg(logoSrc);
     ctx.save(); ctx.beginPath(); ctx.arc(CW/2, LOGO_Y, LOGO_R, 0, Math.PI*2); ctx.clip();
     ctx.drawImage(lcLogo, CW/2-LOGO_R, LOGO_Y-LOGO_R, LOGO_R*2, LOGO_R*2); ctx.restore();
     // Ring glow
