@@ -591,17 +591,25 @@ function downloadCSV(rows, filename) {
 }
 
 // ─── QR CODE ──────────────────────────────────────────────────────────────────
-// Load qrcode@1.5.4 exactly once, queue any concurrent callers so they all
-// resolve together without spawning duplicate <script> tags.
 let _qrLibState = "idle"; // "idle" | "loading" | "ready" | "error"
 const _qrLibQueue = [];
+
 function loadQRLib() {
   return new Promise((resolve, reject) => {
     if (_qrLibState === "ready" && window.QRCode?.toCanvas) { resolve(); return; }
     if (_qrLibState === "error") { reject(new Error("QR lib failed to load")); return; }
+    
+    // Fast-path: check if CardGenerator or a previous render already loaded it
+    if (window.QRCode && typeof window.QRCode.toCanvas === "function") {
+      _qrLibState = "ready";
+      resolve(); return;
+    }
+
     _qrLibQueue.push({ resolve, reject });
-    if (_qrLibState === "loading") return; // already in flight — queued above
+    if (_qrLibState === "loading") return; 
     _qrLibState = "loading";
+
+    // Use the exact same modern library as CardGenerator
     const s = document.createElement("script");
     s.src = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js";
     s.onload = () => {
@@ -616,31 +624,21 @@ function loadQRLib() {
   });
 }
 
-// ─── QR CODE ──────────────────────────────────────────────────────────────────
-// Uses qrcode@1.5.4 toCanvas() API — the SAME library as CardGenerator.
-// This eliminates the window.QRCode conflict that caused the "Generating…"
-// spinner to hang forever when both pages were visited in the same session.
-// The old qrcodejs/1.0.0 used a constructor API with CorrectLevel which is
-// incompatible with 1.5.4's toCanvas API — never load both in the same page.
-
 function QRCode({ data, size = 160, darkColor = "#0d1f3c" }) {
   const [imgSrc, setImgSrc] = useState(null);
 
   useEffect(() => {
     if (!data) return;
     let cancelled = false;
-    setImgSrc(null);
+    setImgSrc(null); // Reset if data changes
 
     (async () => {
       try {
-        // 1. Load the library
         await loadQRLib(); 
         if (cancelled) return;
 
-        // 2. Create an off-screen canvas (Exactly like CardGenerator)
+        // 1. Build the QR code blazing-fast in off-screen memory
         const canvas = document.createElement("canvas");
-        
-        // 3. Draw the QR code to our off-screen canvas
         await window.QRCode.toCanvas(canvas, data, {
           width: size,
           color: { dark: darkColor, light: "#ffffff" },
@@ -648,8 +646,8 @@ function QRCode({ data, size = 160, darkColor = "#0d1f3c" }) {
           margin: 2,
         });
 
+        // 2. Convert to a standard image URL (Immune to iOS Safari canvas bugs)
         if (!cancelled) {
-          // 4. Convert it to a standard image URL and save it to state
           setImgSrc(canvas.toDataURL("image/png"));
         }
       } catch (e) {
@@ -672,7 +670,6 @@ function QRCode({ data, size = 160, darkColor = "#0d1f3c" }) {
     </div>
   );
 }
-
 // ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
 function GlobalStyles({ dark }) {
   const css = `
