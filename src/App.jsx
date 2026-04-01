@@ -624,27 +624,34 @@ function loadQRLib() {
 // incompatible with 1.5.4's toCanvas API — never load both in the same page.
 
 function QRCode({ data, size = 160, darkColor = "#0d1f3c" }) {
-  const canvasRef = useRef(null);
-  const [ready, setReady] = useState(false);
+  const [imgSrc, setImgSrc] = useState(null);
 
   useEffect(() => {
-    if (!data || !canvasRef.current) return;
+    if (!data) return;
     let cancelled = false;
-    setReady(false);
+    setImgSrc(null);
 
     (async () => {
       try {
-        // CRITICAL FIX: Use the robust loadQRLib() instead of ensureQRLib()
-        await loadQRLib();
+        // 1. Load the library
+        await loadQRLib(); 
+        if (cancelled) return;
+
+        // 2. Create an off-screen canvas (Exactly like CardGenerator)
+        const canvas = document.createElement("canvas");
         
-        if (cancelled || !canvasRef.current) return;
-        await window.QRCode.toCanvas(canvasRef.current, data, {
+        // 3. Draw the QR code to our off-screen canvas
+        await window.QRCode.toCanvas(canvas, data, {
           width: size,
           color: { dark: darkColor, light: "#ffffff" },
           errorCorrectionLevel: "H",
           margin: 2,
         });
-        if (!cancelled) setReady(true);
+
+        if (!cancelled) {
+          // 4. Convert it to a standard image URL and save it to state
+          setImgSrc(canvas.toDataURL("image/png"));
+        }
       } catch (e) {
         console.error("QR render error:", e);
       }
@@ -655,12 +662,13 @@ function QRCode({ data, size = 160, darkColor = "#0d1f3c" }) {
 
   return (
     <div style={{ position:"relative", width:size, height:size, margin:"0 auto" }}>
-      {!ready && (
+      {!imgSrc ? (
         <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", background:"#f0f0f0", borderRadius:6, fontSize:11, color:"#888" }}>
           Generating…
         </div>
+      ) : (
+        <img src={imgSrc} alt="QR Code" style={{ width: size, height: size, display: "block", borderRadius: 4 }} />
       )}
-      <canvas ref={canvasRef} style={{ display: ready ? "block" : "none", borderRadius:4 }} />
     </div>
   );
 }
