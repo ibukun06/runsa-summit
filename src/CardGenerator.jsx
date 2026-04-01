@@ -39,90 +39,23 @@ async function fetchDelegate(id) {
 }
 
 // ─── QR GENERATOR ─────────────────────────────────────────────────────────────
-// Uses qrcode@1.5.4 (jsdelivr) — same library as App.jsx QRCode component.
-//
-// FIX (v5): Replaced the old double-load / "?v=force" retry pattern which
-// caused a race condition on slow connections (3G / poor signal):
-//   • loadScript() returned immediately when the <script> tag already existed
-//     in the DOM (loaded by App.jsx), but window.QRCode.toCanvas was still
-//     undefined if the script hadn't finished initialising yet.
-//   • The "last-resort" ?v=force append was async — toCanvas() was called
-//     before it resolved, throwing a TypeError with no message, which the
-//     outer handleGenerate catch rendered as "unknown error".
-//
-// The fix mirrors App.jsx's own ensureQRLib() approach: a single promise
-// queue so all concurrent callers wait on ONE script load, with an explicit
-// check for an existing <script> tag that attaches load/error listeners
-// rather than resolving immediately.
-const _QR_SRC_CG = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js";
-let _cgQrState = "idle"; // "idle" | "loading" | "ready" | "error"
-const _cgQrQueue = [];
-
-function ensureQRLibCG() {
-  return new Promise((resolve, reject) => {
-    // Already loaded and is the correct version (has toCanvas)
-    if (_cgQrState === "ready" && typeof window.QRCode?.toCanvas === "function") {
-      resolve(); return;
-    }
-    if (_cgQrState === "error") { reject(new Error("QR lib failed to load")); return; }
-    _cgQrQueue.push({ resolve, reject });
-    if (_cgQrState === "loading") return; // already in-flight — queued above
-    _cgQrState = "loading";
-    // Fast-path: the right version is already on window (e.g. loaded by App.jsx)
-    if (typeof window.QRCode?.toCanvas === "function") {
-      _cgQrState = "ready";
-      _cgQrQueue.splice(0).forEach(cb => cb.resolve());
-      return;
-    }
-    // Script tag already in the DOM — attach listeners instead of resolving instantly.
-    // This is the critical fix: the old loadScript() returned immediately when the
-    // tag existed, even if window.QRCode wasn't ready yet.
-    const existing = document.querySelector(`script[src="${_QR_SRC_CG}"]`);
-    if (existing) {
-      existing.addEventListener("load", () => {
-        _cgQrState = "ready";
-        _cgQrQueue.splice(0).forEach(cb => cb.resolve());
-      });
-      existing.addEventListener("error", (e) => {
-        _cgQrState = "error";
-        _cgQrQueue.splice(0).forEach(cb => cb.reject(e));
-      });
-      // If the script already fired load before we attached (race), check again
-      if (typeof window.QRCode?.toCanvas === "function") {
-        _cgQrState = "ready";
-        _cgQrQueue.splice(0).forEach(cb => cb.resolve());
-      }
-      return;
-    }
-    // First load ever
-    const s = document.createElement("script");
-    s.src = _QR_SRC_CG;
-    s.onload = () => {
-      _cgQrState = "ready";
-      _cgQrQueue.splice(0).forEach(cb => cb.resolve());
-    };
-    s.onerror = (e) => {
-      _cgQrState = "error";
-      _cgQrQueue.splice(0).forEach(cb => cb.reject(e));
-    };
-    document.head.appendChild(s);
-  });
-}
-
 async function generateQRImage(text, size, darkColor = "#050d1e") {
-  await ensureQRLibCG();
-  const canvas = document.createElement("canvas");
-  await window.QRCode.toCanvas(canvas, text, {
-    width: size,
-    color: { dark: darkColor, light: "#ffffff" },
-    errorCorrectionLevel: "H",
-    margin: 2,
-  });
+  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
   return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = canvas.toDataURL();
+    const div = document.createElement("div");
+    div.style.cssText = "position:fixed;left:-9999px;top:-9999px;";
+    document.body.appendChild(div);
+    new window.QRCode(div, { text, width: size, height: size, colorDark: darkColor, colorLight: "#ffffff", correctLevel: window.QRCode.CorrectLevel.H });
+    setTimeout(() => {
+      const el = div.querySelector("canvas") || div.querySelector("img");
+      const src = el instanceof HTMLCanvasElement ? el.toDataURL() : el?.src;
+      document.body.removeChild(div);
+      if (!src) { resolve(null); return; }
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    }, 600);
   });
 }
 
@@ -178,16 +111,14 @@ function getBadgeInfo(badge) {
   return map[badge] || null;
 }
 
-// ─── ATTENDEE CARD — v4 photo-safe design ─────────────────────────────────────
-// Key change from v3: ALL overlay text (logo, event name, badge) is moved into
-// a 68px header BAND at the very top of the card — a dark strip that sits
-// ABOVE the face zone. The photo fills the zone below it unobstructed.
-// No logo at y=92 overlapping foreheads. No text across the face.
-// Layout: [header band 68px] → [photo face zone] → [info panel]
+// ─── ATTENDEE CARD — REDESIGNED ───────────────────────────────────────────────
+// New design: full-bleed photo top half, rich information panel below
+// with geometric accent elements, gradient badge, and premium typography
 async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   const dark = mode === "dark";
   const CW = ATT_W, CH = ATT_H;
 
+  // Palette
   const GOLD    = "#c9920a";
   const GOLD2   = "#e8b84b";
   const GOLD3   = "#f5d57a";
@@ -195,9 +126,10 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   const NAVY    = "#0a1628";
   const NAVY2   = "#1a3a6b";
 
-  const BG    = dark ? "#07111e" : "#f4f6fb";
-  const TEXT  = dark ? "#f5f0e8" : "#0a1628";
-  const MUTED = dark ? "rgba(245,240,232,0.55)" : "rgba(10,22,40,0.52)";
+  const BG      = dark ? "#07111e" : "#f4f6fb";
+  const SURFACE = dark ? "#0d1e38" : "#ffffff";
+  const TEXT     = dark ? "#f5f0e8" : "#0a1628";
+  const MUTED    = dark ? "rgba(245,240,232,0.55)" : "rgba(10,22,40,0.52)";
 
   const canvas = document.createElement("canvas");
   canvas.width = CW; canvas.height = CH;
@@ -206,180 +138,164 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   // ── BACKGROUND ──────────────────────────────────────────────────────────────
   ctx.fillStyle = BG; ctx.fillRect(0, 0, CW, CH);
 
-  // ── HEADER BAND (68px) — logo + event name on a dark strip ─────────────────
-  // This is OUTSIDE the photo zone so nothing on this band can cover a face.
-  const HDR_H = 68;
-  const hdrBg = ctx.createLinearGradient(0, 0, CW, HDR_H);
-  hdrBg.addColorStop(0, "#060d1a");
-  hdrBg.addColorStop(0.6, "#0d1e38");
-  hdrBg.addColorStop(1, "#060d1a");
-  ctx.fillStyle = hdrBg; ctx.fillRect(0, 0, CW, HDR_H);
+  // Fix A — 48% photo height (was 54%) gives more visible face zone.
+  // The bottom fade starts later (55% into photo instead of 38%) so the
+  // subject's face and chest are fully visible before the blend begins.
+  const PHOTO_H = Math.round(CH * 0.48);
 
-  // Thin gold line at bottom of header
-  const hdrLine = ctx.createLinearGradient(0, HDR_H, CW, HDR_H);
-  hdrLine.addColorStop(0, "rgba(201,146,10,0)");
-  hdrLine.addColorStop(0.25, GOLD2);
-  hdrLine.addColorStop(0.75, GOLD2);
-  hdrLine.addColorStop(1, "rgba(201,146,10,0)");
-  ctx.strokeStyle = hdrLine; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(0, HDR_H); ctx.lineTo(CW, HDR_H); ctx.stroke();
-
-  // Logo (left, inside header band — 36px radius so fits in 68px)
-  // Use absolute URL so the logo loads whether CardGenerator is on the same
-  // origin as the registration site or a separate Vercel deployment.
-  const LR = 28, LX = 50, LY = HDR_H / 2;
-  try {
-    const logoSrc = document.querySelector("img[src*='legislative-council-logo']")?.src
-      || `${REG_SITE}/legislative-council-logo.jpg`;
-    const logo = await loadImg(logoSrc);
-    ctx.save();
-    ctx.shadowColor = "rgba(232,184,75,0.5)"; ctx.shadowBlur = 8;
-    ctx.strokeStyle = "rgba(232,184,75,0.85)"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI * 2); ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI * 2); ctx.clip();
-    ctx.drawImage(logo, LX - LR, LY - LR, LR * 2, LR * 2);
-    ctx.restore();
-  } catch {}
-
-  // "LEGISLATIVE SUMMIT 2026" — right side of header band
-  const TR_X = CW - 52;
-  ctx.textAlign = "right";
-  const lgG = ctx.createLinearGradient(TR_X - 360, 0, TR_X, 0);
-  lgG.addColorStop(0, GOLD3); lgG.addColorStop(0.55, GOLD2); lgG.addColorStop(1, GOLD);
-  ctx.fillStyle = lgG;
-  ctx.shadowColor = "rgba(201,146,10,0.4)"; ctx.shadowBlur = 8;
-  ctx.font = "900 38px Arial Black, Arial, sans-serif";
-  ctx.fillText("LEGISLATIVE", TR_X, LY - 3);
-  ctx.font = "600 27px Arial Black, Arial, sans-serif";
-  ctx.fillStyle = GOLD2;
-  ctx.fillText("SUMMIT 2026", TR_X, LY + 26);
-  ctx.shadowBlur = 0;
-  // Green underline
-  ctx.strokeStyle = GREEN; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(TR_X - 200, LY + 36); ctx.lineTo(TR_X, LY + 36); ctx.stroke();
-
-  // ── PHOTO ZONE — starts BELOW header band ───────────────────────────────────
-  // Face is entirely in this zone with no overlaid text or logos.
-  // Reduced to 44% of card (was 48%) — extra info space, less photo dominance.
-  const PHOTO_TOP = HDR_H;                        // photo starts right at header bottom
-  const PHOTO_H   = Math.round(CH * 0.44);        // 594px — face has 526px of clear space
-  const PHOTO_BOT = PHOTO_TOP + PHOTO_H;
-
+  // ── PHOTO ZONE ──────────────────────────────────────────────────────────────
   if (photoDataUrl) {
     const photo = await loadImg(photoDataUrl);
-    ctx.save();
-    ctx.beginPath(); ctx.rect(0, PHOTO_TOP, CW, PHOTO_H); ctx.clip();
-    drawSmartCover(ctx, photo, 0, PHOTO_TOP, CW, PHOTO_H); ctx.restore();
-
-    // Very subtle top vignette — only first 40px so hair/top-of-head is not darkened
-    const tv = ctx.createLinearGradient(0, PHOTO_TOP, 0, PHOTO_TOP + 40);
-    tv.addColorStop(0, "rgba(0,0,0,0.28)"); tv.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = tv; ctx.fillRect(0, PHOTO_TOP, CW, 40);
-
-    // Bottom fade — starts at 68% into photo zone so chin area fades smoothly
-    const bv = ctx.createLinearGradient(0, PHOTO_TOP + PHOTO_H * 0.68, 0, PHOTO_BOT);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, CW, PHOTO_H); ctx.clip();
+    drawSmartCover(ctx, photo, 0, 0, CW, PHOTO_H); ctx.restore();
+    // Top vignette — only covers the very top (logo/header zone)
+    const tv = ctx.createLinearGradient(0, 0, 0, 180);
+    tv.addColorStop(0, "rgba(0,0,0,0.55)"); tv.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 180);
+    // Bottom fade — starts at 55% into photo (not 38%) to preserve the face
+    // The blend zone is compact so text below sits cleanly on the BG colour
+    const bv = ctx.createLinearGradient(0, PHOTO_H * 0.55, 0, PHOTO_H);
     bv.addColorStop(0, "rgba(0,0,0,0)");
-    bv.addColorStop(0.6, dark ? "rgba(7,17,30,0.72)" : "rgba(244,246,251,0.72)");
-    bv.addColorStop(1,   dark ? "rgba(7,17,30,1)"    : "rgba(244,246,251,1)");
-    ctx.fillStyle = bv; ctx.fillRect(0, PHOTO_TOP + PHOTO_H * 0.68, CW, PHOTO_H * 0.32);
+    bv.addColorStop(0.5, dark ? "rgba(7,17,30,0.65)" : "rgba(244,246,251,0.65)");
+    bv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(244,246,251,1)");
+    ctx.fillStyle = bv; ctx.fillRect(0, PHOTO_H * 0.55, CW, PHOTO_H * 0.45);
   } else {
-    // Placeholder with initials
-    const bgMesh = ctx.createLinearGradient(0, PHOTO_TOP, CW, PHOTO_BOT);
+    // Geometric placeholder with initials
+    const bgMesh = ctx.createLinearGradient(0, 0, CW, PHOTO_H);
     if (dark) {
       bgMesh.addColorStop(0, "#1a3a6b"); bgMesh.addColorStop(0.5, "#0d1e38"); bgMesh.addColorStop(1, "#07111e");
     } else {
       bgMesh.addColorStop(0, "#c8d8f0"); bgMesh.addColorStop(0.5, "#b0c4e8"); bgMesh.addColorStop(1, "#f4f6fb");
     }
-    ctx.fillStyle = bgMesh; ctx.fillRect(0, PHOTO_TOP, CW, PHOTO_H);
-    // Geometric rings
-    ctx.strokeStyle = dark ? "rgba(201,146,10,0.1)" : "rgba(26,58,107,0.08)";
-    ctx.lineWidth = 55;
-    ctx.beginPath(); ctx.arc(CW * 0.75, PHOTO_TOP + PHOTO_H * 0.38, 250, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(CW * 0.08, PHOTO_TOP + PHOTO_H * 0.72, 170, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = bgMesh; ctx.fillRect(0, 0, CW, PHOTO_H);
+    // Geometric circles
+    ctx.strokeStyle = dark ? "rgba(201,146,10,0.12)" : "rgba(26,58,107,0.1)";
+    ctx.lineWidth = 60;
+    ctx.beginPath(); ctx.arc(CW * 0.75, PHOTO_H * 0.35, 260, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(CW * 0.1, PHOTO_H * 0.7, 180, 0, Math.PI * 2); ctx.stroke();
     // Initials
-    const initials = delegate.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-    ctx.font = "900 280px Georgia, serif";
-    ctx.fillStyle = dark ? "rgba(201,146,10,0.09)" : "rgba(26,58,107,0.06)";
-    ctx.textAlign = "center"; ctx.fillText(initials, CW / 2, PHOTO_TOP + PHOTO_H * 0.74);
-    const fv = ctx.createLinearGradient(0, PHOTO_TOP + PHOTO_H * 0.52, 0, PHOTO_BOT);
+    const initials = delegate.name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
+    ctx.font = "900 300px Georgia, serif";
+    ctx.fillStyle = dark ? "rgba(201,146,10,0.1)" : "rgba(26,58,107,0.07)";
+    ctx.textAlign = "center"; ctx.fillText(initials, CW/2, PHOTO_H * 0.72);
+    // Fade out to bg
+    const fv = ctx.createLinearGradient(0, PHOTO_H * 0.5, 0, PHOTO_H);
     fv.addColorStop(0, "rgba(0,0,0,0)");
     fv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(244,246,251,1)");
-    ctx.fillStyle = fv; ctx.fillRect(0, PHOTO_TOP + PHOTO_H * 0.52, CW, PHOTO_H * 0.48);
+    ctx.fillStyle = fv; ctx.fillRect(0, PHOTO_H * 0.5, CW, PHOTO_H * 0.5);
   }
 
-  // ── I'M ATTENDING badge — only when photo present, in the bottom fade zone ──
-  // Positioned in the already-dark vignette area so it never covers the face
-  if (photoDataUrl) {
-    const ATT_Y = PHOTO_BOT - 70;
-    const attG = ctx.createLinearGradient(48, ATT_Y, 48 + 290, ATT_Y);
-    attG.addColorStop(0, "rgba(201,146,10,0.3)");
-    attG.addColorStop(1, "rgba(57,224,122,0.12)");
-    ctx.fillStyle = attG;
-    ctx.strokeStyle = "rgba(201,146,10,0.65)"; ctx.lineWidth = 1.5;
-    rrect(ctx, 48, ATT_Y, 290, 50, 25); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = GREEN;
-    ctx.beginPath(); ctx.arc(48 + 20, ATT_Y + 25, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.textAlign = "left";
-    ctx.font = "700 20px Arial, sans-serif";
-    ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 6;
-    ctx.fillStyle = GOLD2;
-    ctx.fillText("I'M ATTENDING", 48 + 38, ATT_Y + 25 + 7);
-    ctx.shadowBlur = 0;
-  }
-
-  // ── DIAGONAL ACCENT STRIPE — at photo/info boundary ─────────────────────────
-  const STRIPE_Y = PHOTO_BOT - 16;
+  // ── DIAGONAL ACCENT STRIPE (Fix B: positioned at photo bottom edge, low opacity) ──
+  // Sits entirely within the already-faded bottom 15% of the photo, never
+  // intersecting the main visible face/subject area above.
+  const STRIPE_Y = PHOTO_H - 18;
   ctx.save();
-  ctx.globalAlpha = 0.48;
+  ctx.globalAlpha = 0.55;  // was 1.0 — reduced so it's decorative not dominant
   ctx.beginPath();
-  ctx.moveTo(0, STRIPE_Y + 42);
-  ctx.lineTo(CW * 0.66, STRIPE_Y);
-  ctx.lineTo(CW, STRIPE_Y + 16);
-  ctx.lineTo(CW, STRIPE_Y + 50);
-  ctx.lineTo(CW * 0.66, STRIPE_Y + 34);
-  ctx.lineTo(0, STRIPE_Y + 76);
+  ctx.moveTo(0, STRIPE_Y + 45);
+  ctx.lineTo(CW * 0.65, STRIPE_Y);
+  ctx.lineTo(CW, STRIPE_Y + 18);
+  ctx.lineTo(CW, STRIPE_Y + 52);
+  ctx.lineTo(CW * 0.65, STRIPE_Y + 34);
+  ctx.lineTo(0, STRIPE_Y + 80);
   ctx.closePath();
-  const stripeG = ctx.createLinearGradient(0, STRIPE_Y, CW, STRIPE_Y + 50);
-  stripeG.addColorStop(0, "rgba(201,146,10,0.65)");
-  stripeG.addColorStop(0.5, "rgba(232,184,75,0.8)");
-  stripeG.addColorStop(1, "rgba(57,224,122,0.5)");
-  ctx.fillStyle = stripeG; ctx.fill();
+  const stripeG = ctx.createLinearGradient(0, STRIPE_Y, CW, STRIPE_Y + 52);
+  stripeG.addColorStop(0, "rgba(201,146,10,0.7)");
+  stripeG.addColorStop(0.5, "rgba(232,184,75,0.85)");
+  stripeG.addColorStop(1, "rgba(57,224,122,0.55)");
+  ctx.fillStyle = stripeG;
+  ctx.fill();
   ctx.restore();
 
-  // ── CORNER BRACKETS (all four corners of the full card) ─────────────────────
+  // ── CORNER BRACKETS (gold, precise) ─────────────────────────────────────────
   const CM = 36, CS = 90;
-  ctx.strokeStyle = "rgba(201,146,10,0.6)"; ctx.lineWidth = 4;
-  [[CM, CM, CS, 0], [CW-CM, CM, CS, 1], [CM, CH-CM, CS, 2], [CW-CM, CH-CM, CS, 3]].forEach(([x, y, s, q]) => {
+  ctx.strokeStyle = "rgba(201,146,10,0.65)"; ctx.lineWidth = 4.5;
+  [[CM,CM,CS,0],[CW-CM,CM,CS,1],[CM,CH-CM,CS,2],[CW-CM,CH-CM,CS,3]].forEach(([x,y,s,q]) => {
     ctx.beginPath();
-    if (q === 0) { ctx.moveTo(x, y+s); ctx.lineTo(x, y); ctx.lineTo(x+s, y); }
-    if (q === 1) { ctx.moveTo(x-s, y); ctx.lineTo(x, y); ctx.lineTo(x, y+s); }
-    if (q === 2) { ctx.moveTo(x, y-s); ctx.lineTo(x, y); ctx.lineTo(x+s, y); }
-    if (q === 3) { ctx.moveTo(x-s, y); ctx.lineTo(x, y); ctx.lineTo(x, y-s); }
+    if (q === 0) { ctx.moveTo(x,y+s); ctx.lineTo(x,y); ctx.lineTo(x+s,y); }
+    if (q === 1) { ctx.moveTo(x-s,y); ctx.lineTo(x,y); ctx.lineTo(x,y+s); }
+    if (q === 2) { ctx.moveTo(x,y-s); ctx.lineTo(x,y); ctx.lineTo(x+s,y); }
+    if (q === 3) { ctx.moveTo(x-s,y); ctx.lineTo(x,y); ctx.lineTo(x,y-s); }
     ctx.stroke();
   });
 
-  // ── INFO PANEL (below photo) ─────────────────────────────────────────────────
-  const PAD     = 60;
-  const INFO_Y  = PHOTO_BOT + 32;
+  // ── LOGO + SUMMIT LABEL (top, on photo) ─────────────────────────────────────
+  const LR = 38, LX = CM + 18 + LR, LY = CM + 18 + LR;
+  try {
+    const logo = await loadImg("/legislative-council-logo.jpg");
+    ctx.save();
+    ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI*2); ctx.clip();
+    ctx.drawImage(logo, LX-LR, LY-LR, LR*2, LR*2);
+    ctx.restore();
+    // Ring with glow
+    ctx.shadowColor = "rgba(232,184,75,0.7)"; ctx.shadowBlur = 12;
+    ctx.strokeStyle = "rgba(232,184,75,0.9)"; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI*2); ctx.stroke();
+    ctx.shadowBlur = 0;
+  } catch {}
 
-  // Bottom anchors
-  const QR_SIZE    = 160, QR_PAD = 11;
-  const QR_CARD_W  = QR_SIZE + QR_PAD * 2, QR_CARD_H = QR_SIZE + QR_PAD * 2;
-  const QR_X       = CW - CM - 18 - QR_CARD_W;
-  const D_BOT      = CH - CM - 18;
-  const DATE_Y     = D_BOT - 4;
-  const LOC_Y      = DATE_Y - 28 - 12;
-  const EV_Y       = LOC_Y - 32 - 24;
-  const DIV_Y      = EV_Y - 46 - 18;
-  const QR_Y       = D_BOT - QR_CARD_H;
+  // Summit label top-right
+  const TR_X = CW - CM - 18;
+  ctx.textAlign = "right";
+  ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 14;
+  // "LEGISLATIVE" in gradient
+  const lgG = ctx.createLinearGradient(TR_X - 380, LY, TR_X, LY);
+  lgG.addColorStop(0, GOLD3); lgG.addColorStop(0.55, GOLD2); lgG.addColorStop(1, GOLD);
+  ctx.fillStyle = lgG;
+  ctx.font = "900 48px Arial Black, Arial, sans-serif";
+  ctx.fillText("LEGISLATIVE", TR_X, LY - 4);
+  ctx.font = "700 34px Arial Black, Arial, sans-serif";
+  ctx.fillStyle = GOLD2;
+  ctx.fillText("SUMMIT 2026", TR_X, LY + 34);
+  ctx.shadowBlur = 0;
+  // Green underline
+  ctx.strokeStyle = GREEN; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(TR_X - 262, LY + 46); ctx.lineTo(TR_X, LY + 46); ctx.stroke();
 
-  const nameMaxW = QR_X - PAD - 20;
+  // ── I'M ATTENDING badge (Fix A: moved to very bottom of photo strip) ─────────
+  // Previously at PHOTO_H-120 which could overlay the face for portrait shots.
+  // Now at PHOTO_H-76 — inside the vignette zone at the very bottom edge,
+  // where the background is already semi-transparent, never on the face.
+  const ATT_Y = PHOTO_H - 76;
+  const attG = ctx.createLinearGradient(48, ATT_Y, 48 + 320, ATT_Y);
+  attG.addColorStop(0, "rgba(201,146,10,0.28)");
+  attG.addColorStop(1, "rgba(57,224,122,0.14)");
+  ctx.fillStyle = attG;
+  ctx.strokeStyle = "rgba(201,146,10,0.72)"; ctx.lineWidth = 1.5;
+  rrect(ctx, 48, ATT_Y, 320, 52, 26); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = GREEN;
+  ctx.beginPath(); ctx.arc(48+21, ATT_Y+26, 6.5, 0, Math.PI*2); ctx.fill();
+  ctx.textAlign = "left";
+  ctx.font = "700 21px Arial, sans-serif";
+  ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 8;
+  ctx.fillStyle = GOLD2;
+  ctx.fillText("I'M ATTENDING", 48 + 40, ATT_Y + 26 + 7);
+  ctx.shadowBlur = 0;
 
-  // Name
-  let nfs = 82;
-  const NAME_BUDGET = DIV_Y - INFO_Y - 28 - 48 - 26 - 42 - 18 - 32;
-  while (nfs > 36) {
+  // ── INFO PANEL ───────────────────────────────────────────────────────────────
+  const PAD = 60;
+  const INFO_Y = PHOTO_H + 36;
+
+  // QR anchored from bottom
+  const QR_SIZE = 168, QR_PAD = 12;
+  const QR_CARD_W = QR_SIZE + QR_PAD*2, QR_CARD_H = QR_SIZE + QR_PAD*2;
+  const QR_X = CW - CM - 18 - QR_CARD_W;
+  const QR_Y_BOT = CH - CM - 18;
+  const QR_Y = QR_Y_BOT - QR_CARD_H;
+
+  // Anchored from bottom: date → location → event → divider
+  const D_BOT   = CH - CM - 18;
+  const DATE_Y  = D_BOT - 4;
+  const LOC_Y   = DATE_Y - 28 - 12;
+  const EV_Y    = LOC_Y - 34 - 26;
+  const DIV_Y   = EV_Y - 50 - 18;
+
+  const nameMaxW = QR_X - PAD - 24;
+
+  // Name font sizing
+  let nfs = 84;
+  const NAME_BUDGET = DIV_Y - INFO_Y - 30 - 50 - 28 - 44 - 20 - 34;
+  while (nfs > 38) {
     ctx.font = `900 ${nfs}px Georgia, serif`;
     const nl = wrapText(ctx, delegate.name, nameMaxW);
     if (nl.length <= 2 && nl.length * (nfs + 10) <= NAME_BUDGET) break;
@@ -388,81 +304,87 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   const NLH = nfs + 10;
   const nameLines = wrapText(ctx, delegate.name, nameMaxW);
   ctx.fillStyle = TEXT; ctx.textAlign = "left";
-  ctx.shadowColor = dark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.07)"; ctx.shadowBlur = 10;
+  ctx.shadowColor = dark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.08)"; ctx.shadowBlur = 10;
   nameLines.forEach((l, i) => ctx.fillText(l, PAD, INFO_Y + (i + 1) * NLH));
   ctx.shadowBlur = 0;
   const NAME_BOT = INFO_Y + nameLines.length * NLH;
 
   // Badge chip
-  let cur = NAME_BOT + 24;
+  let cur = NAME_BOT + 28;
   const badgeInfo = getBadgeInfo(delegate.badge);
   if (badgeInfo) {
-    ctx.font = "800 16px Arial Black, Arial, sans-serif";
-    const bChipW = ctx.measureText(badgeInfo.label).width + 38;
-    const bChipH = 42;
+    ctx.font = "800 17px Arial Black, Arial, sans-serif";
+    const bChipW = ctx.measureText(badgeInfo.label).width + 40;
+    const bChipH = 44;
+    // Solid filled chip
     const chipBgG = ctx.createLinearGradient(PAD, cur, PAD + bChipW, cur);
     chipBgG.addColorStop(0, badgeInfo.bg);
-    chipBgG.addColorStop(1, dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)");
+    chipBgG.addColorStop(1, dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)");
     ctx.fillStyle = chipBgG;
-    ctx.shadowColor = badgeInfo.glow; ctx.shadowBlur = 14;
-    rrect(ctx, PAD, cur, bChipW, bChipH, 8); ctx.fill();
+    ctx.shadowColor = badgeInfo.glow; ctx.shadowBlur = 16;
+    rrect(ctx, PAD, cur, bChipW, bChipH, 9); ctx.fill();
     ctx.shadowBlur = 0;
+    // Accent left bar
     ctx.fillStyle = badgeInfo.accent;
-    rrect(ctx, PAD, cur, 5, bChipH, 3); ctx.fill();
+    rrect(ctx, PAD, cur, 6, bChipH, 3); ctx.fill();
+    // Label
     ctx.fillStyle = badgeInfo.textColor;
-    ctx.fillText(badgeInfo.label, PAD + 18, cur + bChipH / 2 + 6);
-    cur += bChipH + 20;
+    ctx.fillText(badgeInfo.label, PAD + 20, cur + bChipH/2 + 7);
+    cur += bChipH + 22;
   }
 
   // Position
-  ctx.font = "800 32px Arial, sans-serif";
-  const posG = ctx.createLinearGradient(PAD, cur, PAD + 380, cur + 32);
+  ctx.font = "800 34px Arial, sans-serif";
+  const posG = ctx.createLinearGradient(PAD, cur, PAD + 400, cur + 34);
   posG.addColorStop(0, GOLD2); posG.addColorStop(1, GOLD);
   ctx.fillStyle = posG;
-  ctx.fillText(delegate.position ? delegate.position.toUpperCase() : "", PAD, cur + 32);
-  cur += 32 + 16;
+  ctx.fillText(delegate.position ? delegate.position.toUpperCase() : "", PAD, cur + 34);
+  cur += 34 + 18;
 
   // Institution
   if (delegate.institution) {
-    ctx.font = "400 25px Arial, sans-serif"; ctx.fillStyle = MUTED;
-    ctx.fillText(delegate.institution, PAD, cur + 25);
+    ctx.font = "400 26px Arial, sans-serif"; ctx.fillStyle = MUTED;
+    ctx.fillText(delegate.institution, PAD, cur + 26);
   }
 
-  // Divider
+  // Divider — gold to transparent
   const dg = ctx.createLinearGradient(PAD, DIV_Y, CW - PAD, DIV_Y);
-  dg.addColorStop(0, dark ? "rgba(201,146,10,0.5)" : "rgba(201,146,10,0.4)");
-  dg.addColorStop(0.6, dark ? "rgba(201,146,10,0.1)" : "rgba(201,146,10,0.06)");
+  dg.addColorStop(0, dark ? "rgba(201,146,10,0.55)" : "rgba(201,146,10,0.45)");
+  dg.addColorStop(0.65, dark ? "rgba(201,146,10,0.12)" : "rgba(201,146,10,0.08)");
   dg.addColorStop(1, "rgba(0,0,0,0)");
   ctx.strokeStyle = dg; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(PAD, DIV_Y); ctx.lineTo(CW - PAD, DIV_Y); ctx.stroke();
 
-  // Event title (bottom anchored)
-  ctx.font = "700 44px Arial Black, Arial, sans-serif";
-  const etG = ctx.createLinearGradient(PAD, EV_Y - 44, PAD + 550, EV_Y);
+  // Event title (bottom anchored, gradient gold)
+  ctx.font = "700 46px Arial Black, Arial, sans-serif";
+  const etG = ctx.createLinearGradient(PAD, EV_Y - 46, PAD + 580, EV_Y);
   etG.addColorStop(0, GOLD3); etG.addColorStop(1, dark ? GOLD2 : GOLD);
   ctx.fillStyle = etG; ctx.textAlign = "left";
   ctx.fillText("LEGISLATIVE SUMMIT 2026", PAD, EV_Y);
 
   // Location
-  ctx.font = "700 28px Arial, sans-serif";
+  ctx.font = "700 30px Arial, sans-serif";
   ctx.fillStyle = dark ? "#f5f0e8" : "#0a1628";
   ctx.fillText("REDEEMER'S UNIVERSITY, EDE", PAD, LOC_Y);
 
   // Date
-  ctx.font = "500 22px Arial, sans-serif"; ctx.fillStyle = MUTED;
+  ctx.font = "500 24px Arial, sans-serif";
+  ctx.fillStyle = MUTED;
   ctx.fillText("29th April, 2026", PAD, DATE_Y);
 
-  // QR code
+  // QR code (bottom-right, floating white card)
   const qrURL = delegate.qrURL || `${REG_SITE}?checkin=${delegate.id}`;
-  const qrImg = await generateQRImage(qrURL, 200, NAVY);
+  const qrImg = await generateQRImage(qrURL, 220, NAVY);
   if (qrImg) {
-    ctx.shadowColor = dark ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.12)";
-    ctx.shadowBlur = 18; ctx.shadowOffsetY = 3;
+    // Shadow for QR card
+    ctx.shadowColor = dark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.15)";
+    ctx.shadowBlur = 20; ctx.shadowOffsetY = 4;
     ctx.fillStyle = "#ffffff";
-    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 12); ctx.fill();
+    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 14); ctx.fill();
     ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-    ctx.strokeStyle = "rgba(201,146,10,0.3)"; ctx.lineWidth = 1.5;
-    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 12); ctx.stroke();
+    // Gold border on QR card
+    ctx.strokeStyle = "rgba(201,146,10,0.35)"; ctx.lineWidth = 1.5;
+    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 14); ctx.stroke();
     ctx.drawImage(qrImg, QR_X + QR_PAD, QR_Y + QR_PAD, QR_SIZE, QR_SIZE);
   }
 
@@ -572,9 +494,7 @@ async function renderVolunteerTag(delegate) {
   const LOGO_Y = HEADER_H + 52;
   const LOGO_R = 36;
   try {
-    const logoSrc = document.querySelector("img[src*='legislative-council-logo']")?.src
-      || `${REG_SITE}/legislative-council-logo.jpg`;
-    const lcLogo = await loadImg(logoSrc);
+    const lcLogo = await loadImg("/legislative-council-logo.jpg");
     ctx.save(); ctx.beginPath(); ctx.arc(CW/2, LOGO_Y, LOGO_R, 0, Math.PI*2); ctx.clip();
     ctx.drawImage(lcLogo, CW/2-LOGO_R, LOGO_Y-LOGO_R, LOGO_R*2, LOGO_R*2); ctx.restore();
     // Ring glow
@@ -1071,8 +991,6 @@ export default function CardGenerator() {
   const [generating, setGenerating] = useState(false);
   const [cardUrl, setCardUrl]       = useState(null);
   const [copied, setCopied]         = useState(false);
-  // genErr: visible error message when canvas generation fails
-  const [genErr, setGenErr]         = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1112,20 +1030,13 @@ export default function CardGenerator() {
 
   const handleGenerate = async () => {
     if (!delegate) return;
-    setGenerating(true); setGenErr("");
+    setGenerating(true);
     try {
       const canvas = vol
         ? await renderVolunteerTag(delegate)
         : await renderAttendeeCard(delegate, photo, cardMode);
       setCardUrl(canvas.toDataURL("image/jpeg", 0.93));
-    } catch (e) {
-      console.error("Card generation error:", e);
-      setGenErr(
-        "Generation failed — " + (e?.message || "unknown error") +
-        ". Please refresh the page and try again. If this keeps happening, " +
-        "try using a different browser (Chrome works best)."
-      );
-    }
+    } catch (e) { console.error(e); }
     setGenerating(false);
   };
 
@@ -1302,11 +1213,6 @@ export default function CardGenerator() {
                 <button className="btn-gen" onClick={handleGenerate} disabled={generating}>
                   {generating ? "✨ Generating your card…" : vol ? "🏷️ Generate My Volunteer Tag →" : "✨ Generate My Card →"}
                 </button>
-                {genErr && (
-                  <div style={{ marginTop:14, padding:"12px 16px", background:"rgba(192,57,43,0.1)", border:"1px solid rgba(192,57,43,0.35)", borderRadius:10, fontSize:12, color:"#e74c3c", lineHeight:1.6 }}>
-                    ❌ {genErr}
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -1331,7 +1237,7 @@ export default function CardGenerator() {
                     {cardMode === "dark" ? "☀️ Light" : "🌙 Dark"}
                   </button>
                 )}
-                <button className="btn-sec" onClick={() => { setCardUrl(null); setPhoto(null); setDelegate(null); setTicketId(""); setGenErr(""); }}>↺ Start Over</button>
+                <button className="btn-sec" onClick={() => { setCardUrl(null); setPhoto(null); setDelegate(null); setTicketId(""); }}>↺ Start Over</button>
               </div>
               {!vol && (
                 <div className="cap-box">
