@@ -622,32 +622,6 @@ function loadQRLib() {
 // spinner to hang forever when both pages were visited in the same session.
 // The old qrcodejs/1.0.0 used a constructor API with CorrectLevel which is
 // incompatible with 1.5.4's toCanvas API — never load both in the same page.
-const QR_LIB_SRC = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js";
-
-function ensureQRLib() {
-  return new Promise((resolve, reject) => {
-    // Already loaded and is the right version (has toCanvas)
-    if (window.QRCode && typeof window.QRCode.toCanvas === "function") {
-      resolve(); return;
-    }
-    // Script tag already in DOM — attach listeners
-    const existing = document.querySelector(`script[src="${QR_LIB_SRC}"]`);
-    if (existing) {
-      existing.addEventListener("load", resolve);
-      existing.addEventListener("error", reject);
-      // Guard: script may have already loaded before we attached listeners
-      if (window.QRCode && typeof window.QRCode.toCanvas === "function") {
-        resolve();
-      }
-      return;
-    }
-    // First load
-    const s = document.createElement("script");
-    s.src = QR_LIB_SRC;
-    s.onload = resolve; s.onerror = reject;
-    document.head.appendChild(s);
-  });
-}
 
 function QRCode({ data, size = 160, darkColor = "#0d1f3c" }) {
   const canvasRef = useRef(null);
@@ -660,7 +634,9 @@ function QRCode({ data, size = 160, darkColor = "#0d1f3c" }) {
 
     (async () => {
       try {
-        await ensureQRLib();
+        // CRITICAL FIX: Use the robust loadQRLib() instead of ensureQRLib()
+        await loadQRLib();
+        
         if (cancelled || !canvasRef.current) return;
         await window.QRCode.toCanvas(canvasRef.current, data, {
           width: size,
