@@ -156,13 +156,24 @@ function checkinURL(id) {
 
 // ─── FIREBASE HELPERS ─────────────────────────────────────────────────────────
 let db = null;
+let initPromise = null; // 1. Add a tracker for the initialization process
+
 async function initFirebase() {
   if (db) return db;
-  await loadScript("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js");
-  await loadScript("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js");
-  if (!window.firebase.apps.length) window.firebase.initializeApp(FIREBASE_CONFIG);
-  db = window.firebase.firestore();
-  return db;
+  
+  // 2. If an initialization is not already in progress, start one
+  if (!initPromise) {
+    initPromise = (async () => {
+      await loadScript("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js");
+      await loadScript("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js");
+      if (!window.firebase.apps.length) window.firebase.initializeApp(FIREBASE_CONFIG);
+      db = window.firebase.firestore();
+      return db;
+    })();
+  }
+  
+  // 3. Both concurrent calls will now await the exact same promise
+  return initPromise;
 }
 function loadScript(src) {
   return new Promise((resolve, reject) => {
