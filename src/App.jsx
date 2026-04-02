@@ -842,7 +842,8 @@ export default function App() {
   const [view, setView] = useState("register");
   const [ticket, setTicket] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [checkinOpen, setCheckinOpen] = useState(false);
+  const [checkinOpen, setCheckinOpen] = useState(null); // null = loading
+  const [registrationOpen, setRegistrationOpen] = useState(null); // null = loading
   const [registrationOpen, setRegistrationOpen] = useState(null); // null = loading/unknown
 
   useEffect(() => {
@@ -999,6 +1000,21 @@ export default function App() {
     textMuted: dark ? "rgba(232,224,208,0.52)" : "rgba(13,31,60,0.48)",
   };
 
+  // Wait for settings to load before showing any content
+const settingsLoading = registrationOpen === null || checkinOpen === null;
+  if (settingsLoading) return (
+    <>
+      <GlobalStyles dark={dark} />
+      <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:T.bg, gap:20 }}>
+        <img src="/legislative-council-logo.jpg" alt="" style={{ width:72, height:72, borderRadius:"50%", border:`2px solid ${BRAND.goldLight}`, objectFit:"cover", boxShadow:`0 0 20px rgba(200,146,10,0.3)` }} onError={e => e.target.style.display="none"} />
+        <div style={{ width:40, height:40, border:`2px solid rgba(26,58,107,0.3)`, borderTop:`2px solid ${BRAND.goldLight}`, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
+        <div style={{ textAlign:"center" }}>
+          <p style={{ color:BRAND.goldLight, fontFamily:"'Bebas Neue', sans-serif", fontSize:22, letterSpacing:"0.18em" }}>RUNSA LEGISLATIVE SUMMIT 2026</p>
+          <p style={{ color:T.textMuted, fontSize:11, letterSpacing:"0.1em", marginTop:4 }}>LOADING SETTINGS...</p>
+        </div>
+      </div>
+    </>
+  );
   if (loading) return (
     <>
       <GlobalStyles dark={dark} />
