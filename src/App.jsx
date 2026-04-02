@@ -944,7 +944,7 @@ export default function App() {
     
     // Check if registration is closed (super admin only toggle)
     if (!registrationOpen) { 
-      alert("Registration is currently closed. Please contact the registration unit for assistance."); 
+      alert("Registration is currently not open. Kindly contact registration unit."); 
       return; 
     }
     
@@ -1492,7 +1492,7 @@ function RegisterView({ onRegister, T, registrationOpen }) {
             <div style={{ background:"rgba(192,57,43,0.1)", border:"1px solid rgba(192,57,43,0.4)", borderRadius:10, padding:"14px 18px", marginBottom:20, textAlign:"center" }}>
               <div style={{ fontSize:20, marginBottom:6 }}>🔒</div>
               <div style={{ fontFamily:"'Cinzel', serif", fontSize:15, fontWeight:700, color:"#c0392b", marginBottom:4 }}>Registration is Currently Closed</div>
-              <div style={{ fontSize:12, color:T.textMuted }}>Please contact the registration unit for assistance.</div>
+              <div style={{ fontSize:12, color:T.textMuted }}>Kindly contact registration unit.</div>
             </div>
           )}
 
