@@ -427,6 +427,21 @@ async function fbSetCheckinOpen(open) {
     await db.collection(SETTINGS_COL).doc(SETTINGS_DOC).set({ open });
   } catch (e) { console.error("checkin gate write error:", e); }
 }
+const REGISTRATION_SETTINGS_DOC = "registration";
+async function fbGetRegistrationOpen() {
+  try {
+    const db = await initFirebase();
+    const snap = await db.collection(SETTINGS_COL).doc(REGISTRATION_SETTINGS_DOC).get();
+    if (!snap.exists) return true; // Default to OPEN if not set
+    return snap.data().open !== false; // Default true unless explicitly false
+  } catch (e) { return true; }
+}
+async function fbSetRegistrationOpen(open) {
+  try {
+    const db = await initFirebase();
+    await db.collection(SETTINGS_COL).doc(REGISTRATION_SETTINGS_DOC).set({ open });
+  } catch (e) { console.error("registration gate write error:", e); }
+}
 // ─── CSV / EXCEL DOWNLOAD ─────────────────────────────────────────────────────
 // Escapes a single cell value for RFC-4180 CSV:
 //   • wraps in double-quotes if the value contains comma, quote, newline or leading/trailing space
@@ -828,6 +843,7 @@ export default function App() {
   const [ticket, setTicket] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [checkinOpen, setCheckinOpen] = useState(false);
+  const [registrationOpen, setRegistrationOpen] = useState(true);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -906,7 +922,10 @@ export default function App() {
     }, 2000);
     return () => clearInterval(interval);
   }, []);
-  useEffect(() => { fbGetCheckinOpen().then(v => setCheckinOpen(v)); }, []);
+  useEffect(() => { 
+  fbGetCheckinOpen().then(v => setCheckinOpen(v)); 
+  fbGetRegistrationOpen().then(v => setRegistrationOpen(v));
+}, []);
 
   // Listen for manual migration refreshes triggered from the Admin panel
   useEffect(() => {
@@ -922,6 +941,13 @@ export default function App() {
       setView("ticket");
       return;
     }
+    
+    // Check if registration is closed (super admin only toggle)
+    if (!registrationOpen) { 
+      alert("Registration is currently closed. Please contact the registration unit for assistance."); 
+      return; 
+    }
+    
     if (regs.length >= 450) { alert("Registration is now closed. The maximum number of delegates (450) has been reached."); return; }
     const nameWords = s => s.trim().toLowerCase().replace(/\s+/g, " ").split(" ").filter(Boolean).sort().join(" ");
     const incomingWords = nameWords(form.name);
@@ -1059,12 +1085,12 @@ export default function App() {
 
       <main style={{ minHeight:"calc(100vh - 64px)", position:"relative", overflow:"hidden" }}>
         <ViewTransition viewKey={view}>
-          {view === "register" && <RegisterView onRegister={handleRegister} T={T} />}
+          {view === "register" && <RegisterView onRegister={handleRegister} T={T} registrationOpen={registrationOpen} />}
           {view === "ticket" && (ticket
             ? <TicketView ticket={ticket} onBack={() => setView("register")} onCreateCard={() => { window.open(`${BASE_URL}/card?prefill=${encodeURIComponent(ticket.id)}`, "_blank"); }} T={T} />
             : <RegisterView onRegister={handleRegister} T={T} />)}
           {view === "checkin" && <ManualCheckin onSignIn={signIn} T={T} />}
-          {view === "admin" && <AdminView regs={regs} onReset={resetAll} onDeleteDelegate={deleteDelegate} checkinOpen={checkinOpen} onToggleCheckin={async v => { setCheckinOpen(v); await fbSetCheckinOpen(v); }} T={T} />}
+          {view === "admin" && <AdminView regs={regs} onReset={resetAll} onDeleteDelegate={deleteDelegate} checkinOpen={checkinOpen} onToggleCheckin={async v => { setCheckinOpen(v); await fbSetCheckinOpen(v); }} registrationOpen={registrationOpen} onToggleRegistration={async v => { setRegistrationOpen(v); await fbSetRegistrationOpen(v); }} T={T} />}
         </ViewTransition>
       </main>
 
@@ -1461,6 +1487,14 @@ function RegisterView({ onRegister, T }) {
             <div style={{ background:banner.bg, border:`1px solid ${banner.border}`, borderRadius:10, padding:"12px 16px", marginBottom:20, fontSize:13, color:banner.color, lineHeight:1.5 }}
               dangerouslySetInnerHTML={{ __html: `${banner.icon} ${banner.text}` }} />
           )}
+          
+          {!registrationOpen && ( 
+            <div style={{ background:"rgba(192,57,43,0.1)", border:"1px solid rgba(192,57,43,0.4)", borderRadius:10, padding:"14px 18px", marginBottom:20, textAlign:"center" }}>
+              <div style={{ fontSize:20, marginBottom:6 }}>🔒</div>
+              <div style={{ fontFamily:"'Cinzel', serif", fontSize:15, fontWeight:700, color:"#c0392b", marginBottom:4 }}>Registration is Currently Closed</div>
+              <div style={{ fontSize:12, color:T.textMuted }}>Please contact the registration unit for assistance.</div>
+            </div>
+          )}
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:20, marginBottom:28 }}>
             {/* Full Name */}
@@ -1537,8 +1571,8 @@ function RegisterView({ onRegister, T }) {
               </FormField>
             )}
           </div>
-          <button onClick={submit} disabled={busy} style={{ width:"100%", padding:"14px 20px", background: busy ? "#888" : `linear-gradient(135deg, ${BRAND.gold} 0%, ${BRAND.navy} 120%)`, color:"#fff", border:"none", borderRadius:10, fontSize:15, fontWeight:600, cursor: busy ? "not-allowed" : "pointer", fontFamily:"'Cinzel', serif", letterSpacing:"0.05em", boxShadow: busy ? "none" : `0 4px 20px rgba(201,146,10,0.35)`, transition:"all 0.2s" }}>
-            {busy ? "Generating your ticket…" : "Register & Get My Ticket →"}
+          <button onClick={submit} disabled={busy || !registrationOpen} style={{ width:"100%", padding:"14px 20px", background: (busy || !registrationOpen) ? "#888" : `linear-gradient(135deg, ${BRAND.gold} 0%, ${BRAND.navy} 120%)`, color:"#fff", border:"none", borderRadius:10, fontSize:15, fontWeight:600, cursor: (busy || !registrationOpen) ? "not-allowed" : "pointer", fontFamily:"'Cinzel', serif", letterSpacing:"0.05em", boxShadow: (busy || !registrationOpen) ? "none" : `0 4px 20px rgba(201,146,10,0.35)`, transition:"all 0.2s" }}>
+            {!registrationOpen ? "Registration Closed" : (busy ? "Generating your ticket…" : "Register & Get My Ticket →")}
           </button>
         </div>
       </div>
@@ -1944,6 +1978,54 @@ function CheckinToggle({ checkinOpen, onToggle, superAdmin, T }) {
   );
 }
 
+// ─── REGISTRATION TOGGLE ──────────────────────────────────────────────────────
+function RegistrationToggle({ registrationOpen, onToggle, superAdmin, T }) {
+  const [showPin, setShowPin] = useState(false);
+  const [pin, setPin] = useState("");
+  const [pinErr, setPinErr] = useState(false);
+
+  const handleToggleClick = () => {
+    if (superAdmin) { onToggle(!registrationOpen); }
+    else { setShowPin(true); setPin(""); setPinErr(false); }
+  };
+
+  const handlePinConfirm = () => {
+    if (pin === SUPER_ADMIN_PIN) { setShowPin(false); setPin(""); onToggle(!registrationOpen); }
+    else { setPinErr(true); }
+  };
+
+  return (
+    <div style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:14, padding:"20px 24px", marginBottom:20 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
+        <div>
+          <div style={{ fontFamily:"'Cinzel', serif", fontSize:14, fontWeight:700, color: T.dark ? BRAND.goldLight : BRAND.navyDark, marginBottom:4 }}>Registration Gate</div>
+          <div style={{ fontSize:12, color:T.textMuted }}>Controls whether new delegates can register for the summit.</div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <div style={{ width:8, height:8, borderRadius:"50%", background: registrationOpen ? "#2e9e5b" : "#c0392b", animation: registrationOpen ? "greenPulse 2s infinite" : "none" }} />
+            <span style={{ fontSize:12, fontWeight:600, color: registrationOpen ? "#2e9e5b" : "#c0392b" }}>{registrationOpen ? "OPEN" : "CLOSED"}</span>
+          </div>
+          <button onClick={handleToggleClick} style={{ padding:"8px 18px", borderRadius:7, border:"none", cursor:"pointer", fontSize:12, fontWeight:600, background: registrationOpen ? "rgba(192,57,43,0.12)" : "rgba(46,158,91,0.12)", color: registrationOpen ? "#c0392b" : "#2e9e5b", border: `1px solid ${registrationOpen ? "rgba(192,57,43,0.3)" : "rgba(46,158,91,0.3)"}` }}>
+            {registrationOpen ? "Close Registration" : "Open Registration"}
+          </button>
+        </div>
+      </div>
+      {showPin && (
+        <div style={{ marginTop:16, paddingTop:16, borderTop:`1px solid ${T.border}` }}>
+          <div style={{ fontSize:12, color:T.textMuted, marginBottom:8 }}>Enter Super Admin PIN to {registrationOpen ? "close" : "open"} registration:</div>
+          <div style={{ display:"flex", gap:8 }}>
+            <input type="password" value={pin} onChange={e => { setPin(e.target.value); setPinErr(false); }} onKeyDown={e => e.key === "Enter" && handlePinConfirm()} style={{ ...inputStyle(T, pinErr), maxWidth:180 }} placeholder="PIN" autoFocus />
+            <button onClick={handlePinConfirm} style={{ padding:"10px 18px", background:`linear-gradient(135deg, ${BRAND.gold}, ${BRAND.navy})`, border:"none", borderRadius:7, color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>Confirm</button>
+            <button onClick={() => setShowPin(false)} style={{ padding:"10px 14px", background:"transparent", border:`1px solid ${T.border}`, borderRadius:7, color:T.textMuted, fontSize:12, cursor:"pointer" }}>Cancel</button>
+          </div>
+          {pinErr && <div style={{ fontSize:12, color:"#c0392b", marginTop:6 }}>Incorrect PIN. Try again.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── STAT CARDS (animated countUp + quick filter) ────────────────────────────
 function StatCards({ total, checkedIn, pending, onFilterCheckin, T }) {
   const animTotal    = useCountUp(total, 900);
@@ -1984,7 +2066,7 @@ function StatCards({ total, checkedIn, pending, onFilterCheckin, T }) {
 }
 
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
-function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheckin, T }) {
+function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheckin, registrationOpen, onToggleRegistration, T }) {
   const [pinInput, setPinInput] = useState("");
   const [authed, setAuthed] = useState(false);
   const [superAdmin, setSuperAdmin] = useState(false);
@@ -2128,6 +2210,7 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
         onFilterCheckin={v => setFilterCheckinStatus(v)} T={T} />
 
       <CheckinToggle checkinOpen={checkinOpen} onToggle={onToggleCheckin} superAdmin={superAdmin} T={T} />
+      <RegistrationToggle registrationOpen={registrationOpen} onToggle={onToggleRegistration} superAdmin={superAdmin} T={T} />
 
       {/* ── MIGRATION BANNER ── */}
       {(() => {
