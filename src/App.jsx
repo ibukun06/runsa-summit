@@ -1240,9 +1240,9 @@ const DELEGATE_TYPES = [
 const INTERNAL_SUBROLES = [
   { value:"runsa-lc-principal",  label:"Current LC — Principal Officer",  desc:"Speaker, Dep. Speaker, Legislative Secretary, Chief Whip" },
   { value:"runsa-lc-member",     label:"Current LC — Member",             desc:"Committee Chair, Honourable Member, Other Legislative Officer" },
-  { value:"runsa-exec",          label:"RUNSA Executive",                  desc:"Current executive arm member" },
-  { value:"past-hon",            label:"Immediate Past LC Member",         desc:"Past principal officer or honourable member" },
-  { value:"runsaec",             label:"RUNSAEC Official",                 desc:"RUNSA Electoral Commission
+  { value:"runsa-exec",          label:"RUNSA Executive",                  desc:"Current Executive Arm Member" },
+  { value:"past-hon",            label:"Immediate Past LC Member",         desc:"Past principal Officer or Honourable Member" },
+  { value:"runsaec",             label:"RUNSAEC Official",                 desc:"RUNSA Electoral Commission Official" },
 ];
 
 // Position options by type (including sub-roles)
