@@ -1242,6 +1242,7 @@ const INTERNAL_SUBROLES = [
   { value:"runsa-lc-member",     label:"Current LC — Member",             desc:"Committee Chair, Honourable Member, Other Legislative Officer" },
   { value:"runsa-exec",          label:"RUNSA Executive",                  desc:"Current executive arm member" },
   { value:"past-hon",            label:"Immediate Past LC Member",         desc:"Past principal officer or honourable member" },
+  { value:"runsaec",             label:"RUNSAEC Official",                 desc:"RUNSA Electoral Commission
 ];
 
 // Position options by type (including sub-roles)
@@ -1342,6 +1343,7 @@ const TYPE_INSTITUTION = {
   "runsa-lc-principal": "Redeemer's University, Ede",
   "runsa-lc-member":    "Redeemer's University, Ede",
   "runsa-exec":         "Redeemer's University, Ede",
+  "runsaec":            "Redeemer's University, Ede",
   "past-hon":           "Redeemer's University, Ede",
   "run-student":        "Redeemer's University, Ede",
   "volunteer":          "Redeemer's University, Ede",
@@ -1379,6 +1381,12 @@ function getBadge(effectiveType, dark = false) {
       color:  dark ? "#a8c4f5"               : BRAND.navyDark,
     },
     "runsa-exec": {
+      label:"RUNSA OFFICIAL",
+      bg:     dark ? "rgba(90,140,230,0.20)"  : "rgba(13,31,60,0.07)",
+      border: dark ? "rgba(120,170,255,0.50)" : "rgba(26,58,107,0.25)",
+      color:  dark ? "#a8c4f5"               : BRAND.navyDark,
+    },
+    "runsaec": {
       label:"RUNSA OFFICIAL",
       bg:     dark ? "rgba(90,140,230,0.20)"  : "rgba(13,31,60,0.07)",
       border: dark ? "rgba(120,170,255,0.50)" : "rgba(26,58,107,0.25)",
@@ -1423,7 +1431,7 @@ function RegisterView({ onRegister, T, registrationOpen }) {
   const showInstitution  = !!TYPE_SHOWS_INSTITUTION[effectiveType];
   // Only show department if they are a RUN student AND their position is exactly "Departmental Representative"
   const showDepartment   = effectiveType === "run-student" && form.position === "Departmental Representative";
-  const showPosition     = !!effectiveType && effectiveType !== "internal";
+  const showPosition = !!effectiveType && effectiveType !== "internal" && effectiveType !== "runsaec";
   const positions        = effectiveType ? (POSITIONS_BY_TYPE[effectiveType] || []) : [];
 
   const validate = () => {
@@ -1443,25 +1451,34 @@ function RegisterView({ onRegister, T, registrationOpen }) {
     return e;
   };
 
+  
+  
   const submit = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setBusy(true);
+
     const resolvedInstitution = showInstitution
       ? (form.institution === "Others" ? form.institutionOther.trim() : form.institution)
       : (TYPE_INSTITUTION[effectiveType] || "");
-      
+
     // Only resolve the department if the field was actually shown (i.e. they are a Dept Rep)
     const resolvedDepartment = showDepartment && form.department
       ? (form.department === "Others" ? form.departmentOther.trim() : form.department)
       : "N/A";
-    const badgeObj = getBadge(effectiveType);
+
+    // Auto-fill the position for RUNSAEC so their ticket isn't blank
+    const resolvedPosition = effectiveType === "runsaec" ? "Electoral Commission" : form.position;
+
+    const badgeObj = getBadge(effectiveType, T.dark);
     const badge = badgeObj ? badgeObj.label : "";
+
     await onRegister({
       ...form,
       delegateType: effectiveType,
       institution: resolvedInstitution,
       department: resolvedDepartment,
+      position: resolvedPosition, // Use our auto-filled position
       badge,
     });
     setBusy(false);
@@ -1472,6 +1489,7 @@ function RegisterView({ onRegister, T, registrationOpen }) {
     "runsa-lc-principal": { icon:"🏛️", bg:"rgba(13,31,60,0.08)", border:T.border, color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as a <strong>Current LC Principal Officer</strong> — institution auto-set to Redeemer's University." },
     "runsa-lc-member":    { icon:"🏛️", bg:"rgba(13,31,60,0.08)", border:T.border, color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as a <strong>Current LC Member</strong> — institution auto-set to Redeemer's University." },
     "runsa-exec":         { icon:"🏛️", bg:"rgba(13,31,60,0.08)", border:T.border, color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as a <strong>RUNSA Executive</strong> — institution auto-set to Redeemer's University." },
+    "runsaec":            { icon:"🗳️", bg:"rgba(13,31,60,0.08)", border:T.border, color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as a <strong>RUNSA Electoral Commission Official</strong> — institution auto-set to Redeemer's University." },
     "past-hon":           { icon:"🏛️", bg:"rgba(201,146,10,0.07)", border:"rgba(201,146,10,0.3)", color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as an <strong>Immediate Past LC Member</strong> — institution auto-set to Redeemer's University." },
     "run-student":        { icon:"🎓", bg:"rgba(26,58,107,0.06)", border:T.border, color: T.dark ? BRAND.goldLight : BRAND.navyDark, text:"Registering as a <strong>Redeemer's University Student</strong> — includes association members, club officers, and faculty representatives. Institution auto-set." },
     "volunteer":          { icon:"✅", bg:"rgba(57,224,122,0.08)", border:"rgba(57,224,122,0.25)", color: T.dark ? "#39e07a" : "#1a7a40", text:"Registering as a <strong>Volunteer</strong> — no institution or level required." },
@@ -2192,6 +2210,7 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
     "runsa-lc-principal":"LC — Principal Officer",
     "runsa-lc-member":   "LC — Member",
     "runsa-exec":        "RUNSA Executive",
+    "runsaec":           "RUNSA Electoral Commission",
     "past-hon":          "Immediate Past LC",
     "run-student":       "RUN Student",
     "volunteer":         "Volunteer",
