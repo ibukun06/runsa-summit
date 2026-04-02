@@ -885,58 +885,60 @@ export default function App() {
     return () => { window.removeEventListener("touchstart", handleTouchStart); window.removeEventListener("touchmove", handleTouchMove); };
   }, [menuOpen]);
 
+  // ─── REAL-TIME SYNC (Replaces the two old polling useEffects) ───
   useEffect(() => {
-    fbLoadRegs().then(async r => {
-      // Apply inferred badges locally immediately so UI renders correctly
-      // even before the Firebase batch write completes
-      const enriched = r.map(reg => {
-        if (reg.badge) return reg; // already good
-        const inferred = inferDelegateType(reg);
-        if (!inferred) return reg;
-        const normInst = normaliseInstitutionForMigration(reg.institution);
-        return { ...reg, ...inferred, institution: normInst };
-      });
-      setRegs(enriched);
-      setLoading(false);
-      // Background: write inferred badges back to Firestore for any unmigrated records
-      const unmigrated = r.filter(reg => !reg.badge);
-      if (unmigrated.length > 0) {
-        fbMigrateLegacyBadges(r, (done, total) => {
-          // silently complete — regs are already enriched in local state
-        }).then(count => {
-          if (count > 0) console.log(`[Migration] Backfilled ${count} legacy records in Firestore.`);
+    let unsubscribe = () => {};
+    let retryInterval;
+
+    initFirebase().then(db => {
+      // 1. Listen for real-time updates instantly, sorted by newest first
+      unsubscribe = db.collection(COLLECTION)
+        .orderBy("registeredAt", "desc")
+        .onSnapshot(snap => {
+          const r = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          
+          // Apply legacy badge formatting if needed
+          const enriched = r.map(reg => {
+            if (reg.badge) return reg;
+            const inferred = inferDelegateType(reg);
+            if (!inferred) return reg;
+            return { ...reg, ...inferred, institution: normaliseInstitutionForMigration(reg.institution) };
+          });
+
+          // Merge local pending saves so the UI doesn't flicker while registering
+          setRegs(prev => {
+            const serverIds = new Set(enriched.map(rec => rec.id));
+            const pendingOnly = [..._pendingSaves.values()].filter(p => !serverIds.has(p.id));
+            return [...pendingOnly, ...enriched];
+          });
+          
+          setLoading(false);
+
+          // Background task: write inferred badges back to Firestore if any exist
+          const unmigrated = r.filter(reg => !reg.badge);
+          if (unmigrated.length > 0) {
+            fbMigrateLegacyBadges(r, () => {}).then(count => {
+              if (count > 0) console.log(`[Migration] Backfilled ${count} legacy records.`);
+            });
+          }
+        }, error => {
+          console.error("Real-time sync error:", error);
+          setLoading(false);
         });
-      }
+
+        // 2. Retry pending offline saves quietly in the background every 8 seconds
+        retryInterval = setInterval(() => fbRetryPendingSaves(), 8000);
     });
-  }, []);
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      // First retry any pending saves that failed on first attempt
-      await fbRetryPendingSaves();
-      // Then fetch latest from Firebase
-      const r = await fbLoadRegs();
-      const enriched = r.map(reg => {
-        if (reg.badge) return reg;
-        const inferred = inferDelegateType(reg);
-        if (!inferred) return reg;
-        const normInst = normaliseInstitutionForMigration(reg.institution);
-        return { ...reg, ...inferred, institution: normInst };
-      });
-      // CRITICAL: merge any pending saves back in — these are registered but
-      // not yet confirmed in Firestore, so they won't appear in the fetch above.
-      // Without this merge they would disappear from the UI on every poll tick.
-      setRegs(prev => {
-        const serverIds = new Set(enriched.map(r => r.id));
-        const pendingOnly = [..._pendingSaves.values()].filter(p => !serverIds.has(p.id));
-        return [...pendingOnly, ...enriched];
-      });
-    }, 2000);
-    return () => clearInterval(interval);
+
+    return () => {
+      unsubscribe();
+      if (retryInterval) clearInterval(retryInterval);
+    };
   }, []);
   useEffect(() => { 
   fbGetCheckinOpen().then(v => setCheckinOpen(v)); 
   fbGetRegistrationOpen().then(v => setRegistrationOpen(v));
-}, []);
+  }, []);
 
   // Listen for manual migration refreshes triggered from the Admin panel
   useEffect(() => {
