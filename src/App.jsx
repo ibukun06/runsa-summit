@@ -1370,7 +1370,7 @@ function getBadge(effectiveType, dark = false) {
 }
 
 // ─── REGISTER VIEW ────────────────────────────────────────────────────────────
-function RegisterView({ onRegister, T }) {
+function RegisterView({ onRegister, T, registrationOpen }) {
   const [form, setForm] = useState({ name:"", delegateType:"", subRole:"", institution:"", institutionOther:"", department:"", position:"" });
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
