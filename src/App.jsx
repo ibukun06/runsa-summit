@@ -844,8 +844,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [checkinOpen, setCheckinOpen] = useState(null); // null = loading
   const [registrationOpen, setRegistrationOpen] = useState(null); // null = loading
-  const [registrationOpen, setRegistrationOpen] = useState(null); // null = loading/unknown
-
+  
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     if (p.get("checkin")) setView("checkin-auto");
