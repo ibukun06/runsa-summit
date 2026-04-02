@@ -843,7 +843,7 @@ export default function App() {
   const [ticket, setTicket] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [checkinOpen, setCheckinOpen] = useState(false);
-  const [registrationOpen, setRegistrationOpen] = useState(true);
+  const [registrationOpen, setRegistrationOpen] = useState(null); // null = loading/unknown
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -943,7 +943,7 @@ export default function App() {
     }
     
     // Check if registration is closed (super admin only toggle)
-    if (!registrationOpen) { 
+    if (registrationOpen !== true) { 
       alert("Registration is currently not open. Kindly contact registration unit."); 
       return; 
     }
@@ -1085,7 +1085,16 @@ export default function App() {
 
       <main style={{ minHeight:"calc(100vh - 64px)", position:"relative", overflow:"hidden" }}>
         <ViewTransition viewKey={view}>
-          {view === "register" && <RegisterView onRegister={handleRegister} T={T} registrationOpen={registrationOpen} />}
+          {view === "register" && (
+      registrationOpen === null ? (
+        <div style={{ minHeight:"60vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16 }}>
+          <div style={{ width:40, height:40, border:`2px solid rgba(26,58,107,0.3)`, borderTop:`2px solid ${BRAND.goldLight}`, borderRadius:"50%", animation:"spin 0.8s linear infinite" }} />
+          <p style={{ color:T.textMuted, fontSize:13 }}>Checking registration status...</p>
+        </div>
+      ) : (
+        <RegisterView onRegister={handleRegister} T={T} registrationOpen={registrationOpen} />
+      )
+    )}
           {view === "ticket" && (ticket
             ? <TicketView ticket={ticket} onBack={() => setView("register")} onCreateCard={() => { window.open(`${BASE_URL}/card?prefill=${encodeURIComponent(ticket.id)}`, "_blank"); }} T={T} />
             : <RegisterView onRegister={handleRegister} T={T} />)}
@@ -1488,7 +1497,7 @@ function RegisterView({ onRegister, T, registrationOpen }) {
               dangerouslySetInnerHTML={{ __html: `${banner.icon} ${banner.text}` }} />
           )}
           
-          {!registrationOpen && ( 
+          {registrationOpen === false && (
             <div style={{ background:"rgba(192,57,43,0.1)", border:"1px solid rgba(192,57,43,0.4)", borderRadius:10, padding:"14px 18px", marginBottom:20, textAlign:"center" }}>
               <div style={{ fontSize:20, marginBottom:6 }}>🔒</div>
               <div style={{ fontFamily:"'Cinzel', serif", fontSize:15, fontWeight:700, color:"#c0392b", marginBottom:4 }}>Registration is Currently Closed</div>
