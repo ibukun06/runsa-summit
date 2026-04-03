@@ -1,1259 +1,616 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
-// ─── CONFIG ───────────────────────────────────────────────────────────────────
+// ─── CONFIGURATION & ASSETS ───────────────────────────────────────────────────
 const REG_SITE = "https://legislative-summit-registration.vercel.app";
+
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyC3SqUXGR0kqPCpG88BFRB9qUMAk08x_6Q",
   authDomain: "runsa-summit.firebaseapp.com",
   projectId: "runsa-summit",
 };
 const COLLECTION = "delegates";
-const ATT_W = 1080, ATT_H = 1350;
-const VOL_W = 630,  VOL_H = 1008;
 
-// ─── FIREBASE ─────────────────────────────────────────────────────────────────
-let db = null;
-async function initFirebase() {
-  if (db) return db;
-  await loadScript("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js");
-  await loadScript("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js");
-  if (!window.firebase.apps.length) window.firebase.initializeApp(FIREBASE_CONFIG);
-  db = window.firebase.firestore();
-  return db;
-}
-function loadScript(src) {
+// Canvas Export Dimensions
+const ATT_W = 1080;
+const ATT_H = 1350;
+
+// Event Details
+const EVENT_DATE = "APRIL 29, 2026 | 10:00 AM";
+const EVENT_VENUE = "BOO AUDITORIUM, REDEEMER'S UNIVERSITY";
+
+// ⚠️ PASTE YOUR LOGO URLS HERE ⚠️
+// You can use standard URLs (e.g., "https://yoursite.com/runsa-logo.png") 
+// or base64 strings. I've provided crisp SVG shields as default placeholders.
+const LOGO_1_URL = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cGF0aCBkPSJNNTAgMTBMMTAgMzB2MzBjMCAyNSAzMCAzNSA0MCA0MCAxMC01IDQwLTE1IDQwLTQwdjMwbC00MC0yMHoiIGZpbGw9IiMxZTNhOGEiLz48cGF0aCBkPSJNNTAgMTB2OTBjMTAtNSA0MC0xNSA0MC00MHYtMzBsLTQwLTIweiIgZmlsbD0iIzI1NjNlYiIvPjwvc3ZnPg=="; 
+const LOGO_2_URL = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cGF0aCBkPSJNNTAgMTBMMTAgMzB2MzBjMCAyNSAzMCAzNSA0MCA0MCAxMC01IDQwLTE1IDQwLTQwdjMwbC00MC0yMHoiIGZpbGw9IiMwNjVmNDYiLz48cGF0aCBkPSJNNTAgMTB2OTBjMTAtNSA0MC0xNSA0MC00MHYtMzBsLTQwLTIweiIgZmlsbD0iIzEwYjk4MSIvPjwvc3ZnPg==";
+
+// ─── THEMATIC PALETTES ────────────────────────────────────────────────────────
+const PALETTES = {
+  dark: {
+    bgTop: "#121b36",
+    bgBottom: "#0a1128",
+    textMain: "#ffffff",
+    textSub: "#94a3b8",
+    accentGreen: "#10b981", // Bright Neon Green
+    accentGold: "#d4af37",
+    grid: "rgba(16, 185, 129, 0.08)",
+    badgeExternal: "#065f46",
+    badgeExternalText: "#ffffff",
+    qrBg: "#ffffff",
+    qrDark: "#0a1128",
+  },
+  light: {
+    bgTop: "#ffffff",
+    bgBottom: "#f1f5f9",
+    textMain: "#0f172a",
+    textSub: "#475569",
+    accentGreen: "#059669", // Deeper Green for contrast
+    accentGold: "#b48811",
+    grid: "rgba(15, 23, 42, 0.05)",
+    badgeExternal: "#d1fae5",
+    badgeExternalText: "#064e3b",
+    qrBg: "#ffffff",
+    qrDark: "#0f172a",
+  }
+};
+
+// ─── EXTERNAL SCRIPT LOADER ───────────────────────────────────────────────────
+const loadScript = (src) => {
   return new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
-    const s = document.createElement("script");
-    s.src = src; s.onload = resolve; s.onerror = reject;
-    document.head.appendChild(s);
+    const script = document.createElement("script");
+    script.src = src; script.onload = resolve; script.onerror = reject;
+    document.head.appendChild(script);
   });
-}
-async function fetchDelegate(id) {
-  try {
-    const d = await initFirebase();
-    const snap = await d.collection(COLLECTION).doc(id.toUpperCase()).get();
-    if (!snap.exists) return null;
-    return { id: snap.id, ...snap.data() };
-  } catch (e) { console.error(e); return null; }
-}
+};
 
-// ─── QR GENERATOR ─────────────────────────────────────────────────────────────
-async function generateQRImage(text, size, darkColor = "#050d1e") {
-  await loadScript("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
-  return new Promise((resolve) => {
-    const div = document.createElement("div");
-    div.style.cssText = "position:fixed;left:-9999px;top:-9999px;";
-    document.body.appendChild(div);
-    new window.QRCode(div, { text, width: size, height: size, colorDark: darkColor, colorLight: "#ffffff", correctLevel: window.QRCode.CorrectLevel.H });
-    setTimeout(() => {
-      const el = div.querySelector("canvas") || div.querySelector("img");
-      const src = el instanceof HTMLCanvasElement ? el.toDataURL() : el?.src;
-      document.body.removeChild(div);
-      if (!src) { resolve(null); return; }
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => resolve(null);
-      img.src = src;
-    }, 600);
-  });
-}
+// ─── HELPER: INFER DELEGATE TYPE ─────────────────────────────────────────────
+const inferDelegateType = (position, institution, mode) => {
+  const pos = (position || "").toLowerCase();
+  const inst = (institution || "").toLowerCase();
+  const isInternal = inst.includes("redeemer") || inst.includes("run");
+  const colors = PALETTES[mode];
 
-// ─── CANVAS HELPERS ───────────────────────────────────────────────────────────
-function rrect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-  ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
-  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
-  ctx.closePath();
-}
-
-function wrapText(ctx, text, maxW) {
-  const words = text.split(" ");
-  const lines = []; let cur = "";
-  for (const w of words) {
-    const test = cur ? cur + " " + w : w;
-    if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; }
-    else cur = test;
+  if (pos.includes("speaker") || pos.includes("president") || pos.includes("chief whip") || pos.includes("clerk") || (pos.includes("senator") && isInternal)) {
+    return { type: "RUNSA OFFICIAL", bg: colors.accentGold, text: "#000000" };
   }
-  if (cur) lines.push(cur);
-  return lines;
-}
-
-function loadImg(src) {
-  return new Promise((res, rej) => {
-    const img = new Image(); img.crossOrigin = "anonymous";
-    img.onload = () => res(img); img.onerror = rej; img.src = src;
-  });
-}
-
-function drawSmartCover(ctx, img, x, y, w, h) {
-  const imgAr = img.width / img.height;
-  const zoneAr = w / h;
-  let sw, sh, sx, sy;
-  if (imgAr > zoneAr) { sh = img.height; sw = img.height * zoneAr; sx = (img.width - sw) / 2; sy = 0; }
-  else { sw = img.width; sh = img.width / zoneAr; sx = 0; sy = Math.max(0, Math.min(img.height * 0.04, img.height - sh)); }
-  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
-}
-
-// ─── BADGE INFO ───────────────────────────────────────────────────────────────
-function getBadgeInfo(badge) {
-  const map = {
-    "EXTERNAL DELEGATE":   { label:"EXTERNAL DELEGATE",  textColor:"#fff",    bg:"#1a5c35",     accent:"#39e07a",  glow:"rgba(57,224,122,0.5)"  },
-    "DISTINGUISHED GUEST": { label:"DISTINGUISHED GUEST", textColor:"#fff",    bg:"#7a4a00",     accent:"#e8b84b",  glow:"rgba(232,184,75,0.5)"  },
-    "RUNSA OFFICIAL":      { label:"RUNSA OFFICIAL",      textColor:"#fff",    bg:"#0a1e4a",     accent:"#6a9fe0",  glow:"rgba(106,159,224,0.5)" },
-    "PAST HONOURABLE":     { label:"PAST HONOURABLE",     textColor:"#fff",    bg:"#2a1a5c",     accent:"#c4a8f5",  glow:"rgba(196,168,245,0.5)" },
-    "DELEGATE":            { label:"DELEGATE",            textColor:"#fff",    bg:"#0d2a55",     accent:"#7ab8f5",  glow:"rgba(122,184,245,0.4)" },
-    "VOLUNTEER":           { label:"VOLUNTEER",           textColor:"#060d1a", bg:"#1a5c35",     accent:"#39e07a",  glow:"rgba(57,224,122,0.5)"  },
+  if (pos.includes("panelist") || pos.includes("honourable") || pos.includes("assembly")) {
+    return { type: "DISTINGUISHED GUEST", bg: colors.accentGold, text: "#000000" };
+  }
+  if (pos.includes("usher") || pos.includes("protocol") || pos.includes("media") || pos.includes("logistics")) {
+    return { type: "SUMMIT VOLUNTEER", bg: colors.accentGreen, text: "#ffffff" };
+  }
+  
+  return { 
+    type: isInternal ? "DELEGATE" : "EXTERNAL DELEGATE", 
+    bg: colors.badgeExternal, 
+    text: colors.badgeExternalText 
   };
-  return map[badge] || null;
-}
+};
 
-// ─── ATTENDEE CARD — REDESIGNED ───────────────────────────────────────────────
-// New design: full-bleed photo top half, rich information panel below
-// with geometric accent elements, gradient badge, and premium typography
-async function renderAttendeeCard(delegate, photoDataUrl, mode) {
-  const dark = mode === "dark";
-  const CW = ATT_W, CH = ATT_H;
+// ─── IMAGE LOADER PROMISE ─────────────────────────────────────────────────────
+const loadImage = (src) => new Promise((resolve, reject) => {
+  const img = new Image();
+  img.crossOrigin = "Anonymous";
+  img.onload = () => resolve(img);
+  img.onerror = reject;
+  img.src = src;
+});
 
-  // Palette
-  const GOLD    = "#c9920a";
-  const GOLD2   = "#e8b84b";
-  const GOLD3   = "#f5d57a";
-  const GREEN   = "#39e07a";
-  const NAVY    = "#0a1628";
-  const NAVY2   = "#1a3a6b";
-
-  const BG      = dark ? "#07111e" : "#f4f6fb";
-  const SURFACE = dark ? "#0d1e38" : "#ffffff";
-  const TEXT     = dark ? "#f5f0e8" : "#0a1628";
-  const MUTED    = dark ? "rgba(245,240,232,0.55)" : "rgba(10,22,40,0.52)";
-
+// ─── CANVAS RENDERING ENGINE ──────────────────────────────────────────────────
+const generateCardCanvas = async (delegate, photoDataUrl, mode) => {
   const canvas = document.createElement("canvas");
-  canvas.width = CW; canvas.height = CH;
+  canvas.width = ATT_W; canvas.height = ATT_H;
   const ctx = canvas.getContext("2d");
+  const colors = PALETTES[mode];
 
-  // ── BACKGROUND ──────────────────────────────────────────────────────────────
-  ctx.fillStyle = BG; ctx.fillRect(0, 0, CW, CH);
+  // 1. Base Background Gradient
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, ATT_H);
+  bgGrad.addColorStop(0, colors.bgTop);
+  bgGrad.addColorStop(1, colors.bgBottom);
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, ATT_W, ATT_H);
 
-  // Fix A — 48% photo height (was 54%) gives more visible face zone.
-  // The bottom fade starts later (55% into photo instead of 38%) so the
-  // subject's face and chest are fully visible before the blend begins.
-  const PHOTO_H = Math.round(CH * 0.48);
+  // 2. Subtle Grid Overlay
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = colors.grid;
+  for(let i=0; i<ATT_W; i+=80) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,ATT_H); ctx.stroke(); }
+  for(let i=0; i<ATT_H; i+=80) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(ATT_W,i); ctx.stroke(); }
 
-  // ── PHOTO ZONE ──────────────────────────────────────────────────────────────
-  if (photoDataUrl) {
-    const photo = await loadImg(photoDataUrl);
-    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, CW, PHOTO_H); ctx.clip();
-    drawSmartCover(ctx, photo, 0, 0, CW, PHOTO_H); ctx.restore();
-    // Top vignette — only covers the very top (logo/header zone)
-    const tv = ctx.createLinearGradient(0, 0, 0, 180);
-    tv.addColorStop(0, "rgba(0,0,0,0.55)"); tv.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 180);
-    // Bottom fade — pushed down to 82% into photo zone to keep the face crystal clear
-    const FADE_START = 0.82;
-    const bv = ctx.createLinearGradient(0, PHOTO_H * FADE_START, 0, PHOTO_H);
-    bv.addColorStop(0, "rgba(0,0,0,0)");
-    bv.addColorStop(0.7, dark ? "rgba(7,17,30,0.35)" : "rgba(244,246,251,0.35)"); // Greatly reduced mid-intensity
-    bv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(244,246,251,1)");
-    ctx.fillStyle = bv; 
-    ctx.fillRect(0, PHOTO_H * FADE_START, CW, PHOTO_H * (1 - FADE_START));
-  } else {
-    // Geometric placeholder with initials
-    const bgMesh = ctx.createLinearGradient(0, 0, CW, PHOTO_H);
-    if (dark) {
-      bgMesh.addColorStop(0, "#1a3a6b"); bgMesh.addColorStop(0.5, "#0d1e38"); bgMesh.addColorStop(1, "#07111e");
-    } else {
-      bgMesh.addColorStop(0, "#c8d8f0"); bgMesh.addColorStop(0.5, "#b0c4e8"); bgMesh.addColorStop(1, "#f4f6fb");
+  // 3. Process Subject Photo
+  const img = await loadImage(photoDataUrl);
+  const photoAreaH = ATT_H * 0.65; // Photo takes top 65%
+  let crop = { x: 0, y: 0, width: img.width, height: img.width * (photoAreaH / ATT_W) };
+
+  try {
+    if (window.smartcrop) {
+      const result = await window.smartcrop.crop(img, { width: ATT_W, height: photoAreaH, minScale: 0.8 });
+      crop = result.topCrop;
     }
-    ctx.fillStyle = bgMesh; ctx.fillRect(0, 0, CW, PHOTO_H);
-    // Geometric circles
-    ctx.strokeStyle = dark ? "rgba(201,146,10,0.12)" : "rgba(26,58,107,0.1)";
-    ctx.lineWidth = 60;
-    ctx.beginPath(); ctx.arc(CW * 0.75, PHOTO_H * 0.35, 260, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(CW * 0.1, PHOTO_H * 0.7, 180, 0, Math.PI * 2); ctx.stroke();
-    // Initials
-    const initials = delegate.name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
-    ctx.font = "900 300px Georgia, serif";
-    ctx.fillStyle = dark ? "rgba(201,146,10,0.1)" : "rgba(26,58,107,0.07)";
-    ctx.textAlign = "center"; ctx.fillText(initials, CW/2, PHOTO_H * 0.72);
-    // Fade out to bg
-    const fv = ctx.createLinearGradient(0, PHOTO_H * 0.5, 0, PHOTO_H);
-    fv.addColorStop(0, "rgba(0,0,0,0)");
-    fv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(244,246,251,1)");
-    ctx.fillStyle = fv; ctx.fillRect(0, PHOTO_H * 0.5, CW, PHOTO_H * 0.5);
-  }
+  } catch (e) { console.warn("Smartcrop fallback."); }
 
-  // ── DIAGONAL ACCENT STRIPE (Fix B: positioned at photo bottom edge, low opacity) ──
-  // Sits entirely within the already-faded bottom 15% of the photo, never
-  // intersecting the main visible face/subject area above.
-  const STRIPE_Y = PHOTO_H - 18;
-  ctx.save();
-  ctx.globalAlpha = 0.55;  // was 1.0 — reduced so it's decorative not dominant
-  ctx.beginPath();
-  ctx.moveTo(0, STRIPE_Y + 45);
-  ctx.lineTo(CW * 0.65, STRIPE_Y);
-  ctx.lineTo(CW, STRIPE_Y + 18);
-  ctx.lineTo(CW, STRIPE_Y + 52);
-  ctx.lineTo(CW * 0.65, STRIPE_Y + 34);
-  ctx.lineTo(0, STRIPE_Y + 80);
-  ctx.closePath();
-  const stripeG = ctx.createLinearGradient(0, STRIPE_Y, CW, STRIPE_Y + 52);
-  stripeG.addColorStop(0, "rgba(201,146,10,0.7)");
-  stripeG.addColorStop(0.5, "rgba(232,184,75,0.85)");
-  stripeG.addColorStop(1, "rgba(57,224,122,0.55)");
-  ctx.fillStyle = stripeG;
-  ctx.fill();
-  ctx.restore();
+  // 4. Off-screen Canvas for PERFECT Alpha Mask Blending
+  // This ensures the image fades out smoothly without darkening the background
+  const tempCanvas = document.createElement("canvas");
+  tempCanvas.width = ATT_W; tempCanvas.height = photoAreaH;
+  const tCtx = tempCanvas.getContext("2d");
+  
+  tCtx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, ATT_W, photoAreaH);
+  tCtx.globalCompositeOperation = "destination-in";
+  
+  const mask = tCtx.createLinearGradient(0, photoAreaH * 0.5, 0, photoAreaH);
+  mask.addColorStop(0, "rgba(0,0,0,1)"); 
+  mask.addColorStop(1, "rgba(0,0,0,0)"); 
+  tCtx.fillStyle = mask;
+  tCtx.fillRect(0, 0, ATT_W, photoAreaH);
+  
+  ctx.drawImage(tempCanvas, 0, 0);
 
-  // ── CORNER BRACKETS (gold, precise) ─────────────────────────────────────────
-  const CM = 36, CS = 90;
-  ctx.strokeStyle = "rgba(201,146,10,0.65)"; ctx.lineWidth = 4.5;
-  [[CM,CM,CS,0],[CW-CM,CM,CS,1],[CM,CH-CM,CS,2],[CW-CM,CH-CM,CS,3]].forEach(([x,y,s,q]) => {
-    ctx.beginPath();
-    if (q === 0) { ctx.moveTo(x,y+s); ctx.lineTo(x,y); ctx.lineTo(x+s,y); }
-    if (q === 1) { ctx.moveTo(x-s,y); ctx.lineTo(x,y); ctx.lineTo(x,y+s); }
-    if (q === 2) { ctx.moveTo(x,y-s); ctx.lineTo(x,y); ctx.lineTo(x+s,y); }
-    if (q === 3) { ctx.moveTo(x-s,y); ctx.lineTo(x,y); ctx.lineTo(x,y-s); }
-    ctx.stroke();
-  });
-
-  // ── LOGO + SUMMIT LABEL (top, on photo) ─────────────────────────────────────
-  const LR = 38, LX = CM + 18 + LR, LY = CM + 18 + LR;
+  // 5. Draw Logos
   try {
-    const logo = await loadImg("/legislative-council-logo.jpg");
-    ctx.save();
-    ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI*2); ctx.clip();
-    ctx.drawImage(logo, LX-LR, LY-LR, LR*2, LR*2);
-    ctx.restore();
-    // Ring with glow
-    ctx.shadowColor = "rgba(232,184,75,0.7)"; ctx.shadowBlur = 12;
-    ctx.strokeStyle = "rgba(232,184,75,0.9)"; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI*2); ctx.stroke();
-    ctx.shadowBlur = 0;
-  } catch {}
+    const logo1 = await loadImage(LOGO_1_URL);
+    const logo2 = await loadImage(LOGO_2_URL);
+    const logoSize = 110;
+    ctx.drawImage(logo1, 50, 50, logoSize, logoSize);
+    ctx.drawImage(logo2, 170, 50, logoSize, logoSize);
+  } catch(e) { console.warn("Could not load logos.", e); }
 
-  // Summit label top-right
-  const TR_X = CW - CM - 18;
-  ctx.textAlign = "right";
-  ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 14;
-  // "LEGISLATIVE" in gradient
-  const lgG = ctx.createLinearGradient(TR_X - 380, LY, TR_X, LY);
-  lgG.addColorStop(0, GOLD3); lgG.addColorStop(0.55, GOLD2); lgG.addColorStop(1, GOLD);
-  ctx.fillStyle = lgG;
-  ctx.font = "900 48px Arial Black, Arial, sans-serif";
-  ctx.fillText("LEGISLATIVE", TR_X, LY - 4);
-  ctx.font = "700 34px Arial Black, Arial, sans-serif";
-  ctx.fillStyle = GOLD2;
-  ctx.fillText("SUMMIT 2026", TR_X, LY + 34);
-  ctx.shadowBlur = 0;
-  // Green underline
-  ctx.strokeStyle = GREEN; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(TR_X - 262, LY + 46); ctx.lineTo(TR_X, LY + 46); ctx.stroke();
+  // 6. Top Right Badge
+  const badgeInfo = inferDelegateType(delegate.position, delegate.institution, mode);
+  ctx.font = "bold 28px 'Bebas Neue', sans-serif";
+  const badgeTextW = ctx.measureText(badgeInfo.type).width;
+  const badgeW = badgeTextW + 40;
+  const badgeH = 50;
+  const badgeX = ATT_W - badgeW - 50;
+  const badgeY = 50;
 
-  // ── I'M ATTENDING badge (Fix A: moved to very bottom of photo strip) ─────────
-  // Previously at PHOTO_H-120 which could overlay the face for portrait shots.
-  // Now at PHOTO_H-76 — inside the vignette zone at the very bottom edge,
-  // where the background is already semi-transparent, never on the face.
-  const ATT_Y = PHOTO_H - 76;
-  const attG = ctx.createLinearGradient(48, ATT_Y, 48 + 320, ATT_Y);
-  attG.addColorStop(0, "rgba(201,146,10,0.28)");
-  attG.addColorStop(1, "rgba(57,224,122,0.14)");
-  ctx.fillStyle = attG;
-  ctx.strokeStyle = "rgba(201,146,10,0.72)"; ctx.lineWidth = 1.5;
-  rrect(ctx, 48, ATT_Y, 320, 52, 26); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = GREEN;
-  ctx.beginPath(); ctx.arc(48+21, ATT_Y+26, 6.5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = badgeInfo.bg;
+  ctx.beginPath(); ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 6); ctx.fill();
+
+  ctx.fillStyle = badgeInfo.text;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(badgeInfo.type, badgeX + badgeW / 2, badgeY + badgeH / 2 + 2);
+
+  // 7. Event Title
+  const titleY = 200;
   ctx.textAlign = "left";
-  ctx.font = "700 21px Arial, sans-serif";
-  ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 8;
-  ctx.fillStyle = GOLD2;
-  ctx.fillText("I'M ATTENDING", 48 + 40, ATT_Y + 26 + 7);
-  ctx.shadowBlur = 0;
+  ctx.textBaseline = "alphabetic";
+  
+  ctx.font = "bold 52px 'Bebas Neue', sans-serif";
+  ctx.fillStyle = colors.textMain;
+  ctx.shadowColor = mode === "dark" ? "rgba(0,0,0,0.8)" : "rgba(255,255,255,0.8)";
+  ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
+  ctx.fillText("RUNSA LEGISLATIVE SUMMIT", 50, titleY);
+  
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.font = "600 24px 'Inter', sans-serif";
+  ctx.fillStyle = colors.accentGreen;
+  ctx.letterSpacing = "2px";
+  ctx.fillText("THE CATALYST OF TRANSFORMATION", 50, titleY + 35);
 
-  // ── INFO PANEL ───────────────────────────────────────────────────────────────
-  const PAD = 60;
-  const INFO_Y = PHOTO_H + 36;
+  // 8. Typography Layout (Bottom 35%)
+  let nameSize = 100;
+  ctx.font = `bold ${nameSize}px 'Bebas Neue', sans-serif`;
+  let nameLines = [];
+  let words = delegate.name.toUpperCase().split(" ");
+  let currentLine = words[0];
 
-  // QR anchored from bottom
-  const QR_SIZE = 168, QR_PAD = 12;
-  const QR_CARD_W = QR_SIZE + QR_PAD*2, QR_CARD_H = QR_SIZE + QR_PAD*2;
-  const QR_X = CW - CM - 18 - QR_CARD_W;
-  const QR_Y_BOT = CH - CM - 18;
-  const QR_Y = QR_Y_BOT - QR_CARD_H;
-
-  // Anchored from bottom: date → location → event → divider
-  const D_BOT   = CH - CM - 18;
-  const DATE_Y  = D_BOT - 4;
-  const LOC_Y   = DATE_Y - 28 - 12;
-  const EV_Y    = LOC_Y - 34 - 26;
-  const DIV_Y   = EV_Y - 50 - 18;
-
-  const nameMaxW = QR_X - PAD - 24;
-
-  // Name font sizing
-  let nfs = 84;
-  const NAME_BUDGET = DIV_Y - INFO_Y - 30 - 50 - 28 - 44 - 20 - 34;
-  while (nfs > 38) {
-    ctx.font = `900 ${nfs}px Georgia, serif`;
-    const nl = wrapText(ctx, delegate.name, nameMaxW);
-    if (nl.length <= 2 && nl.length * (nfs + 10) <= NAME_BUDGET) break;
-    nfs -= 4;
+  for (let i = 1; i < words.length; i++) {
+    let testLine = currentLine + " " + words[i];
+    if (ctx.measureText(testLine).width > ATT_W * 0.70 && i > 0) {
+      nameLines.push(currentLine); currentLine = words[i];
+    } else { currentLine = testLine; }
   }
-  const NLH = nfs + 10;
-  const nameLines = wrapText(ctx, delegate.name, nameMaxW);
-  ctx.fillStyle = TEXT; ctx.textAlign = "left";
-  ctx.shadowColor = dark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.08)"; ctx.shadowBlur = 10;
-  nameLines.forEach((l, i) => ctx.fillText(l, PAD, INFO_Y + (i + 1) * NLH));
-  ctx.shadowBlur = 0;
-  const NAME_BOT = INFO_Y + nameLines.length * NLH;
+  nameLines.push(currentLine);
 
-  // Badge chip
-  let cur = NAME_BOT + 28;
-  const badgeInfo = getBadgeInfo(delegate.badge);
-  if (badgeInfo) {
-    ctx.font = "800 17px Arial Black, Arial, sans-serif";
-    const bChipW = ctx.measureText(badgeInfo.label).width + 40;
-    const bChipH = 44;
-    // Solid filled chip
-    const chipBgG = ctx.createLinearGradient(PAD, cur, PAD + bChipW, cur);
-    chipBgG.addColorStop(0, badgeInfo.bg);
-    chipBgG.addColorStop(1, dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)");
-    ctx.fillStyle = chipBgG;
-    ctx.shadowColor = badgeInfo.glow; ctx.shadowBlur = 16;
-    rrect(ctx, PAD, cur, bChipW, bChipH, 9); ctx.fill();
-    ctx.shadowBlur = 0;
-    // Accent left bar
-    ctx.fillStyle = badgeInfo.accent;
-    rrect(ctx, PAD, cur, 6, bChipH, 3); ctx.fill();
-    // Label
-    ctx.fillStyle = badgeInfo.textColor;
-    ctx.fillText(badgeInfo.label, PAD + 20, cur + bChipH/2 + 7);
-    cur += bChipH + 22;
+  let textStartY = photoAreaH - 40;
+  if (nameLines.length > 2) {
+    nameSize = 80;
+    ctx.font = `bold ${nameSize}px 'Bebas Neue', sans-serif`;
   }
 
-  // Position
-  ctx.font = "800 34px Arial, sans-serif";
-  const posG = ctx.createLinearGradient(PAD, cur, PAD + 400, cur + 34);
-  posG.addColorStop(0, GOLD2); posG.addColorStop(1, GOLD);
-  ctx.fillStyle = posG;
-  ctx.fillText(delegate.position ? delegate.position.toUpperCase() : "", PAD, cur + 34);
-  cur += 34 + 18;
+  ctx.fillStyle = colors.textMain;
+  nameLines.forEach((line, i) => { ctx.fillText(line, 50, textStartY + i * (nameSize * 0.95)); });
 
-  // Institution
-  if (delegate.institution) {
-    ctx.font = "400 26px Arial, sans-serif"; ctx.fillStyle = MUTED;
-    ctx.fillText(delegate.institution, PAD, cur + 26);
+  // Role & Institution
+  const roleY = textStartY + (nameLines.length - 1) * (nameSize * 0.95) + 50;
+  ctx.font = "bold 32px 'Inter', sans-serif";
+  ctx.fillStyle = colors.accentGreen;
+  ctx.fillText((delegate.position || "Delegate").toUpperCase(), 50, roleY);
+
+  const instY = roleY + 35;
+  ctx.font = "500 24px 'Inter', sans-serif";
+  ctx.fillStyle = colors.textSub;
+  ctx.fillText(delegate.institution || "", 50, instY);
+
+  // 9. Event Details (Date & Venue)
+  const detailsY = instY + 80;
+  ctx.font = "bold 18px 'Inter', sans-serif";
+  ctx.fillStyle = colors.accentGreen;
+  ctx.fillText("DATE & TIME", 50, detailsY);
+  
+  ctx.font = "600 22px 'Inter', sans-serif";
+  ctx.fillStyle = colors.textMain;
+  ctx.fillText(EVENT_DATE, 50, detailsY + 28);
+
+  ctx.font = "bold 18px 'Inter', sans-serif";
+  ctx.fillStyle = colors.accentGreen;
+  ctx.fillText("VENUE", 50, detailsY + 80);
+  
+  ctx.font = "600 22px 'Inter', sans-serif";
+  ctx.fillStyle = colors.textMain;
+  ctx.fillText(EVENT_VENUE, 50, detailsY + 108);
+
+  // 10. Bottom Right QR Code
+  const qrSize = 200;
+  const qrX = ATT_W - qrSize - 50;
+  const qrY = ATT_H - qrSize - 60;
+
+  ctx.fillStyle = colors.qrBg;
+  ctx.beginPath(); ctx.roundRect(qrX, qrY, qrSize, qrSize, 12); ctx.fill();
+
+  if (window.QRCode) {
+    const qrCanvas = document.createElement("canvas");
+    await new Promise((resolve) => {
+      new window.QRCode(qrCanvas, {
+        text: `${REG_SITE}?checkin=${delegate.id}`,
+        width: qrSize - 20, height: qrSize - 20,
+        colorDark: colors.qrDark, colorLight: colors.qrBg,
+        correctLevel: window.QRCode.CorrectLevel.H,
+      });
+      setTimeout(resolve, 100);
+    });
+    ctx.drawImage(qrCanvas, qrX + 10, qrY + 10);
   }
 
-  // Divider — gold to transparent
-  const dg = ctx.createLinearGradient(PAD, DIV_Y, CW - PAD, DIV_Y);
-  dg.addColorStop(0, dark ? "rgba(201,146,10,0.55)" : "rgba(201,146,10,0.45)");
-  dg.addColorStop(0.65, dark ? "rgba(201,146,10,0.12)" : "rgba(201,146,10,0.08)");
-  dg.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.strokeStyle = dg; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(PAD, DIV_Y); ctx.lineTo(CW - PAD, DIV_Y); ctx.stroke();
-
-  // Event title (bottom anchored, gradient gold)
-  ctx.font = "700 46px Arial Black, Arial, sans-serif";
-  const etG = ctx.createLinearGradient(PAD, EV_Y - 46, PAD + 580, EV_Y);
-  etG.addColorStop(0, GOLD3); etG.addColorStop(1, dark ? GOLD2 : GOLD);
-  ctx.fillStyle = etG; ctx.textAlign = "left";
-  ctx.fillText("LEGISLATIVE SUMMIT 2026", PAD, EV_Y);
-
-  // Location
-  ctx.font = "700 30px Arial, sans-serif";
-  ctx.fillStyle = dark ? "#f5f0e8" : "#0a1628";
-  ctx.fillText("REDEEMER'S UNIVERSITY, EDE", PAD, LOC_Y);
-
-  // Date
-  ctx.font = "500 24px Arial, sans-serif";
-  ctx.fillStyle = MUTED;
-  ctx.fillText("29th April, 2026", PAD, DATE_Y);
-
-  // QR code (bottom-right, floating white card)
-  const qrURL = delegate.qrURL || `${REG_SITE}?checkin=${delegate.id}`;
-  const qrImg = await generateQRImage(qrURL, 220, NAVY);
-  if (qrImg) {
-    // Shadow for QR card
-    ctx.shadowColor = dark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.15)";
-    ctx.shadowBlur = 20; ctx.shadowOffsetY = 4;
-    ctx.fillStyle = "#ffffff";
-    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 14); ctx.fill();
-    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-    // Gold border on QR card
-    ctx.strokeStyle = "rgba(201,146,10,0.35)"; ctx.lineWidth = 1.5;
-    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 14); ctx.stroke();
-    ctx.drawImage(qrImg, QR_X + QR_PAD, QR_Y + QR_PAD, QR_SIZE, QR_SIZE);
-  }
-
-  return canvas;
-}
-
-// ─── VOLUNTEER TAG — REDESIGNED ───────────────────────────────────────────────
-// Bold, vibrant, youthful. Full-colour unit identity with large name.
-async function renderVolunteerTag(delegate) {
-  const CW = VOL_W, CH = VOL_H;
-
-  // Colours
-  const NAVY    = "#060d1a";
-  const NAVY2   = "#0d1e38";
-  const NAVY3   = "#1a3a6b";
-  const GOLD    = "#c9920a";
-  const GOLD2   = "#e8b84b";
-  const GOLD3   = "#f5d57a";
-  const GREEN   = "#39e07a";
-  const CREAM   = "#f5f0e8";
-
-  // Unit colour map — each volunteer unit gets its own accent
-  const unitColors = {
-    "ushering & protocol": { bg:"#0a1e3a", accent:"#5ba4f5", glow:"rgba(91,164,245,0.5)" },
-    "logistics":           { bg:"#0e2010", accent:"#39e07a", glow:"rgba(57,224,122,0.5)" },
-    "registration":        { bg:"#1e0a0a", accent:"#f56b5b", glow:"rgba(245,107,91,0.5)" },
-    "team tech":           { bg:"#1a0a2e", accent:"#c4a8f5", glow:"rgba(196,168,245,0.5)" },
-    "anchors":             { bg:"#1a150a", accent:"#f5c842", glow:"rgba(245,200,66,0.5)"  },
-    "welfare unit":        { bg:"#0a1e10", accent:"#4ae0a0", glow:"rgba(74,224,160,0.5)"  },
-    "general volunteer":   { bg:"#0d1628", accent:"#e8b84b", glow:"rgba(232,184,75,0.5)"  },
-  };
-  const posLower = (delegate.position || "").toLowerCase();
-  const unitKey = Object.keys(unitColors).find(k => posLower.includes(k)) || "general volunteer";
-  const unit = unitColors[unitKey];
-
-  const canvas = document.createElement("canvas");
-  canvas.width = CW; canvas.height = CH;
-  const ctx = canvas.getContext("2d");
-
-  // ── BACKGROUND — deep navy with unit tint ────────────────────────────────────
-  const bgG = ctx.createLinearGradient(0, 0, CW * 0.7, CH);
-  bgG.addColorStop(0, unit.bg);
-  bgG.addColorStop(0.7, "#060d1a");
-  bgG.addColorStop(1, "#030810");
-  ctx.fillStyle = bgG; ctx.fillRect(0, 0, CW, CH);
-
-  // Radial shimmer — unit accent colour, top-right
-  const shimmer = ctx.createRadialGradient(CW * 0.88, CH * 0.08, 0, CW * 0.88, CH * 0.08, CW * 0.85);
-  shimmer.addColorStop(0, unit.glow.replace("0.5", "0.22"));
-  shimmer.addColorStop(0.5, unit.glow.replace("0.5", "0.06"));
-  shimmer.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = shimmer; ctx.fillRect(0, 0, CW, CH);
-
-  // Subtle diagonal lines texture
-  ctx.save();
-  ctx.strokeStyle = "rgba(255,255,255,0.025)"; ctx.lineWidth = 1;
-  for (let i = -CH; i < CW + CH; i += 28) {
-    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + CH, CH); ctx.stroke();
-  }
-  ctx.restore();
-
-  // ── HEADER ZONE (punch hole + branding) ─────────────────────────────────────
-  const HEADER_H = 88;
-  // Header bg — slightly different shade
-  ctx.fillStyle = "rgba(0,0,0,0.35)";
-  ctx.fillRect(0, 0, CW, HEADER_H);
-  // Horizontal separator line
-  const sepG = ctx.createLinearGradient(0, HEADER_H, CW, HEADER_H);
-  sepG.addColorStop(0, "rgba(255,255,255,0)");
-  sepG.addColorStop(0.15, unit.glow.replace("0.5","0.7"));
-  sepG.addColorStop(0.5, unit.glow.replace("0.5","1").replace("rgba","rgba").replace(")", ", 1)").replace(", 1)", ")"));
-  sepG.addColorStop(0.85, unit.glow.replace("0.5","0.7"));
-  sepG.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.strokeStyle = sepG; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(0, HEADER_H); ctx.lineTo(CW, HEADER_H); ctx.stroke();
-
-  // Punch hole
-  ctx.fillStyle = "#020509";
-  ctx.beginPath(); ctx.arc(CW/2, HEADER_H/2, 20, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(CW/2, HEADER_H/2, 20, 0, Math.PI*2); ctx.stroke();
-  // Metal ring effect
-  ctx.strokeStyle = unit.glow.replace("0.5","0.5");
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(CW/2, HEADER_H/2, 14, 0, Math.PI*2); ctx.stroke();
-
-  // Flanking dots
-  ctx.fillStyle = unit.accent;
-  ctx.globalAlpha = 0.7;
-  ctx.beginPath(); ctx.arc(CW/2 - 52, HEADER_H/2, 4.5, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(CW/2 + 52, HEADER_H/2, 4.5, 0, Math.PI*2); ctx.fill();
-  ctx.globalAlpha = 1;
-
-  // ── CORNER BRACKETS ──────────────────────────────────────────────────────────
-  const CM = 22, CS = 52;
-  ctx.strokeStyle = unit.glow.replace("0.5","0.55");
-  ctx.lineWidth = 3;
-  // Bottom corners
-  ctx.beginPath(); ctx.moveTo(CM, CH-CM-CS); ctx.lineTo(CM, CH-CM); ctx.lineTo(CM+CS, CH-CM); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CW-CM-CS,CH-CM); ctx.lineTo(CW-CM,CH-CM); ctx.lineTo(CW-CM,CH-CM-CS); ctx.stroke();
-  // Top corners (below header)
-  ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(CM,HEADER_H+6); ctx.lineTo(CM,HEADER_H+6+CS); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(CW-CM,HEADER_H+6); ctx.lineTo(CW-CM,HEADER_H+6+CS); ctx.stroke();
-
-  // ── LOGO ─────────────────────────────────────────────────────────────────────
-  const LOGO_Y = HEADER_H + 52;
-  const LOGO_R = 36;
-  try {
-    const lcLogo = await loadImg("/legislative-council-logo.jpg");
-    ctx.save(); ctx.beginPath(); ctx.arc(CW/2, LOGO_Y, LOGO_R, 0, Math.PI*2); ctx.clip();
-    ctx.drawImage(lcLogo, CW/2-LOGO_R, LOGO_Y-LOGO_R, LOGO_R*2, LOGO_R*2); ctx.restore();
-    // Ring glow
-    ctx.shadowColor = unit.glow.replace("0.5","0.8"); ctx.shadowBlur = 16;
-    ctx.strokeStyle = GOLD2; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(CW/2, LOGO_Y, LOGO_R, 0, Math.PI*2); ctx.stroke();
-    ctx.shadowBlur = 0;
-  } catch {}
-
-  // Summit title
+  // ID Text Below QR
+  ctx.font = "600 18px 'Inter', sans-serif";
+  ctx.fillStyle = colors.textSub;
   ctx.textAlign = "center";
-  ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 12;
-  ctx.font = "700 21px Arial Black, Arial, sans-serif";
-  const titleG = ctx.createLinearGradient(40, 0, CW-40, 0);
-  titleG.addColorStop(0, GOLD3); titleG.addColorStop(0.5, GOLD2); titleG.addColorStop(1, GOLD);
-  ctx.fillStyle = titleG;
-  ctx.fillText("LEGISLATIVE SUMMIT 2026", CW/2, LOGO_Y + LOGO_R + 32);
-  ctx.shadowBlur = 0;
-  ctx.font = "400 14px Arial, sans-serif";
-  ctx.fillStyle = "rgba(245,240,232,0.45)";
-  ctx.fillText("Redeemer's University · 29th April, 2026", CW/2, LOGO_Y + LOGO_R + 54);
+  ctx.fillText(`ID: ${delegate.id.toUpperCase()}`, qrX + qrSize/2, qrY + qrSize + 25);
 
-  // ── SEPARATOR ────────────────────────────────────────────────────────────────
-  const SEP_Y = LOGO_Y + LOGO_R + 74;
-  const sepLG = ctx.createLinearGradient(32, SEP_Y, CW-32, SEP_Y);
-  sepLG.addColorStop(0, "rgba(255,255,255,0)");
-  sepLG.addColorStop(0.5, unit.glow.replace("0.5","0.6"));
-  sepLG.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.strokeStyle = sepLG; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(32, SEP_Y); ctx.lineTo(CW-32, SEP_Y); ctx.stroke();
+  return canvas.toDataURL("image/jpeg", 0.95);
+};
 
-  // ── QR anchored at bottom ─────────────────────────────────────────────────────
-  const QR_SIZE = 158, QR_PAD = 11;
-  const QR_CARD_W = QR_SIZE + QR_PAD*2, QR_CARD_H = QR_SIZE + QR_PAD*2;
-  const QR_X = (CW - QR_CARD_W)/2;
-  const QR_Y = CH - 32 - QR_CARD_H;
-  const ID_Y = QR_Y - 14;
+// ─── MAIN REACT COMPONENT ─────────────────────────────────────────────────────
+export default function App() {
+  const [db, setDb] = useState(null);
+  const [ticketId, setTicketId] = useState("");
+  const [delegate, setDelegate] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  // Content zone
-  const CONTENT_TOP = SEP_Y + 28;
-  const CONTENT_BOT = ID_Y - 8;
-  const CONTENT_H   = CONTENT_BOT - CONTENT_TOP;
+  const [photoUrl, setPhotoUrl] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [finalCardUrl, setFinalCardUrl] = useState(null);
+  const [cardMode, setCardMode] = useState("dark"); // 'dark' | 'light'
+  
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef(null);
 
-  // ── UNIT BADGE (large, vibrant) ───────────────────────────────────────────────
-  const chipText = (delegate.position || "VOLUNTEER").toUpperCase();
-  ctx.font = "900 24px Arial Black, Arial, sans-serif";
-  const chipW = Math.min(CW - 56, ctx.measureText(chipText).width + 56);
-  const chipH = 58, chipX = (CW - chipW)/2;
-  const CHIP_Y = CONTENT_TOP;
+  // Initialize Resources & Animations
+  useEffect(() => {
+    const styleId = "ls-2026-styles";
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement("style");
+      style.id = styleId;
+      style.innerHTML = `
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap');
+        
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: #060c1c; color: #ffffff; min-height: 100vh; overflow-x: hidden; }
+        
+        .page-wrap { background: radial-gradient(circle at 50% 0%, #112240 0%, #060c1c 70%); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem 1.5rem; position: relative; }
 
-  // Glowing chip background
-  ctx.shadowColor = unit.glow.replace("0.5","0.55");
-  ctx.shadowBlur = 20;
-  const chipBgG = ctx.createLinearGradient(chipX, CHIP_Y, chipX + chipW, CHIP_Y + chipH);
-  chipBgG.addColorStop(0, unit.bg);
-  chipBgG.addColorStop(1, "rgba(255,255,255,0.04)");
-  ctx.fillStyle = chipBgG;
-  rrect(ctx, chipX, CHIP_Y, chipW, chipH, 29); ctx.fill();
-  ctx.shadowBlur = 0;
-  // Border
-  ctx.strokeStyle = unit.glow.replace("0.5","0.65");
-  ctx.lineWidth = 1.5;
-  rrect(ctx, chipX, CHIP_Y, chipW, chipH, 29); ctx.stroke();
-  // Dot indicator
-  ctx.fillStyle = unit.accent;
-  ctx.shadowColor = unit.glow; ctx.shadowBlur = 10;
-  ctx.beginPath(); ctx.arc(chipX + 26, CHIP_Y + chipH/2, 7, 0, Math.PI*2); ctx.fill();
-  ctx.shadowBlur = 0;
-  // Unit text
-  ctx.fillStyle = unit.accent;
-  ctx.textAlign = "center";
-  ctx.fillText(chipText, CW/2 + 8, CHIP_Y + chipH/2 + 9);
+        /* Fluid Animations */
+        .fade-in { animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .slide-up { animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
-  // ── NAME ──────────────────────────────────────────────────────────────────────
-  const CHIP_BOT = CHIP_Y + chipH;
-  const GAP_CHIP_NAME = 44;
-  const GAP_NAME_POS  = 38;
-  const NAME_BUDGET_H = CONTENT_H - chipH - GAP_CHIP_NAME - GAP_NAME_POS - 32;
+        /* Top Navigation */
+        .nav-bar { width: 100%; max-width: 900px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; z-index: 10; }
+        .back-btn { display: flex; align-items: center; gap: 8px; color: #10b981; text-decoration: none; font-weight: 600; font-size: 0.9rem; padding: 8px 16px; border-radius: 20px; background: rgba(16, 185, 129, 0.1); transition: all 0.3s ease; }
+        .back-btn:hover { background: rgba(16, 185, 129, 0.2); transform: translateX(-4px); }
+        .nav-logos { display: flex; gap: 12px; }
+        .nav-logos img { height: 45px; width: auto; object-fit: contain; }
 
-  const nameMaxW = CW - 72;
-  let nfs = 76;
-  while (nfs > 28) {
-    ctx.font = `900 ${nfs}px Georgia, serif`;
-    const nl = wrapText(ctx, delegate.name, nameMaxW);
-    if (nl.length <= 2 && nl.length * (nfs + 12) <= NAME_BUDGET_H) break;
-    nfs -= 4;
-  }
-  const NLH = nfs + 12;
-  const nameLines = wrapText(ctx, delegate.name, nameMaxW);
-  const NAME_START = CHIP_BOT + GAP_CHIP_NAME;
+        /* Typography */
+        .header-text { text-align: center; margin-bottom: 2.5rem; max-width: 800px; }
+        .header-text h1 { font-family: 'Bebas Neue', sans-serif; font-size: 3.5rem; letter-spacing: 2px; margin: 0 0 0.5rem 0; background: linear-gradient(to right, #10b981, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .header-text p { color: #94a3b8; font-size: 1.1rem; line-height: 1.6; margin: 0; }
 
-  ctx.fillStyle = CREAM; ctx.textAlign = "center";
-  ctx.shadowColor = "rgba(0,0,0,0.65)"; ctx.shadowBlur = 16;
-  nameLines.forEach((l, i) => ctx.fillText(l, CW/2, NAME_START + (i+1) * NLH));
-  ctx.shadowBlur = 0;
-  const NAME_BOT = NAME_START + nameLines.length * NLH;
+        /* Container */
+        .card-container { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 16px; padding: 2rem; width: 100%; max-width: 550px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); backdrop-filter: blur(10px); position: relative; z-index: 5; }
 
-  // Decorative line under name
-  const lineG = ctx.createLinearGradient(80, NAME_BOT + 14, CW - 80, NAME_BOT + 14);
-  lineG.addColorStop(0, "rgba(255,255,255,0)");
-  lineG.addColorStop(0.5, unit.glow.replace("0.5","0.4"));
-  lineG.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.strokeStyle = lineG; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(80, NAME_BOT + 14); ctx.lineTo(CW-80, NAME_BOT + 14); ctx.stroke();
+        /* Inputs & Buttons */
+        .input-box { width: 100%; background: rgba(2, 6, 23, 0.5); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; padding: 1rem; color: #fff; font-size: 1.1rem; transition: border-color 0.2s; margin-bottom: 1rem; }
+        .input-box:focus { outline: none; border-color: #10b981; }
+        .btn-primary { width: 100%; background: #10b981; color: #022c22; font-weight: 700; font-size: 1.1rem; padding: 1rem; border: none; border-radius: 8px; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .btn-primary:hover:not(:disabled) { background: #34d399; transform: translateY(-2px); box-shadow: 0 10px 20px -10px rgba(16, 185, 129, 0.6); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
-  // ── TICKET ID ────────────────────────────────────────────────────────────────
-  ctx.font = "600 16px monospace, Arial, sans-serif";
-  ctx.fillStyle = "rgba(232,184,75,0.55)";
-  ctx.textAlign = "center";
-  ctx.fillText(delegate.id, CW/2, ID_Y);
+        /* Upload Zone */
+        .upload-zone { border: 2px dashed rgba(16, 185, 129, 0.4); border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: all 0.3s; background: rgba(16, 185, 129, 0.02); }
+        .upload-zone:hover, .upload-zone.drag-active { border-color: #10b981; background: rgba(16, 185, 129, 0.08); transform: scale(1.02); }
 
-  // ── QR CODE ───────────────────────────────────────────────────────────────────
-  const qrURL = delegate.qrURL || `${REG_SITE}?checkin=${delegate.id}`;
-  const qrImg = await generateQRImage(qrURL, 220, NAVY);
-  if (qrImg) {
-    // QR card with unit-tinted border
-    ctx.shadowColor = unit.glow.replace("0.5","0.35"); ctx.shadowBlur = 16;
-    ctx.fillStyle = "#ffffff";
-    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 12); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = unit.glow.replace("0.5","0.45"); ctx.lineWidth = 2;
-    rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 12); ctx.stroke();
-    ctx.drawImage(qrImg, QR_X + QR_PAD, QR_Y + QR_PAD, QR_SIZE, QR_SIZE);
-  }
+        /* 3D Result Card */
+        .card-perspective { perspective: 1000px; margin-bottom: 2rem; }
+        .card-tilt { transform-style: preserve-3d; animation: floatCard 6s ease-in-out infinite; border-radius: 12px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 30px rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); }
+        .card-tilt img { width: 100%; height: auto; display: block; }
+        @keyframes floatCard { 0% { transform: translateY(0px) rotateX(2deg) rotateY(-2deg); } 50% { transform: translateY(-12px) rotateX(-2deg) rotateY(2deg); } 100% { transform: translateY(0px) rotateX(2deg) rotateY(-2deg); } }
 
-  return canvas;
-}
+        /* Mode Toggle */
+        .mode-toggle { display: flex; background: rgba(2, 6, 23, 0.8); border-radius: 30px; padding: 4px; margin-bottom: 1.5rem; border: 1px solid rgba(148, 163, 184, 0.2); width: fit-content; margin-left: auto; margin-right: auto; }
+        .mode-btn { flex: 1; padding: 8px 20px; border-radius: 26px; font-size: 0.9rem; font-weight: 600; cursor: pointer; border: none; background: transparent; color: #94a3b8; transition: all 0.3s; }
+        .mode-btn.active { background: #10b981; color: #022c22; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3); }
 
-// ─── DETERMINE IF VOLUNTEER ───────────────────────────────────────────────────
-function isVolunteer(delegate) {
-  return (
-    delegate.badge === "VOLUNTEER" ||
-    delegate.delegateType === "volunteer" ||
-    (delegate.position || "").toLowerCase().includes("volunteer") ||
-    (delegate.position || "").toLowerCase().includes("ushering") ||
-    (delegate.position || "").toLowerCase().includes("logistics") ||
-    (delegate.position || "").toLowerCase().includes("registration") ||
-    (delegate.position || "").toLowerCase().includes("team tech") ||
-    (delegate.position || "").toLowerCase().includes("anchors") ||
-    (delegate.position || "").toLowerCase().includes("welfare unit") ||
-    (delegate.level || "").toLowerCase() === "volunteer"
-  );
-}
+        /* Actions & UI */
+        .spinner { width: 40px; height: 40px; border: 4px solid rgba(16, 185, 129, 0.2); border-left-color: #10b981; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem auto; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+        .btn-secondary { background: transparent; color: #10b981; border: 1px solid #10b981; padding: 0.8rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: center;}
+        .btn-secondary:hover { background: rgba(16, 185, 129, 0.1); }
+        .caption-box { background: rgba(2, 6, 23, 0.6); border-radius: 8px; padding: 1rem; border: 1px solid rgba(148, 163, 184, 0.1); transition: all 0.3s; }
+        .caption-box:hover { border-color: rgba(16, 185, 129, 0.3); }
+      `;
+      document.head.appendChild(style);
+    }
 
-// ─── STYLES ───────────────────────────────────────────────────────────────────
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    const init = async () => {
+      try {
+        await Promise.all([
+          loadScript("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"),
+          loadScript("https://unpkg.com/smartcrop@2.0.5/smartcrop.js"),
+          loadScript("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js")
+        ]);
+        await loadScript("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js");
+        
+        if (!window.firebase.apps.length) window.firebase.initializeApp(FIREBASE_CONFIG);
+        setDb(window.firebase.firestore());
+      } catch (err) { console.error(err); setError("Network error loading core engines."); }
+    };
+    init();
 
-  :root {
-    --navy: #060d1a; --navy2: #0d1e38; --navy3: #1a3a6b;
-    --gold: #c9920a; --gold2: #e8b84b; --gold3: #f5d57a;
-    --green: #39e07a;
-    --cream: #f5f0e8;
-    --border: rgba(26,58,107,0.4);
-    --border-gold: rgba(201,146,10,0.28);
-    --glass: rgba(26,58,107,0.12);
-  }
-
-  html, body { min-height: 100vh; overflow-x: hidden; }
-
-  body {
-    background:
-      radial-gradient(ellipse 90% 55% at 50% -8%, rgba(26,58,107,0.42) 0%, transparent 58%),
-      radial-gradient(ellipse 55% 40% at 88% 72%, rgba(201,146,10,0.06) 0%, transparent 52%),
-      radial-gradient(ellipse 45% 30% at 8% 80%, rgba(57,224,122,0.04) 0%, transparent 50%),
-      #060d1a;
-    color: var(--cream);
-    font-family: 'Inter', sans-serif;
-  }
-
-  /* Noise grain overlay */
-  body::after {
-    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.22;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-  }
-
-  .page { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
-
-  /* ── KEYFRAMES ── */
-  @keyframes fadeUp    { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
-  @keyframes fadeIn    { from { opacity:0; } to { opacity:1; } }
-  @keyframes slideUp   { from { opacity:0; transform:translateY(40px); } to { opacity:1; transform:translateY(0); } }
-  @keyframes blink     { 0%,100%{opacity:1} 50%{opacity:0.3} }
-  @keyframes spinRing  { to { transform: rotate(360deg); } }
-  @keyframes shimmerBg { 0%{background-position:-600px 0} 100%{background-position:600px 0} }
-  @keyframes pulseGlow { 0%,100%{box-shadow:0 0 0 0 rgba(201,146,10,0)} 50%{box-shadow:0 0 28px 4px rgba(201,146,10,0.28)} }
-
-  /* ── HEADER ── */
-  .hdr {
-    padding: 14px 24px;
-    display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 1px solid var(--border);
-    background: rgba(6,13,26,0.92);
-    backdrop-filter: blur(24px) saturate(180%);
-    position: sticky; top: 0; z-index: 100;
-    box-shadow: 0 1px 0 rgba(26,58,107,0.3), 0 4px 20px rgba(0,0,0,0.3);
-    animation: fadeIn 0.4s ease both;
-  }
-  .hdr-brand { display: flex; align-items: center; gap: 12px; }
-  .hdr-logo {
-    width: 44px; height: 44px; border-radius: 50%;
-    border: 2px solid var(--gold2); object-fit: cover;
-    box-shadow: 0 0 14px rgba(201,146,10,0.3);
-    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s;
-  }
-  .hdr-logo:hover { transform: scale(1.08) rotate(-4deg); box-shadow: 0 0 22px rgba(201,146,10,0.5); }
-  .hdr-title { font-family: 'Bebas Neue', sans-serif; font-size: 17px; color: var(--gold2); line-height: 1; letter-spacing: 0.1em; }
-  .hdr-sub { font-size: 9px; color: rgba(245,240,232,0.35); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
-  .hdr-nav { display: flex; gap: 8px; align-items: center; }
-
-  .hdr-reg {
-    font-size: 11px; font-weight: 600; color: #fff; text-decoration: none;
-    background: linear-gradient(135deg, var(--gold), var(--navy3));
-    padding: 7px 16px; border-radius: 7px; letter-spacing: 0.06em;
-    box-shadow: 0 2px 12px rgba(201,146,10,0.22);
-    transition: all 0.22s cubic-bezier(0.34,1.1,0.64,1);
-  }
-  .hdr-reg:hover { box-shadow: 0 6px 22px rgba(201,146,10,0.4); transform: translateY(-2px); }
-
-  .hdr-reg-sec {
-    font-size: 11px; font-weight: 600; text-decoration: none;
-    border: 1px solid rgba(201,146,10,0.38); color: var(--gold2);
-    padding: 6px 14px; border-radius: 7px;
-    transition: all 0.22s; background: transparent;
-  }
-  .hdr-reg-sec:hover { background: rgba(201,146,10,0.1); transform: translateY(-1px); }
-
-  /* ── HERO ── */
-  .hero {
-    padding: 64px 24px 44px;
-    text-align: center; max-width: 720px; margin: 0 auto;
-    animation: slideUp 0.5s cubic-bezier(0.34,1.1,0.64,1) both;
-  }
-
-  .badge {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 6px 18px; border: 1px solid var(--border); border-radius: 100px;
-    font-size: 10px; letter-spacing: 0.13em; text-transform: uppercase;
-    color: var(--gold2); background: rgba(201,146,10,0.07); margin-bottom: 28px;
-    animation: pulseGlow 4s infinite;
-  }
-  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--gold2); animation: blink 2s infinite; flex-shrink:0; }
-
-  .hero h1 {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(44px, 9.5vw, 88px);
-    line-height: 0.93; letter-spacing: 0.04em; margin-bottom: 18px;
-    background: linear-gradient(135deg, #f5d57a 0%, #e8b84b 50%, #ffffff 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  }
-  .hero p { font-size: clamp(13px,2vw,16px); color: rgba(245,240,232,0.45); line-height: 1.75; max-width: 480px; margin: 0 auto 40px; }
-
-  /* ── STEPS ── */
-  .steps { display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 48px; flex-wrap: wrap; }
-  .step { display: flex; align-items: center; gap: 8px; }
-  .step-n {
-    width: 28px; height: 28px; border-radius: 50%;
-    border: 1.5px solid var(--border-gold);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 700; color: var(--gold2); flex-shrink: 0;
-    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
-  }
-  .step.active .step-n { background: var(--gold); color: #fff; border-color: var(--gold); box-shadow: 0 0 14px rgba(201,146,10,0.5), 0 0 0 4px rgba(201,146,10,0.12); transform: scale(1.1); }
-  .step.done .step-n { background: var(--green); color: #060d1a; border-color: var(--green); font-size: 13px; }
-  .step-lbl { font-size: 11px; color: rgba(245,240,232,0.32); font-weight: 500; transition: color 0.3s; }
-  .step.active .step-lbl, .step.done .step-lbl { color: rgba(245,240,232,0.82); }
-  .step-line { width: 28px; height: 1px; background: rgba(26,58,107,0.4); }
-
-  /* ── MAIN ── */
-  .main { flex: 1; max-width: 980px; margin: 0 auto; padding: 0 24px 88px; width: 100%; }
-
-  /* ── PANELS ── */
-  .panel {
-    background: rgba(7,13,26,0.8);
-    border: 1px solid var(--border);
-    border-radius: 18px; overflow: hidden; margin-bottom: 20px;
-    box-shadow: 0 4px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(26,58,107,0.18);
-    transition: transform 0.22s cubic-bezier(0.34,1.1,0.64,1), box-shadow 0.22s;
-  }
-  .panel:hover { transform: translateY(-1px); box-shadow: 0 8px 36px rgba(0,0,0,0.55), inset 0 1px 0 rgba(26,58,107,0.2); }
-
-  .phead {
-    background: linear-gradient(135deg, rgba(7,13,26,0.99), rgba(15,32,60,0.92));
-    border-bottom: 1px solid var(--border);
-    padding: 18px 26px; display: flex; align-items: center; gap: 14px;
-  }
-  .picon {
-    width: 36px; height: 36px; border-radius: 10px;
-    background: rgba(26,58,107,0.22); border: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px; flex-shrink: 0;
-  }
-  .ptitle { font-family: 'Cinzel', serif; font-size: 14px; font-weight: 700; color: var(--gold2); letter-spacing: 0.05em; }
-  .pdesc { font-size: 11px; color: rgba(245,240,232,0.35); margin-top: 3px; }
-  .pbody { padding: 26px; }
-
-  .vol-notice { background: rgba(57,224,122,0.07); border: 1px solid rgba(57,224,122,0.28); border-radius: 11px; padding: 13px 17px; margin-bottom: 20px; font-size: 12px; color: #39e07a; line-height: 1.65; }
-
-  /* ── TICKET INPUT ── */
-  .tick-row { display: flex; gap: 10px; }
-  .tick-in {
-    flex: 1; padding: 14px 16px;
-    background: rgba(26,58,107,0.09); border: 1.5px solid var(--border);
-    border-radius: 10px; color: var(--cream);
-    font-family: 'Inter', sans-serif; font-size: 14px;
-    letter-spacing: 0.07em; outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    text-transform: uppercase;
-  }
-  .tick-in:focus { border-color: var(--gold2); box-shadow: 0 0 0 3px rgba(201,146,10,0.12); }
-  .tick-in::placeholder { text-transform: none; color: rgba(245,240,232,0.2); letter-spacing: 0; }
-
-  .btn-fetch {
-    padding: 14px 22px;
-    background: linear-gradient(135deg, var(--gold), var(--navy3));
-    border: none; border-radius: 10px; color: #fff;
-    font-family: 'Cinzel', serif; font-size: 12px; font-weight: 700;
-    letter-spacing: 0.07em; cursor: pointer; white-space: nowrap;
-    box-shadow: 0 2px 16px rgba(201,146,10,0.26);
-    transition: all 0.22s cubic-bezier(0.34,1.1,0.64,1);
-  }
-  .btn-fetch:hover { box-shadow: 0 6px 24px rgba(201,146,10,0.42); transform: translateY(-2px); }
-  .btn-fetch:active { transform: scale(0.97); }
-  .btn-fetch:disabled { opacity: .38; cursor: not-allowed; transform: none; }
-
-  /* ── DELEGATE CARD ── */
-  .del-card {
-    display: flex; align-items: center; gap: 14px; padding: 16px;
-    background: rgba(26,58,107,0.12); border: 1px solid rgba(26,58,107,0.45);
-    border-radius: 12px; margin-top: 16px;
-    animation: fadeUp 0.35s cubic-bezier(0.34,1.1,0.64,1) both;
-    transition: border-color 0.2s;
-  }
-  .del-card:hover { border-color: rgba(201,146,10,0.3); }
-  .del-av { width: 42px; height: 42px; border-radius: 50%; background: rgba(26,58,107,0.18); border: 1.5px solid var(--gold2); display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
-  .del-name { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 700; color: var(--cream); margin-bottom: 3px; }
-  .del-meta { font-size: 11px; color: rgba(245,240,232,0.42); }
-  .del-id { margin-left: auto; font-family: monospace; font-size: 11px; color: var(--gold2); letter-spacing: .09em; flex-shrink: 0; }
-  .del-badge { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; margin-top: 5px; }
-
-  .err { margin-top: 13px; padding: 12px 16px; background: rgba(192,57,43,.09); border: 1px solid rgba(192,57,43,.32); border-radius: 9px; color: #e74c3c; font-size: 12px; animation: fadeUp 0.3s ease both; }
-
-  /* ── MODE TOGGLE ── */
-  .mode-toggle { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
-  .mode-btn { flex: 1; padding: 12px; border: none; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; transition: all 0.22s; background: transparent; color: rgba(245,240,232,0.32); letter-spacing: 0.04em; }
-  .mode-btn.dk { background: var(--navy2); color: var(--gold2); border-bottom: 2px solid var(--gold2); }
-  .mode-btn.lt { background: #f5f0e8; color: #06100f; border-bottom: 2px solid #06100f; }
-
-  /* ── UPLOAD ── */
-  .upload-zone {
-    border: 1.5px dashed rgba(26,58,107,0.48); border-radius: 14px;
-    padding: 36px 24px; text-align: center; cursor: pointer;
-    transition: all 0.24s cubic-bezier(0.34,1.1,0.64,1);
-    background: var(--glass);
-  }
-  .upload-zone:hover, .upload-zone.drag {
-    border-color: var(--gold2); background: rgba(201,146,10,0.06);
-    box-shadow: 0 0 24px rgba(201,146,10,0.1); transform: scale(1.01);
-  }
-  .up-icon { font-size: 36px; margin-bottom: 12px; animation: fadeUp 0.4s 0.1s ease both; }
-  .up-title { font-family: 'Cinzel', serif; font-size: 14px; font-weight: 700; color: var(--gold2); margin-bottom: 5px; }
-  .up-sub { font-size: 11px; color: rgba(245,240,232,0.32); }
-  .photo-row { display: flex; align-items: center; gap: 18px; }
-  .photo-row img { width: 106px; height: 106px; object-fit: cover; border-radius: 12px; border: 2px solid var(--gold2); display: block; flex-shrink: 0; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
-  .photo-rm { padding: 7px 14px; background: rgba(192,57,43,0.88); border: none; color: #fff; border-radius: 7px; font-size: 11px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
-  .photo-rm:hover { background: #c0392b; transform: scale(1.03); }
-  .photo-info { font-size: 12px; color: rgba(245,240,232,0.42); line-height: 1.7; }
-
-  /* ── GENERATE BUTTON ── */
-  .btn-gen {
-    width: 100%; padding: 16px; margin-top: 20px;
-    background: linear-gradient(135deg, var(--gold) 0%, #1a3a6b 120%);
-    border: none; border-radius: 13px; color: #fff;
-    font-family: 'Bebas Neue', sans-serif; font-size: 20px;
-    letter-spacing: 0.14em; cursor: pointer;
-    box-shadow: 0 6px 28px rgba(201,146,10,0.3);
-    transition: all 0.24s cubic-bezier(0.34,1.1,0.64,1);
-    position: relative; overflow: hidden;
-  }
-  .btn-gen::after {
-    content: '';
-    position: absolute; inset: 0;
-    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%);
-    background-size: 200% 100%;
-    animation: shimmerBg 2.4s linear infinite;
-  }
-  .btn-gen:hover { transform: translateY(-3px); box-shadow: 0 12px 36px rgba(201,146,10,0.42); }
-  .btn-gen:active { transform: scale(0.98); }
-  .btn-gen:disabled { opacity: .35; cursor: not-allowed; transform: none; }
-  .btn-gen:disabled::after { display: none; }
-
-  /* ── PREVIEW ── */
-  .preview { text-align: center; animation: slideUp 0.45s cubic-bezier(0.34,1.1,0.64,1) both; }
-  .preview-lbl {
-    font-family: 'Bebas Neue', sans-serif; font-size: 16px;
-    letter-spacing: 0.18em; text-transform: uppercase;
-    color: var(--gold2); margin-bottom: 24px;
-  }
-
-  .card-wrap {
-    display: inline-block; max-width: 340px; width: 100%;
-    border-radius: 20px; overflow: hidden;
-    box-shadow:
-      0 28px 72px rgba(0,0,0,0.72),
-      0 0 0 1px rgba(201,146,10,0.22),
-      0 0 50px rgba(26,58,107,0.18);
-    transition: transform 0.4s cubic-bezier(0.34,1.1,0.64,1), box-shadow 0.4s;
-    animation: popIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both;
-  }
-  .card-wrap:hover { transform: scale(1.025) translateY(-4px); box-shadow: 0 36px 88px rgba(0,0,0,0.8), 0 0 0 1px rgba(201,146,10,0.35), 0 0 60px rgba(26,58,107,0.22); }
-  .card-wrap.vol { max-width: 210px; border-radius: 14px; }
-  .card-wrap img { width: 100%; display: block; }
-
-  /* ── ACTION BUTTONS ── */
-  .act-row { display: flex; gap: 10px; margin-top: 22px; justify-content: center; flex-wrap: wrap; }
-
-  .btn-share {
-    padding: 13px 24px;
-    background: linear-gradient(135deg, #1a5c35, var(--green));
-    border: none; border-radius: 10px; color: #060d1a;
-    font-family: 'Bebas Neue', sans-serif; font-size: 16px;
-    letter-spacing: 0.11em; cursor: pointer;
-    box-shadow: 0 3px 18px rgba(57,224,122,0.28);
-    transition: all 0.24s cubic-bezier(0.34,1.1,0.64,1);
-  }
-  .btn-share:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(57,224,122,0.42); }
-
-  .btn-dl {
-    padding: 13px 24px;
-    background: linear-gradient(135deg, var(--gold), #1a3a6b);
-    border: none; border-radius: 10px; color: #fff;
-    font-family: 'Bebas Neue', sans-serif; font-size: 16px;
-    letter-spacing: 0.11em; cursor: pointer;
-    box-shadow: 0 3px 18px rgba(201,146,10,0.28);
-    transition: all 0.24s cubic-bezier(0.34,1.1,0.64,1);
-  }
-  .btn-dl:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(201,146,10,0.42); }
-
-  .btn-sec {
-    padding: 13px 20px; background: transparent;
-    border: 1px solid var(--border); border-radius: 10px;
-    color: rgba(245,240,232,0.45);
-    font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500;
-    cursor: pointer;
-    transition: all 0.22s cubic-bezier(0.34,1.1,0.64,1);
-  }
-  .btn-sec:hover { border-color: var(--gold2); color: var(--gold2); transform: translateY(-1px); }
-
-  /* ── CAPTION BOX ── */
-  .cap-box {
-    margin: 22px auto 0; padding: 18px 22px;
-    background: rgba(7,13,26,0.72); border: 1px solid var(--border);
-    border-radius: 14px; max-width: 400px; text-align: left;
-    animation: fadeUp 0.4s 0.1s ease both;
-  }
-  .cap-lbl { font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold2); font-weight: 700; margin-bottom: 9px; font-family: 'Inter', sans-serif; }
-  .cap-txt { font-size: 12px; color: rgba(245,240,232,0.58); line-height: 1.7; user-select: all; white-space: pre-line; }
-
-  .btn-copy {
-    margin-top: 12px; padding: 8px 18px;
-    background: rgba(26,58,107,0.18); border: 1px solid var(--border);
-    border-radius: 7px; color: var(--gold2); font-size: 11px; font-weight: 600;
-    cursor: pointer;
-    transition: all 0.22s;
-  }
-  .btn-copy:hover { background: rgba(201,146,10,0.12); border-color: var(--gold2); }
-
-  /* ── FOOTER DOTS ── */
-  .footer-dots { display: flex; justify-content: center; gap: 5px; padding: 24px 0 0; }
-  .footer-dots span { width: 4px; height: 4px; border-radius: 50%; background: rgba(26,58,107,0.4); display: block; transition: background 0.3s; }
-  .footer-dots span:nth-child(3n) { background: rgba(201,146,10,0.48); }
-  .footer-dots span:nth-child(5n) { background: rgba(57,224,122,0.28); }
-
-  @keyframes popIn { from { opacity:0; transform:scale(0.88); } to { opacity:1; transform:scale(1); } }
-
-  @media (max-width: 480px) {
-    .tick-row { flex-direction: column; }
-    .del-id { display: none; }
-    .hdr-reg-sec { display: none; }
-    .act-row { gap: 8px; }
-  }
-`;
-
-// ─── APP ──────────────────────────────────────────────────────────────────────
-export default function CardGenerator() {
-  const [ticketId, setTicketId]     = useState("");
-  const [delegate, setDelegate]     = useState(null);
-  const [fetching, setFetching]     = useState(false);
-  const [fetchErr, setFetchErr]     = useState("");
-  const [photo, setPhoto]           = useState(null);
-  const [drag, setDrag]             = useState(false);
-  const [cardMode, setCardMode]     = useState("dark");
-  const [generating, setGenerating] = useState(false);
-  const [cardUrl, setCardUrl]       = useState(null);
-  const [copied, setCopied]         = useState(false);
+    const params = new URLSearchParams(window.location.search);
+    const prefillId = params.get("prefill");
+    if (prefillId) setTicketId(prefillId.toUpperCase());
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const pre = params.get("prefill");
-    if (pre) setTicketId(pre.toUpperCase());
-  }, []);
+    if (params.get("prefill") && db && !delegate) handleFetchDelegate(params.get("prefill").toUpperCase());
+  }, [db]);
 
-  const step = !delegate ? 1 : !cardUrl ? 2 : 3;
-  const vol  = delegate && isVolunteer(delegate);
+  // If mode changes and photo exists, regenerate card seamlessly
+  useEffect(() => {
+    if (photoUrl && delegate) handleGenerate();
+  }, [cardMode]);
 
-  const handleFetch = async () => {
-    if (!ticketId.trim()) return;
-    setFetching(true); setFetchErr(""); setDelegate(null); setCardUrl(null);
-    const d = await fetchDelegate(ticketId.trim());
-    setFetching(false);
-    if (!d) setFetchErr("Ticket not found. Double-check your RLS code.");
-    else setDelegate(d);
+  const handleFetchDelegate = async (idToFetch = ticketId) => {
+    if (!db || !idToFetch.trim()) return;
+    setIsLoading(true); setError("");
+    try {
+      let formattedId = idToFetch.trim().toUpperCase();
+      if (!formattedId.startsWith("RLS-")) formattedId = `RLS-${formattedId}`;
+
+      const snapshot = await db.collection(COLLECTION).where("id", "==", formattedId).get();
+      if (snapshot.empty) {
+        setError("Ticket not found. Please ensure you have registered correctly.");
+        setDelegate(null);
+      } else {
+        setDelegate(snapshot.docs[0].data());
+      }
+    } catch (err) { setError("Database connectivity error. Try again."); }
+    finally { setIsLoading(false); }
   };
 
-  const handlePhoto = (file) => {
-    if (!file || !file.type.startsWith("image/")) return;
+  const handleDrag = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+    else if (e.type === "dragleave") setDragActive(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+  };
+
+  const processFile = (file) => {
+    if (!file.type.match("image.*")) { setError("Please upload a valid image file."); return; }
     const reader = new FileReader();
-    reader.onload = e => setPhoto(e.target.result);
+    reader.onload = (e) => setPhotoUrl(e.target.result);
     reader.readAsDataURL(file);
   };
 
-  const openFilePicker = () => {
-    const input = document.createElement("input");
-    input.type = "file"; input.accept = "image/*";
-    input.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0;";
-    const cleanup = () => { try { document.body.removeChild(input); } catch {} };
-    input.onchange = e => { const f = e.target.files?.[0]; if (f) handlePhoto(f); cleanup(); };
-    input.addEventListener("cancel", cleanup);
-    setTimeout(cleanup, 300000);
-    document.body.appendChild(input); input.click();
-  };
-
   const handleGenerate = async () => {
-    if (!delegate) return;
-    setGenerating(true);
-    try {
-      const canvas = vol
-        ? await renderVolunteerTag(delegate)
-        : await renderAttendeeCard(delegate, photo, cardMode);
-      setCardUrl(canvas.toDataURL("image/jpeg", 0.93));
-    } catch (e) { console.error(e); }
-    setGenerating(false);
+    if (!delegate || !photoUrl) return;
+    setIsGenerating(true); setError("");
+    
+    setTimeout(async () => {
+      try {
+        const dataUrl = await generateCardCanvas(delegate, photoUrl, cardMode)
+        setFinalCardUrl(dataUrl);
+      } catch (err) {
+        console.error(err); setError("Error generating visual output. Try a smaller photo.");
+      } finally { setIsGenerating(false); }
+    }, 150); // slight delay for UI spinner
   };
 
   const handleDownload = () => {
+    if (!finalCardUrl) return;
     const a = document.createElement("a");
-    a.href = cardUrl;
-    a.download = `RUNSA-Summit-${delegate.name.split(" ")[0]}-${vol ? "tag" : cardMode}.jpg`;
+    a.href = finalCardUrl;
+    a.download = `RUNSA-Summit-${delegate.name.replace(/\s+/g, "-")}-${cardMode}.jpg`;
     a.click();
   };
 
-  const caption = delegate
-    ? `🏛️ I'm attending the RUNSA Legislative Summit 2026!\n\n"The Catalyst of Transformation: Legislating the Future for Democratic Leadership"\n\n📍 @ Redeemer's University, Ede\n🗓️ 29th April, 2026\n\n✅ Register. Save your ticket. Create your Attendee Card.\n🎫 ${REG_SITE}\n\n#RUNSASummit2026 #LegislativeCouncil #RUNSA #RUN`
-    : "";
-
   const handleShare = async () => {
-    if (!cardUrl) return;
+    if (!finalCardUrl || !navigator.share) {
+      alert("Direct sharing not supported. Please use the Download button."); return;
+    }
     try {
-      const res = await fetch(cardUrl);
+      const res = await fetch(finalCardUrl);
       const blob = await res.blob();
-      const file = new File([blob], `RUNSA-Summit-${delegate.name.split(" ")[0]}.jpg`, { type: "image/jpeg" });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: "RUNSA Legislative Summit 2026", text: caption });
-      } else if (navigator.share) {
-        await navigator.share({ title: "RUNSA Legislative Summit 2026", text: caption, url: REG_SITE });
-      } else {
-        await navigator.clipboard.writeText(caption);
-        handleDownload();
-        alert("Caption copied! Image downloaded — paste caption when sharing.");
-      }
-    } catch (e) { if (e.name !== "AbortError") console.error("Share failed:", e); }
+      const file = new File([blob], "summit-card.jpg", { type: "image/jpeg" });
+      await navigator.share({
+        title: "Legislative Summit Credential",
+        text: `I'm stepping into the halls of legislation at the RUNSA Legislative Summit 2026! 🏛️✨\n\nJoin me: ${REG_SITE}`,
+        files: [file]
+      });
+    } catch (err) { console.log("Share failed", err); }
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(caption).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2200); });
-  };
-
-  const BadgeDisplay = ({ badge }) => {
-    const b = badge ? getBadgeInfo(badge) : null;
-    if (!b) return null;
-    return (
-      <span className="del-badge" style={{ background: b.bg, color: b.textColor, border: `1px solid ${b.glow.replace("0.5","0.4")}` }}>
-        {b.label}
-      </span>
-    );
-  };
-
-  const steps = [{ n:1, label:"Verify Ticket" }, { n:2, label:"Customise" }, { n:3, label:"Download & Share" }];
+  const captionText = `I am officially registered for the RUNSA Legislative Summit: The Catalyst of Transformation! 🏛️✨\n\nI look forward to an epoch-making event of leadership and dialogue. Join me by securing your spot here: ${REG_SITE}`;
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <div className="page">
-
-        <header className="hdr">
-          <div className="hdr-brand">
-            <img src="/legislative-council-logo.jpg" alt="" className="hdr-logo" onError={e => e.target.style.display="none"} />
-            <div>
-              <div className="hdr-title">Redeemer's University Students' Association · Legislative Council</div>
-              <div className="hdr-sub">Summit Card Generator</div>
-            </div>
-          </div>
-          <div className="hdr-nav">
-            <a href={REG_SITE} className="hdr-reg-sec">← Register</a>
-            <a href={REG_SITE} className="hdr-reg">Register →</a>
-          </div>
-        </header>
-
-        <div className="hero">
-          <div className="badge">Summit 2026 · Card Generator</div>
-          <h1>Your Card.<br />Your Moment.</h1>
-          <p>Generate your personal attendee card for the RUNSA Legislative Summit 2026. Share it. Announce your presence. Drive the hype.</p>
-          <div className="steps">
-            {steps.map((s, i) => (
-              <div key={s.n} style={{ display:"flex", alignItems:"center", gap:8 }}>
-                {i > 0 && <div className="step-line" />}
-                <div className={`step ${step === s.n ? "active" : step > s.n ? "done" : ""}`}>
-                  <div className="step-n">{step > s.n ? "✓" : s.n}</div>
-                  <span className="step-lbl">{s.label}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="page-wrap">
+      
+      {/* Top Navigation Row */}
+      <div className="nav-bar fade-in">
+        <a href={REG_SITE} className="back-btn">
+          <span>←</span> Back to Registration
+        </a>
+        <div className="nav-logos">
+          <img src={LOGO_1_URL} alt="RUNSA" />
+          <img src={LOGO_2_URL} alt="Legislative Council" />
         </div>
+      </div>
 
-        <div className="main">
+      {/* Upbeat & Dignified Landing Text */}
+      <div className="header-text fade-in" style={{ animationDelay: '0.1s' }}>
+        <h1>Welcome, Honorable Delegate</h1>
+        <p>
+          Step into the halls of legislation with prestige. Generate your personalized attendee card 
+          and show the world you are a vital part of this epoch-making summit.
+        </p>
+      </div>
 
-          {/* Step 1 */}
-          {!cardUrl && (
-            <div className="panel">
-              <div className="phead">
-                <div className="picon">🎫</div>
-                <div>
-                  <div className="ptitle">Step 1 — Verify Your Ticket</div>
-                  <div className="pdesc">Enter your RLS code from your registration ticket</div>
-                </div>
-              </div>
-              <div className="pbody">
-                <div className="tick-row">
-                  <input className="tick-in" placeholder="e.g. RLS-AHSXKJ"
-                    value={ticketId}
-                    onChange={e => { setTicketId(e.target.value); setFetchErr(""); }}
-                    onKeyDown={e => e.key === "Enter" && handleFetch()} />
-                  <button className="btn-fetch" onClick={handleFetch} disabled={fetching || !ticketId.trim()}>
-                    {fetching ? "Checking…" : "Verify →"}
-                  </button>
-                </div>
-                {fetchErr && <div className="err">❌ {fetchErr}</div>}
-                {delegate && (
-                  <div className="del-card">
-                    <div className="del-av">🎓</div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div className="del-name">{delegate.name}</div>
-                      <div className="del-meta">{delegate.position}{delegate.institution ? ` · ${delegate.institution}` : ""}</div>
-                      {delegate.badge && <BadgeDisplay badge={delegate.badge} />}
-                      {vol && <div style={{ fontSize:10, color:"#39e07a", marginTop:4 }}>✅ Volunteer tag format — unit colour theme applied</div>}
-                    </div>
-                    <div className="del-id">{delegate.id}</div>
-                  </div>
-                )}
-                <div style={{ marginTop:18, textAlign:"center" }}>
-                  <span style={{ fontSize:11, color:"rgba(245,240,232,0.32)" }}>Haven't registered yet? </span>
-                  <a href={REG_SITE} style={{ fontSize:11, color:"var(--gold2)", textDecoration:"none", fontWeight:600 }}>Register here →</a>
-                </div>
-              </div>
+      <div className="card-container slide-up" style={{ animationDelay: '0.2s' }}>
+        {error && (
+          <div className="fade-in" style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid #ef4444", color: "#fca5a5", padding: "12px", borderRadius: "8px", marginBottom: "20px", fontSize: "14px" }}>
+            ⚠ {error}
+          </div>
+        )}
+
+        {/* STEP 1: Ticket ID */}
+        {!delegate && !isLoading && (
+          <div className="fade-in">
+            <label style={{ display: "block", marginBottom: "8px", color: "#cbd5e1", fontWeight: 500 }}>Enter Your Ticket ID</label>
+            <input 
+              type="text" 
+              className="input-box"
+              placeholder="e.g. RLS-A1B2C3"
+              value={ticketId}
+              onChange={(e) => setTicketId(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleFetchDelegate()}
+            />
+            <button onClick={() => handleFetchDelegate()} disabled={!ticketId || !db} className="btn-primary">
+              Verify Ticket →
+            </button>
+          </div>
+        )}
+
+        {isLoading && (
+          <div className="fade-in" style={{ textAlign: "center", padding: "2rem 0" }}>
+            <div className="spinner"></div>
+            <p style={{ color: "#10b981", fontWeight: 600 }}>Locating Delegate Record...</p>
+          </div>
+        )}
+
+        {/* STEP 2: Photo Upload */}
+        {delegate && !finalCardUrl && !isLoading && !isGenerating && (
+          <div className="fade-in">
+            <div style={{ marginBottom: "1.5rem", paddingBottom: "1.5rem", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+              <div style={{ fontSize: "12px", color: "#94a3b8", textTransform: "uppercase" }}>Verified Delegate</div>
+              <div style={{ fontSize: "20px", fontWeight: "bold", color: "#fff" }}>{delegate.name}</div>
+              <div style={{ color: "#10b981", fontSize: "14px" }}>{delegate.position}</div>
             </div>
-          )}
 
-          {/* Step 2 */}
-          {delegate && !cardUrl && (
-            <div className="panel" style={{ animation:"fadeUp 0.4s 0.05s cubic-bezier(0.34,1.1,0.64,1) both" }}>
-              <div className="phead">
-                <div className="picon">🎨</div>
-                <div>
-                  <div className="ptitle">Step 2 — Customise Your Card</div>
-                  <div className="pdesc">{vol ? "Volunteer tag — unit colour theme auto-applied, just generate" : "Pick your style and upload your photo"}</div>
-                </div>
+            {/* Dark/Light Mode Selection (Before generating) */}
+            <div className="mode-toggle">
+              <button className={`mode-btn ${cardMode === 'dark' ? 'active' : ''}`} onClick={() => setCardMode('dark')}>🌙 Dark Mode</button>
+              <button className={`mode-btn ${cardMode === 'light' ? 'active' : ''}`} onClick={() => setCardMode('light')}>☀️ Light Mode</button>
+            </div>
+
+            {!photoUrl ? (
+              <div className={`upload-zone ${dragActive ? 'drag-active' : ''}`}
+                onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input type="file" ref={fileInputRef} onChange={(e) => { if(e.target.files[0]) processFile(e.target.files[0]) }} accept="image/jpeg, image/png" style={{ display: "none" }} />
+                <div style={{ fontSize: "32px", marginBottom: "10px" }}>📸</div>
+                <h3 style={{ margin: "0 0 8px 0" }}>Upload Your Portrait</h3>
+                <p style={{ margin: 0, fontSize: "14px", color: "#94a3b8" }}>A clear, well-lit photo works best. We will intelligently frame it.</p>
               </div>
-              <div className="pbody">
-                {vol ? (
-                  <div className="vol-notice">
-                    🏷️ As a <strong>Volunteer</strong>, you get a <strong>lanyard tag</strong> with your unit's unique colour theme. Perfect for standard ID card holders. Just tap Generate!
-                  </div>
-                ) : (
-                  <>
-                    <p style={{ fontSize:12, color:"rgba(245,240,232,.48)", marginBottom:12 }}>Card Style</p>
-                    <div className="mode-toggle">
-                      <button className={`mode-btn ${cardMode === "dark" ? "dk" : ""}`} onClick={() => setCardMode("dark")}>🌙 Dark Mode</button>
-                      <button className={`mode-btn ${cardMode === "light" ? "lt" : ""}`} onClick={() => setCardMode("light")}>☀️ Light Mode</button>
-                    </div>
-                    <p style={{ fontSize:12, color:"rgba(245,240,232,.48)", marginBottom:12, marginTop:22 }}>
-                      Your Photo <span style={{ color:"rgba(245,240,232,.28)" }}>(Recommended for best results)</span>
-                    </p>
-                    {!photo ? (
-                      <div className={`upload-zone ${drag ? "drag" : ""}`}
-                        onDragOver={e => { e.preventDefault(); setDrag(true); }}
-                        onDragLeave={() => setDrag(false)}
-                        onDrop={e => { e.preventDefault(); setDrag(false); handlePhoto(e.dataTransfer.files[0]); }}
-                        onClick={openFilePicker}>
-                        <div className="up-icon">📷</div>
-                        <div className="up-title">Tap or drop your photo</div>
-                        <div className="up-sub">JPG or PNG · Front-facing photo works best</div>
-                      </div>
-                    ) : (
-                      <div className="photo-row">
-                        <img src={photo} alt="Preview" />
-                        <div>
-                          <div className="photo-info" style={{ marginBottom:12 }}>✅ Photo ready!<br /><span style={{ fontSize:11, color:"rgba(245,240,232,.28)" }}>Remove and re-upload to change it.</span></div>
-                          <button className="photo-rm" onClick={() => setPhoto(null)}>✕ Remove</button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-                <button className="btn-gen" onClick={handleGenerate} disabled={generating}>
-                  {generating ? "✨ Generating your card…" : vol ? "🏷️ Generate My Volunteer Tag →" : "✨ Generate My Card →"}
+            ) : (
+              <div className="fade-in">
+                <div style={{ position: "relative", borderRadius: "8px", overflow: "hidden", marginBottom: "1rem", height: "250px", background: "#000", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+                   <img src={photoUrl} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                   <button onClick={() => setPhotoUrl(null)} style={{ position: "absolute", top: "10px", right: "10px", background: "rgba(239, 68, 68, 0.9)", color: "#fff", border: "none", borderRadius: "50%", width: "32px", height: "32px", cursor: "pointer", transition: "transform 0.2s" }} onMouseOver={e=>e.target.style.transform='scale(1.1)'} onMouseOut={e=>e.target.style.transform='scale(1)'}>✕</button>
+                </div>
+                <button onClick={handleGenerate} className="btn-primary">
+                  Generate Delegate Tag ✨
                 </button>
               </div>
+            )}
+          </div>
+        )}
+
+        {isGenerating && (
+          <div className="fade-in" style={{ textAlign: "center", padding: "2rem 0" }}>
+            <div className="spinner"></div>
+            <p style={{ color: "#10b981", fontWeight: 600 }}>Crafting Your {cardMode === 'dark' ? 'Navy' : 'Ivory'} Tag...</p>
+            <p style={{ fontSize: "12px", color: "#94a3b8" }}>Applying intelligent crop and legislative aesthetics.</p>
+          </div>
+        )}
+
+        {/* STEP 3: Final Output */}
+        {finalCardUrl && !isGenerating && (
+          <div className="fade-in">
+            
+            {/* The Toggle is still here so they can instantly switch themes */}
+            <div className="mode-toggle">
+              <button className={`mode-btn ${cardMode === 'dark' ? 'active' : ''}`} onClick={() => setCardMode('dark')}>🌙 Dark Mode</button>
+              <button className={`mode-btn ${cardMode === 'light' ? 'active' : ''}`} onClick={() => setCardMode('light')}>☀️ Light Mode</button>
             </div>
-          )}
 
-          {/* Step 3 */}
-          {cardUrl && (
-            <div className="preview">
-              <div className="preview-lbl">{vol ? "✦ Your Volunteer Tag ✦" : "✦ Your Attendee Card ✦"}</div>
-              <div className={`card-wrap${vol ? " vol" : ""}`}>
-                <img src={cardUrl} alt={vol ? "Your volunteer tag" : "Your summit card"} />
+            <div className="card-perspective">
+              <div className="card-tilt">
+                <img src={finalCardUrl} alt="Your Official Tag" />
               </div>
-              {vol && (
-                <p style={{ fontSize:11, color:"rgba(245,240,232,0.35)", marginTop:14, lineHeight:1.65 }}>
-                  Print at ID card size (54×86mm) and slide into a standard neck lanyard holder.
-                </p>
-              )}
-              <div className="act-row">
-                <button className="btn-share" onClick={handleShare}>📤 Share</button>
-                <button className="btn-dl" onClick={handleDownload}>⬇ Download</button>
-                {!vol && (
-                  <button className="btn-sec" onClick={() => { setCardMode(m => m === "dark" ? "light" : "dark"); setCardUrl(null); }}>
-                    {cardMode === "dark" ? "☀️ Light" : "🌙 Dark"}
-                  </button>
-                )}
-                <button className="btn-sec" onClick={() => { setCardUrl(null); setPhoto(null); setDelegate(null); setTicketId(""); }}>↺ Start Over</button>
-              </div>
-              {!vol && (
-                <div className="cap-box">
-                  <div className="cap-lbl">📋 Copy This Caption</div>
-                  <div className="cap-txt">{caption}</div>
-                  <button className="btn-copy" onClick={handleCopy}>{copied ? "✓ Copied!" : "Copy Caption"}</button>
-                </div>
-              )}
             </div>
-          )}
 
-        </div>
+            <div className="action-row">
+              <button onClick={handleDownload} className="btn-primary">⬇ Download</button>
+              <button onClick={handleShare} className="btn-primary" style={{ background: "#2563eb", color: "#fff" }}>📤 Share Tag</button>
+            </div>
 
-        <div className="footer-dots">{Array.from({length:22}).map((_,i) => <span key={i} />)}</div>
+            <div className="caption-box">
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", alignItems: "center" }}>
+                <span style={{ fontSize: "12px", fontWeight: "bold", color: "#94a3b8", textTransform: "uppercase", display: "flex", alignItems: "center", gap: "6px" }}>📋 Suggested Caption</span>
+                <button onClick={() => { navigator.clipboard.writeText(captionText); alert("Caption Copied Successfully!"); }} className="btn-secondary" style={{ padding: "4px 10px", fontSize: "11px", border: "none", background: "rgba(16, 185, 129, 0.15)" }}>
+                  Copy Text
+                </button>
+              </div>
+              <p style={{ margin: 0, fontSize: "13px", color: "#cbd5e1", lineHeight: 1.5, fontStyle: "italic" }}>
+                "{captionText}"
+              </p>
+            </div>
+
+            <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
+              <button onClick={() => { setFinalCardUrl(null); setPhotoUrl(null); }} className="btn-secondary" style={{ border: "none", fontSize: "14px" }}>
+                ↺ Start Over with New Photo
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-    </>
+
+      <div className="fade-in" style={{ marginTop: "2rem", color: "#475569", fontSize: "12px", letterSpacing: "1px", animationDelay: "0.4s" }}>
+        RUNSA LEGISLATIVE SUMMIT 2026 • REGISTRATION ENGINE
+      </div>
+    </div>
   );
 }
