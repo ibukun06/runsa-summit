@@ -20,7 +20,7 @@ async function loadFaceApi() {
   if (faceApiLoading) {
     // Wait for loading to complete
     while (faceApiLoading) {
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 50));
     }
     return faceApiLoaded;
   }
@@ -37,27 +37,33 @@ async function loadFaceApi() {
   return faceApiLoaded;
 }
 
-async function detectFace(imageElement) {
+// Fast face detection with timeout - used during upload (background)
+async function detectFaceFast(imageElement, timeoutMs = 2000) {
   const loaded = await loadFaceApi();
   if (!loaded || !window.faceapi) return null;
   
-  try {
-    // Detect single face with landmarks for better accuracy
-    const detection = await window.faceapi
-      .detectSingleFace(imageElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }))
-      .withFaceLandmarks();
-    
-    if (detection) {
-      return {
-        box: detection.detection.box,
-        landmarks: detection.landmarks,
-        score: detection.detection.score
-      };
-    }
-  } catch (e) {
-    console.error("Face detection error:", e);
-  }
-  return null;
+  return Promise.race([
+    (async () => {
+      try {
+        // Use smaller input size for SPEED (128 is much faster than 416)
+        const detection = await window.faceapi
+          .detectSingleFace(imageElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.2 }));
+        
+        if (detection && detection.box) {
+          return {
+            x: detection.box.x + detection.box.width / 2,
+            y: detection.box.y + detection.box.height / 2,
+            width: detection.box.width,
+            height: detection.box.height
+          };
+        }
+      } catch (e) {
+        console.log("Face detection error:", e);
+      }
+      return null;
+    })(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
+  ]).catch(() => null);
 }
 
 // ─── FIREBASE ─────────────────────────────────────────────────────────────────
@@ -139,28 +145,15 @@ function loadImg(src) {
 }
 
 // ─── SMART FACE-AWARE COVER DRAWING ───────────────────────────────────────────
-// This function intelligently crops and positions the image to center on the face
-async function drawSmartFaceCover(ctx, img, x, y, w, h) {
+// Uses cached face position for instant rendering (face detected during upload)
+function drawSmartFaceCover(ctx, img, x, y, w, h, facePosition = null) {
   const imgAr = img.width / img.height;
   const zoneAr = w / h;
   
-  // Try to detect face for intelligent cropping
-  let faceCenterX = img.width / 2;
-  let faceCenterY = img.height * 0.35; // Default to upper third (face position)
-  let faceDetected = false;
-  
-  try {
-    const faceData = await detectFace(img);
-    if (faceData && faceData.box) {
-      const box = faceData.box;
-      faceCenterX = box.x + box.width / 2;
-      faceCenterY = box.y + box.height / 2;
-      faceDetected = true;
-      console.log("Face detected at:", faceCenterX, faceCenterY, "confidence:", faceData.score);
-    }
-  } catch (e) {
-    console.log("Face detection failed, using fallback positioning");
-  }
+  // Use cached face position or default to center/upper-third
+  let faceCenterX = facePosition ? facePosition.x : img.width / 2;
+  let faceCenterY = facePosition ? facePosition.y : img.height * 0.35;
+  let faceDetected = !!facePosition;
   
   let sw, sh, sx, sy;
   
@@ -175,7 +168,6 @@ async function drawSmartFaceCover(ctx, img, x, y, w, h) {
     
     // If face is detected, adjust vertical position to include more of upper body
     if (faceDetected) {
-      // Keep face in upper portion of the card (about 30-40% from top)
       const targetFaceY = h * 0.35;
       sy = Math.max(0, Math.min(faceCenterY - targetFaceY, img.height - sh));
     }
@@ -186,22 +178,18 @@ async function drawSmartFaceCover(ctx, img, x, y, w, h) {
     sx = 0;
     
     // Center on face vertically, prioritizing face visibility
-    // Position face in the upper portion of the frame for better composition
-    const targetFaceY = h * 0.35; // Face should be at ~35% from top of card
+    const targetFaceY = h * 0.35;
     const scaleFactor = h / sh;
     
-    // Calculate where the face should be in source coordinates
     const desiredSy = faceCenterY - (targetFaceY / scaleFactor);
     sy = Math.max(0, Math.min(desiredSy, img.height - sh));
     
-    // If face is very high in the image, bias toward showing more of the person
     if (faceCenterY < img.height * 0.3) {
       sy = Math.max(0, faceCenterY - sh * 0.25);
     }
   }
   
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
-  return faceDetected;
 }
 
 // Legacy function for backward compatibility (fallback)
@@ -230,7 +218,8 @@ function getBadgeInfo(badge) {
 // ─── ATTENDEE CARD — REDESIGNED ───────────────────────────────────────────────
 // New design: full-bleed photo top half, rich information panel below
 // with geometric accent elements, gradient badge, and premium typography
-async function renderAttendeeCard(delegate, photoDataUrl, mode) {
+// facePosition is cached face data {x, y} detected during upload
+async function renderAttendeeCard(delegate, photoDataUrl, mode, facePosition = null) {
   const dark = mode === "dark";
   const CW = ATT_W, CH = ATT_H;
 
@@ -270,8 +259,8 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
     const photo = await loadImg(photoDataUrl);
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, CW, PHOTO_H); ctx.clip();
     
-    // Use face-aware drawing for intelligent photo positioning
-    await drawSmartFaceCover(ctx, photo, 0, 0, CW, PHOTO_H);
+    // Use cached face position for instant rendering (detected during upload)
+    drawSmartFaceCover(ctx, photo, 0, 0, CW, PHOTO_H, facePosition);
     
     ctx.restore();
     // Top vignette — only covers the very top (logo/header zone)
@@ -1124,6 +1113,8 @@ export default function CardGenerator() {
   const [fetching, setFetching]     = useState(false);
   const [fetchErr, setFetchErr]     = useState("");
   const [photo, setPhoto]           = useState(null);
+  const [facePosition, setFacePosition] = useState(null); // Cached face position {x, y}
+  const [detectingFace, setDetectingFace] = useState(false);
   const [drag, setDrag]             = useState(false);
   const [cardMode, setCardMode]     = useState("dark");
   const [generating, setGenerating] = useState(false);
@@ -1151,8 +1142,36 @@ export default function CardGenerator() {
   const handlePhoto = (file) => {
     if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
-    reader.onload = e => setPhoto(e.target.result);
+    reader.onload = e => {
+      const photoData = e.target.result;
+      setPhoto(photoData);
+      setFacePosition(null); // Reset face position
+      
+      // Detect face in background (non-blocking)
+      detectFaceInBackground(photoData);
+    };
     reader.readAsDataURL(file);
+  };
+  
+  // Detect face position in background when photo is uploaded
+  const detectFaceInBackground = async (photoData) => {
+    setDetectingFace(true);
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = photoData; });
+      
+      const facePos = await detectFaceFast(img, 2500); // 2.5s timeout
+      if (facePos) {
+        setFacePosition(facePos);
+        console.log("Face detected during upload:", facePos);
+      } else {
+        console.log("No face detected or timeout, using default positioning");
+      }
+    } catch (e) {
+      console.log("Face detection failed:", e);
+    }
+    setDetectingFace(false);
   };
 
   const openFilePicker = () => {
@@ -1172,7 +1191,7 @@ export default function CardGenerator() {
     try {
       const canvas = vol
         ? await renderVolunteerTag(delegate)
-        : await renderAttendeeCard(delegate, photo, cardMode);
+        : await renderAttendeeCard(delegate, photo, cardMode, facePosition);
       setCardUrl(canvas.toDataURL("image/jpeg", 0.93));
     } catch (e) { console.error(e); }
     setGenerating(false);
@@ -1341,8 +1360,11 @@ export default function CardGenerator() {
                       <div className="photo-row">
                         <img src={photo} alt="Preview" />
                         <div>
-                          <div className="photo-info" style={{ marginBottom:12 }}>✅ Photo ready!<br /><span style={{ fontSize:11, color:"rgba(245,240,232,.28)" }}>Remove and re-upload to change it.</span></div>
-                          <button className="photo-rm" onClick={() => setPhoto(null)}>✕ Remove</button>
+                          <div className="photo-info" style={{ marginBottom:12 }}>
+                            ✅ Photo ready!{detectingFace && <span> 🔍 Analyzing face...</span>}{facePosition && <span> ✓ Face positioned</span>}<br />
+                            <span style={{ fontSize:11, color:"rgba(245,240,232,.28)" }}>Remove and re-upload to change it.</span>
+                          </div>
+                          <button className="photo-rm" onClick={() => { setPhoto(null); setFacePosition(null); }}>✕ Remove</button>
                         </div>
                       </div>
                     )}
@@ -1375,7 +1397,7 @@ export default function CardGenerator() {
                     {cardMode === "dark" ? "☀️ Light" : "🌙 Dark"}
                   </button>
                 )}
-                <button className="btn-sec" onClick={() => { setCardUrl(null); setPhoto(null); setDelegate(null); setTicketId(""); }}>↺ Start Over</button>
+                <button className="btn-sec" onClick={() => { setCardUrl(null); setPhoto(null); setFacePosition(null); setDelegate(null); setTicketId(""); }}>↺ Start Over</button>
               </div>
               {!vol && (
                 <div className="cap-box">
