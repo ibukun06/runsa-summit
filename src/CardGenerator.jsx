@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+=import { useState, useRef, useEffect } from "react";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const REG_SITE = "https://legislative-summit-registration.vercel.app";
@@ -28,12 +28,6 @@ function loadScript(src) {
     s.src = src; s.onload = resolve; s.onerror = reject;
     document.head.appendChild(s);
   });
-}
-
-// ─── SMARTCROP LIBRARY ────────────────────────────────────────────────────────
-async function initSmartCrop() {
-  if (window.smartcrop) return;
-  await loadScript("https://cdn.jsdelivr.net/npm/smartcrop@2.0.5/smartcrop.min.js");
 }
 async function fetchDelegate(id) {
   try {
@@ -95,35 +89,13 @@ function loadImg(src) {
   });
 }
 
-// ─── IMPROVED FACE CENTERING WITH SMARTCROP ───────────────────────────────────
-async function drawSmartCover(ctx, img, x, y, w, h) {
+function drawSmartCover(ctx, img, x, y, w, h) {
   const imgAr = img.width / img.height;
   const zoneAr = w / h;
-  let crop = { x: 0, y: 0, width: img.width, height: img.height };
-  
-  // Mathematical Aspect Ratio Fallback
-  if (imgAr > zoneAr) {
-    crop.height = img.height;
-    crop.width = img.height * zoneAr;
-    crop.x = (img.width - crop.width) / 2;
-    crop.y = 0;
-  } else {
-    crop.width = img.width;
-    crop.height = img.width / zoneAr;
-    crop.x = 0;
-    crop.y = (img.height - crop.height) * 0.15;
-  }
-
-  // Try SmartCrop for better face detection
-  try {
-    if (window.smartcrop) {
-      const result = await window.smartcrop.crop(img, { width: w, height: h, minScale: 0.85 });
-      crop = result.topCrop;
-      if (crop.y > 10) crop.y -= 10;
-    }
-  } catch (e) {}
-  
-  ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, x, y, w, h);
+  let sw, sh, sx, sy;
+  if (imgAr > zoneAr) { sh = img.height; sw = img.height * zoneAr; sx = (img.width - sw) / 2; sy = 0; }
+  else { sw = img.width; sh = img.width / zoneAr; sx = 0; sy = Math.max(0, Math.min(img.height * 0.04, img.height - sh)); }
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
 }
 
 // ─── BADGE INFO ───────────────────────────────────────────────────────────────
@@ -143,9 +115,6 @@ function getBadgeInfo(badge) {
 // New design: full-bleed photo top half, rich information panel below
 // with geometric accent elements, gradient badge, and premium typography
 async function renderAttendeeCard(delegate, photoDataUrl, mode) {
-  // Initialize SmartCrop for face detection
-  await initSmartCrop();
-  
   const dark = mode === "dark";
   const CW = ATT_W, CH = ATT_H;
 
@@ -169,37 +138,28 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   // ── BACKGROUND ──────────────────────────────────────────────────────────────
   ctx.fillStyle = BG; ctx.fillRect(0, 0, CW, CH);
 
-  // Photo height - 70% for generous face visibility with clean alpha masking
-  const PHOTO_H = Math.round(CH * 0.70);
+  // Fix A — 48% photo height (was 54%) gives more visible face zone.
+  // The bottom fade starts later (55% into photo instead of 38%) so the
+  // subject's face and chest are fully visible before the blend begins.
+  const PHOTO_H = Math.round(CH * 0.48);
 
-  // ── PHOTO ZONE with Alpha Mask Blending ─────────────────────────────────────
+  // ── PHOTO ZONE ──────────────────────────────────────────────────────────────
   if (photoDataUrl) {
     const photo = await loadImg(photoDataUrl);
-    
-    // Create temporary canvas for alpha masking
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = CW; tempCanvas.height = PHOTO_H;
-    const tCtx = tempCanvas.getContext("2d");
-    
-    // Draw photo with smart face-aware cropping
-    await drawSmartCover(tCtx, photo, 0, 0, CW, PHOTO_H);
-    
-    // Apply alpha mask for clean bottom fade (Face stays 100% visible)
-    tCtx.globalCompositeOperation = "destination-in";
-    const mask = tCtx.createLinearGradient(0, PHOTO_H * 0.80, 0, PHOTO_H);
-    mask.addColorStop(0, "rgba(0,0,0,1)");     // Solid up to 80%
-    mask.addColorStop(1, "rgba(0,0,0,0)");     // Fades out at bottom edge
-    tCtx.fillStyle = mask; tCtx.fillRect(0, 0, CW, PHOTO_H);
-    
-    // Draw the masked photo to main canvas
-    ctx.drawImage(tempCanvas, 0, 0);
-    
-    // Top vignette - very subtle, only at very top
-    const tv = ctx.createLinearGradient(0, 0, 0, 100);
-    tv.addColorStop(0, "rgba(0,0,0,0.25)"); 
-    tv.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 100);
-    
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, CW, PHOTO_H); ctx.clip();
+    drawSmartCover(ctx, photo, 0, 0, CW, PHOTO_H); ctx.restore();
+    // Top vignette — only covers the very top (logo/header zone)
+    const tv = ctx.createLinearGradient(0, 0, 0, 180);
+    tv.addColorStop(0, "rgba(0,0,0,0.55)"); tv.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 180);
+    // Bottom fade — pushed down to 82% into photo zone to keep the face crystal clear
+    const FADE_START = 0.82;
+    const bv = ctx.createLinearGradient(0, PHOTO_H * FADE_START, 0, PHOTO_H);
+    bv.addColorStop(0, "rgba(0,0,0,0)");
+    bv.addColorStop(0.7, dark ? "rgba(7,17,30,0.35)" : "rgba(244,246,251,0.35)"); // Greatly reduced mid-intensity
+    bv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(244,246,251,1)");
+    ctx.fillStyle = bv; 
+    ctx.fillRect(0, PHOTO_H * FADE_START, CW, PHOTO_H * (1 - FADE_START));
   } else {
     // Geometric placeholder with initials
     const bgMesh = ctx.createLinearGradient(0, 0, CW, PHOTO_H);
@@ -293,9 +253,11 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   ctx.strokeStyle = GREEN; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.moveTo(TR_X - 262, LY + 46); ctx.lineTo(TR_X, LY + 46); ctx.stroke();
 
-  // ── I'M ATTENDING badge ──────────────────────────────────────────────────────
-  // Positioned at bottom of photo strip, inside fade zone
-  const ATT_Y = PHOTO_H - 72;
+  // ── I'M ATTENDING badge (Fix A: moved to very bottom of photo strip) ─────────
+  // Previously at PHOTO_H-120 which could overlay the face for portrait shots.
+  // Now at PHOTO_H-76 — inside the vignette zone at the very bottom edge,
+  // where the background is already semi-transparent, never on the face.
+  const ATT_Y = PHOTO_H - 76;
   const attG = ctx.createLinearGradient(48, ATT_Y, 48 + 320, ATT_Y);
   attG.addColorStop(0, "rgba(201,146,10,0.28)");
   attG.addColorStop(1, "rgba(57,224,122,0.14)");
