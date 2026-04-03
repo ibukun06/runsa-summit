@@ -38,6 +38,12 @@ async function fetchDelegate(id) {
   } catch (e) { console.error(e); return null; }
 }
 
+// ─── SMARTCROP LIBRARY ────────────────────────────────────────────────────────
+async function initSmartCrop() {
+  if (window.smartcrop) return;
+  await loadScript("https://cdn.jsdelivr.net/npm/smartcrop@2.0.5/smartcrop.min.js");
+}
+
 // ─── QR GENERATOR ─────────────────────────────────────────────────────────────
 async function generateQRImage(text, size, darkColor = "#050d1e") {
   await loadScript("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
@@ -89,30 +95,37 @@ function loadImg(src) {
   });
 }
 
-// ─── IMPROVED FACE CENTERING ──────────────────────────────────────────────────
-// Smart face-aware cropping that centers the subject better
-function drawSmartCover(ctx, img, x, y, w, h) {
+// ─── IMPROVED FACE CENTERING WITH SMARTCROP FALLBACK ──────────────────────────
+// Uses SmartCrop library for intelligent face detection with mathematical fallback
+async function drawSmartCover(ctx, img, x, y, w, h) {
   const imgAr = img.width / img.height;
   const zoneAr = w / h;
-  let sw, sh, sx, sy;
+  let crop = { x: 0, y: 0, width: img.width, height: img.height };
   
+  // Mathematical Aspect Ratio Fallback (Guarantees safe centering if SmartCrop misses)
   if (imgAr > zoneAr) {
-    // Image is wider than zone - crop sides, keep full height
-    sh = img.height;
-    sw = img.height * zoneAr;
-    sx = (img.width - sw) / 2; // Center horizontally
-    sy = 0;
+    crop.height = img.height;
+    crop.width = img.height * zoneAr;
+    crop.x = (img.width - crop.width) / 2;
+    crop.y = 0;
   } else {
-    // Image is taller than zone - crop top/bottom, keep full width
-    sw = img.width;
-    sh = img.width / zoneAr;
-    sx = 0;
-    // Center vertically with slight bias toward upper body (face area)
-    // Use 45% from top instead of 50% to favor upper body
-    sy = Math.max(0, Math.min(img.height * 0.42 - sh * 0.42, img.height - sh));
+    crop.width = img.width;
+    crop.height = img.width / zoneAr;
+    crop.x = 0;
+    crop.y = (img.height - crop.height) * 0.15; // Shift slightly upwards for heads
   }
+
+  // Try SmartCrop for better face detection
+  try {
+    if (window.smartcrop) {
+      const result = await window.smartcrop.crop(img, { width: w, height: h, minScale: 0.85 });
+      crop = result.topCrop;
+      // Slight heuristic adjustment so top of head isn't chopped
+      if (crop.y > 10) crop.y -= 10;
+    }
+  } catch (e) {}
   
-  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, x, y, w, h);
 }
 
 // ─── BADGE INFO ───────────────────────────────────────────────────────────────
@@ -130,6 +143,9 @@ function getBadgeInfo(badge) {
 
 // ─── ATTENDEE CARD — REDESIGNED WITH CLEAN GRADIENTS ──────────────────────────
 async function renderAttendeeCard(delegate, photoDataUrl, mode) {
+  // Initialize SmartCrop for face detection
+  await initSmartCrop();
+  
   const dark = mode === "dark";
   const CW = ATT_W, CH = ATT_H;
 
@@ -153,33 +169,37 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   // ── BACKGROUND ──────────────────────────────────────────────────────────────
   ctx.fillStyle = BG; ctx.fillRect(0, 0, CW, CH);
 
-  // Photo height - increased to 52% for better face visibility
-  const PHOTO_H = Math.round(CH * 0.52);
+  // Photo height - 70% for generous face visibility
+  const PHOTO_H = Math.round(CH * 0.70);
 
-  // ── PHOTO ZONE ──────────────────────────────────────────────────────────────
+  // ── PHOTO ZONE with Alpha Mask Blending ─────────────────────────────────────
   if (photoDataUrl) {
     const photo = await loadImg(photoDataUrl);
-    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, CW, PHOTO_H); ctx.clip();
-    drawSmartCover(ctx, photo, 0, 0, CW, PHOTO_H); ctx.restore();
+    
+    // Create temporary canvas for alpha masking
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = CW; tempCanvas.height = PHOTO_H;
+    const tCtx = tempCanvas.getContext("2d");
+    
+    // Draw photo with smart cropping
+    await drawSmartCover(tCtx, photo, 0, 0, CW, PHOTO_H);
+    
+    // Apply alpha mask for clean bottom fade (Face stays 100% visible)
+    tCtx.globalCompositeOperation = "destination-in";
+    const mask = tCtx.createLinearGradient(0, PHOTO_H * 0.80, 0, PHOTO_H);
+    mask.addColorStop(0, "rgba(0,0,0,1)");     // Solid up to 80%
+    mask.addColorStop(1, "rgba(0,0,0,0)");     // Fades out at bottom edge
+    tCtx.fillStyle = mask; tCtx.fillRect(0, 0, CW, PHOTO_H);
+    
+    // Draw the masked photo to main canvas
+    ctx.drawImage(tempCanvas, 0, 0);
     
     // Top vignette - very subtle, only at very top
-    const tv = ctx.createLinearGradient(0, 0, 0, 120);
-    tv.addColorStop(0, "rgba(0,0,0,0.35)"); 
+    const tv = ctx.createLinearGradient(0, 0, 0, 100);
+    tv.addColorStop(0, "rgba(0,0,0,0.25)"); 
     tv.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 120);
+    ctx.fillStyle = tv; ctx.fillRect(0, 0, CW, 100);
     
-    // Bottom fade - CLEAN GRADIENT like Mercy Oni card
-    // Starts at 92% of photo height (much lower, keeps face fully visible)
-    const FADE_START = 0.92;
-    const fadeHeight = PHOTO_H * (1 - FADE_START);
-    const bv = ctx.createLinearGradient(0, PHOTO_H * FADE_START, 0, PHOTO_H);
-    bv.addColorStop(0, "rgba(0,0,0,0)");
-    // Very subtle mid transition
-    bv.addColorStop(0.6, dark ? "rgba(7,17,30,0.15)" : "rgba(244,246,251,0.12)");
-    // Full fade only at the very bottom edge
-    bv.addColorStop(1, dark ? "rgba(7,17,30,0.95)" : "rgba(244,246,251,0.95)");
-    ctx.fillStyle = bv; 
-    ctx.fillRect(0, PHOTO_H * FADE_START, CW, fadeHeight);
   } else {
     // Geometric placeholder with initials
     const bgMesh = ctx.createLinearGradient(0, 0, CW, PHOTO_H);
@@ -273,8 +293,8 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   ctx.beginPath(); ctx.moveTo(TR_X - 262, LY + 46); ctx.lineTo(TR_X, LY + 46); ctx.stroke();
 
   // ── I'M ATTENDING badge ──────────────────────────────────────────────────────
-  // Positioned at bottom of photo strip, inside vignette zone
-  const ATT_Y = PHOTO_H - 72;
+  // Positioned at bottom of photo strip, inside fade zone
+  const ATT_Y = PHOTO_H - 68;
   const attG = ctx.createLinearGradient(48, ATT_Y, 48 + 320, ATT_Y);
   attG.addColorStop(0, "rgba(201,146,10,0.28)");
   attG.addColorStop(1, "rgba(57,224,122,0.14)");
