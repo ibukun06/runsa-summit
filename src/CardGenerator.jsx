@@ -11,6 +11,55 @@ const COLLECTION = "delegates";
 const ATT_W = 1080, ATT_H = 1350;
 const VOL_W = 630,  VOL_H = 1008;
 
+// ─── FACE API.JS LOADING ──────────────────────────────────────────────────────
+let faceApiLoaded = false;
+let faceApiLoading = false;
+
+async function loadFaceApi() {
+  if (faceApiLoaded) return true;
+  if (faceApiLoading) {
+    // Wait for loading to complete
+    while (faceApiLoading) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return faceApiLoaded;
+  }
+  
+  faceApiLoading = true;
+  try {
+    await loadScript("https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js");
+    faceApiLoaded = true;
+  } catch (e) {
+    console.error("Failed to load face-api.js:", e);
+    faceApiLoaded = false;
+  }
+  faceApiLoading = false;
+  return faceApiLoaded;
+}
+
+async function detectFace(imageElement) {
+  const loaded = await loadFaceApi();
+  if (!loaded || !window.faceapi) return null;
+  
+  try {
+    // Detect single face with landmarks for better accuracy
+    const detection = await window.faceapi
+      .detectSingleFace(imageElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.3 }))
+      .withFaceLandmarks();
+    
+    if (detection) {
+      return {
+        box: detection.detection.box,
+        landmarks: detection.landmarks,
+        score: detection.detection.score
+      };
+    }
+  } catch (e) {
+    console.error("Face detection error:", e);
+  }
+  return null;
+}
+
 // ─── FIREBASE ─────────────────────────────────────────────────────────────────
 let db = null;
 async function initFirebase() {
@@ -89,6 +138,73 @@ function loadImg(src) {
   });
 }
 
+// ─── SMART FACE-AWARE COVER DRAWING ───────────────────────────────────────────
+// This function intelligently crops and positions the image to center on the face
+async function drawSmartFaceCover(ctx, img, x, y, w, h) {
+  const imgAr = img.width / img.height;
+  const zoneAr = w / h;
+  
+  // Try to detect face for intelligent cropping
+  let faceCenterX = img.width / 2;
+  let faceCenterY = img.height * 0.35; // Default to upper third (face position)
+  let faceDetected = false;
+  
+  try {
+    const faceData = await detectFace(img);
+    if (faceData && faceData.box) {
+      const box = faceData.box;
+      faceCenterX = box.x + box.width / 2;
+      faceCenterY = box.y + box.height / 2;
+      faceDetected = true;
+      console.log("Face detected at:", faceCenterX, faceCenterY, "confidence:", faceData.score);
+    }
+  } catch (e) {
+    console.log("Face detection failed, using fallback positioning");
+  }
+  
+  let sw, sh, sx, sy;
+  
+  if (imgAr > zoneAr) {
+    // Image is wider than zone - crop sides
+    sh = img.height;
+    sw = img.height * zoneAr;
+    
+    // Center on face horizontally, with bounds checking
+    sx = Math.max(0, Math.min(faceCenterX - sw / 2, img.width - sw));
+    sy = 0;
+    
+    // If face is detected, adjust vertical position to include more of upper body
+    if (faceDetected) {
+      // Keep face in upper portion of the card (about 30-40% from top)
+      const targetFaceY = h * 0.35;
+      sy = Math.max(0, Math.min(faceCenterY - targetFaceY, img.height - sh));
+    }
+  } else {
+    // Image is taller than zone - crop top/bottom
+    sw = img.width;
+    sh = img.width / zoneAr;
+    sx = 0;
+    
+    // Center on face vertically, prioritizing face visibility
+    // Position face in the upper portion of the frame for better composition
+    const targetFaceY = h * 0.35; // Face should be at ~35% from top of card
+    const scaleFactor = h / sh;
+    
+    // Calculate where the face should be in source coordinates
+    const desiredSy = faceCenterY - (targetFaceY / scaleFactor);
+    sy = Math.max(0, Math.min(desiredSy, img.height - sh));
+    
+    // If face is very high in the image, bias toward showing more of the person
+    if (faceCenterY < img.height * 0.3) {
+      sy = Math.max(0, faceCenterY - sh * 0.25);
+    }
+  }
+  
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  return faceDetected;
+}
+
+// Legacy function for backward compatibility (fallback)
 function drawSmartCover(ctx, img, x, y, w, h) {
   const imgAr = img.width / img.height;
   const zoneAr = w / h;
@@ -118,7 +234,7 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   const dark = mode === "dark";
   const CW = ATT_W, CH = ATT_H;
 
-  // Palette
+  // Palette - REDEFINED LIGHT MODE COLORS
   const GOLD    = "#c9920a";
   const GOLD2   = "#e8b84b";
   const GOLD3   = "#f5d57a";
@@ -126,10 +242,16 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   const NAVY    = "#0a1628";
   const NAVY2   = "#1a3a6b";
 
-  const BG      = dark ? "#07111e" : "#f4f6fb";
-  const SURFACE = dark ? "#0d1e38" : "#ffffff";
-  const TEXT     = dark ? "#f5f0e8" : "#0a1628";
-  const MUTED    = dark ? "rgba(245,240,232,0.55)" : "rgba(10,22,40,0.52)";
+  // REDEFINED: Light mode colors - warmer, more elegant palette
+  const BG      = dark ? "#07111e" : "#faf8f5";        // Warm off-white cream background
+  const SURFACE = dark ? "#0d1e38" : "#ffffff";        // Pure white surface
+  const TEXT    = dark ? "#f5f0e8" : "#1a1a2e";        // Deep charcoal for better contrast
+  const MUTED   = dark ? "rgba(245,240,232,0.55)" : "rgba(26,26,46,0.65)"; // Darker muted text
+  
+  // REDEFINED: Light mode accent colors
+  const LIGHT_ACCENT = "#8b6914";     // Warm bronze accent
+  const LIGHT_GOLD   = "#d4a84b";     // Softer gold for light mode
+  const LIGHT_BORDER = "rgba(139,105,20,0.25)"; // Bronze-tinted borders
 
   const canvas = document.createElement("canvas");
   canvas.width = CW; canvas.height = CH;
@@ -147,7 +269,11 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   if (photoDataUrl) {
     const photo = await loadImg(photoDataUrl);
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, CW, PHOTO_H); ctx.clip();
-    drawSmartCover(ctx, photo, 0, 0, CW, PHOTO_H); ctx.restore();
+    
+    // Use face-aware drawing for intelligent photo positioning
+    await drawSmartFaceCover(ctx, photo, 0, 0, CW, PHOTO_H);
+    
+    ctx.restore();
     // Top vignette — only covers the very top (logo/header zone)
     const tv = ctx.createLinearGradient(0, 0, 0, 180);
     tv.addColorStop(0, "rgba(0,0,0,0.55)"); tv.addColorStop(1, "rgba(0,0,0,0)");
@@ -156,8 +282,8 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
     const FADE_START = 0.82;
     const bv = ctx.createLinearGradient(0, PHOTO_H * FADE_START, 0, PHOTO_H);
     bv.addColorStop(0, "rgba(0,0,0,0)");
-    bv.addColorStop(0.7, dark ? "rgba(7,17,30,0.35)" : "rgba(244,246,251,0.35)"); // Greatly reduced mid-intensity
-    bv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(244,246,251,1)");
+    bv.addColorStop(0.7, dark ? "rgba(7,17,30,0.35)" : "rgba(250,248,245,0.35)"); // Greatly reduced mid-intensity
+    bv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(250,248,245,1)");
     ctx.fillStyle = bv; 
     ctx.fillRect(0, PHOTO_H * FADE_START, CW, PHOTO_H * (1 - FADE_START));
   } else {
@@ -166,23 +292,24 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
     if (dark) {
       bgMesh.addColorStop(0, "#1a3a6b"); bgMesh.addColorStop(0.5, "#0d1e38"); bgMesh.addColorStop(1, "#07111e");
     } else {
-      bgMesh.addColorStop(0, "#c8d8f0"); bgMesh.addColorStop(0.5, "#b0c4e8"); bgMesh.addColorStop(1, "#f4f6fb");
+      // REDEFINED: Warmer, softer gradient for light mode
+      bgMesh.addColorStop(0, "#f5e6c8"); bgMesh.addColorStop(0.5, "#f0dcc0"); bgMesh.addColorStop(1, "#faf8f5");
     }
     ctx.fillStyle = bgMesh; ctx.fillRect(0, 0, CW, PHOTO_H);
     // Geometric circles
-    ctx.strokeStyle = dark ? "rgba(201,146,10,0.12)" : "rgba(26,58,107,0.1)";
+    ctx.strokeStyle = dark ? "rgba(201,146,10,0.12)" : "rgba(139,105,20,0.08)";
     ctx.lineWidth = 60;
     ctx.beginPath(); ctx.arc(CW * 0.75, PHOTO_H * 0.35, 260, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.arc(CW * 0.1, PHOTO_H * 0.7, 180, 0, Math.PI * 2); ctx.stroke();
     // Initials
     const initials = delegate.name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
     ctx.font = "900 300px Georgia, serif";
-    ctx.fillStyle = dark ? "rgba(201,146,10,0.1)" : "rgba(26,58,107,0.07)";
+    ctx.fillStyle = dark ? "rgba(201,146,10,0.1)" : "rgba(139,105,20,0.06)";
     ctx.textAlign = "center"; ctx.fillText(initials, CW/2, PHOTO_H * 0.72);
     // Fade out to bg
     const fv = ctx.createLinearGradient(0, PHOTO_H * 0.5, 0, PHOTO_H);
     fv.addColorStop(0, "rgba(0,0,0,0)");
-    fv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(244,246,251,1)");
+    fv.addColorStop(1, dark ? "rgba(7,17,30,1)" : "rgba(250,248,245,1)");
     ctx.fillStyle = fv; ctx.fillRect(0, PHOTO_H * 0.5, CW, PHOTO_H * 0.5);
   }
 
@@ -201,16 +328,17 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   ctx.lineTo(0, STRIPE_Y + 80);
   ctx.closePath();
   const stripeG = ctx.createLinearGradient(0, STRIPE_Y, CW, STRIPE_Y + 52);
-  stripeG.addColorStop(0, "rgba(201,146,10,0.7)");
-  stripeG.addColorStop(0.5, "rgba(232,184,75,0.85)");
-  stripeG.addColorStop(1, "rgba(57,224,122,0.55)");
+  stripeG.addColorStop(0, dark ? "rgba(201,146,10,0.7)" : "rgba(212,168,75,0.7)");
+  stripeG.addColorStop(0.5, dark ? "rgba(232,184,75,0.85)" : "rgba(245,213,122,0.85)");
+  stripeG.addColorStop(1, dark ? "rgba(57,224,122,0.55)" : "rgba(57,224,122,0.55)");
   ctx.fillStyle = stripeG;
   ctx.fill();
   ctx.restore();
 
   // ── CORNER BRACKETS (gold, precise) ─────────────────────────────────────────
   const CM = 36, CS = 90;
-  ctx.strokeStyle = "rgba(201,146,10,0.65)"; ctx.lineWidth = 4.5;
+  ctx.strokeStyle = dark ? "rgba(201,146,10,0.65)" : "rgba(139,105,20,0.55)"; 
+  ctx.lineWidth = 4.5;
   [[CM,CM,CS,0],[CW-CM,CM,CS,1],[CM,CH-CM,CS,2],[CW-CM,CH-CM,CS,3]].forEach(([x,y,s,q]) => {
     ctx.beginPath();
     if (q === 0) { ctx.moveTo(x,y+s); ctx.lineTo(x,y); ctx.lineTo(x+s,y); }
@@ -229,8 +357,10 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
     ctx.drawImage(logo, LX-LR, LY-LR, LR*2, LR*2);
     ctx.restore();
     // Ring with glow
-    ctx.shadowColor = "rgba(232,184,75,0.7)"; ctx.shadowBlur = 12;
-    ctx.strokeStyle = "rgba(232,184,75,0.9)"; ctx.lineWidth = 2.5;
+    ctx.shadowColor = dark ? "rgba(232,184,75,0.7)" : "rgba(212,168,75,0.6)"; 
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = dark ? "rgba(232,184,75,0.9)" : "rgba(139,105,20,0.85)"; 
+    ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(LX, LY, LR, 0, Math.PI*2); ctx.stroke();
     ctx.shadowBlur = 0;
   } catch {}
@@ -241,12 +371,14 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 14;
   // "LEGISLATIVE" in gradient
   const lgG = ctx.createLinearGradient(TR_X - 380, LY, TR_X, LY);
-  lgG.addColorStop(0, GOLD3); lgG.addColorStop(0.55, GOLD2); lgG.addColorStop(1, GOLD);
+  lgG.addColorStop(0, dark ? GOLD3 : "#f5d57a"); 
+  lgG.addColorStop(0.55, dark ? GOLD2 : LIGHT_GOLD); 
+  lgG.addColorStop(1, dark ? GOLD : LIGHT_ACCENT);
   ctx.fillStyle = lgG;
   ctx.font = "900 48px Arial Black, Arial, sans-serif";
   ctx.fillText("LEGISLATIVE", TR_X, LY - 4);
   ctx.font = "700 34px Arial Black, Arial, sans-serif";
-  ctx.fillStyle = GOLD2;
+  ctx.fillStyle = dark ? GOLD2 : LIGHT_GOLD;
   ctx.fillText("SUMMIT 2026", TR_X, LY + 34);
   ctx.shadowBlur = 0;
   // Green underline
@@ -259,17 +391,18 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   // where the background is already semi-transparent, never on the face.
   const ATT_Y = PHOTO_H - 76;
   const attG = ctx.createLinearGradient(48, ATT_Y, 48 + 320, ATT_Y);
-  attG.addColorStop(0, "rgba(201,146,10,0.28)");
-  attG.addColorStop(1, "rgba(57,224,122,0.14)");
+  attG.addColorStop(0, dark ? "rgba(201,146,10,0.28)" : "rgba(212,168,75,0.22)");
+  attG.addColorStop(1, dark ? "rgba(57,224,122,0.14)" : "rgba(57,224,122,0.12)");
   ctx.fillStyle = attG;
-  ctx.strokeStyle = "rgba(201,146,10,0.72)"; ctx.lineWidth = 1.5;
+  ctx.strokeStyle = dark ? "rgba(201,146,10,0.72)" : "rgba(139,105,20,0.55)"; 
+  ctx.lineWidth = 1.5;
   rrect(ctx, 48, ATT_Y, 320, 52, 26); ctx.fill(); ctx.stroke();
   ctx.fillStyle = GREEN;
   ctx.beginPath(); ctx.arc(48+21, ATT_Y+26, 6.5, 0, Math.PI*2); ctx.fill();
   ctx.textAlign = "left";
   ctx.font = "700 21px Arial, sans-serif";
   ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 8;
-  ctx.fillStyle = GOLD2;
+  ctx.fillStyle = dark ? GOLD2 : LIGHT_ACCENT;
   ctx.fillText("I'M ATTENDING", 48 + 40, ATT_Y + 26 + 7);
   ctx.shadowBlur = 0;
 
@@ -305,7 +438,8 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   const NLH = nfs + 10;
   const nameLines = wrapText(ctx, delegate.name, nameMaxW);
   ctx.fillStyle = TEXT; ctx.textAlign = "left";
-  ctx.shadowColor = dark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.08)"; ctx.shadowBlur = 10;
+  ctx.shadowColor = dark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.06)"; 
+  ctx.shadowBlur = 10;
   nameLines.forEach((l, i) => ctx.fillText(l, PAD, INFO_Y + (i + 1) * NLH));
   ctx.shadowBlur = 0;
   const NAME_BOT = INFO_Y + nameLines.length * NLH;
@@ -337,7 +471,8 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   // Position
   ctx.font = "800 34px Arial, sans-serif";
   const posG = ctx.createLinearGradient(PAD, cur, PAD + 400, cur + 34);
-  posG.addColorStop(0, GOLD2); posG.addColorStop(1, GOLD);
+  posG.addColorStop(0, dark ? GOLD2 : LIGHT_GOLD); 
+  posG.addColorStop(1, dark ? GOLD : LIGHT_ACCENT);
   ctx.fillStyle = posG;
   ctx.fillText(delegate.position ? delegate.position.toUpperCase() : "", PAD, cur + 34);
   cur += 34 + 18;
@@ -350,8 +485,8 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
 
   // Divider — gold to transparent
   const dg = ctx.createLinearGradient(PAD, DIV_Y, CW - PAD, DIV_Y);
-  dg.addColorStop(0, dark ? "rgba(201,146,10,0.55)" : "rgba(201,146,10,0.45)");
-  dg.addColorStop(0.65, dark ? "rgba(201,146,10,0.12)" : "rgba(201,146,10,0.08)");
+  dg.addColorStop(0, dark ? "rgba(201,146,10,0.55)" : "rgba(139,105,20,0.45)");
+  dg.addColorStop(0.65, dark ? "rgba(201,146,10,0.12)" : "rgba(139,105,20,0.1)");
   dg.addColorStop(1, "rgba(0,0,0,0)");
   ctx.strokeStyle = dg; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(PAD, DIV_Y); ctx.lineTo(CW - PAD, DIV_Y); ctx.stroke();
@@ -359,13 +494,14 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   // Event title (bottom anchored, gradient gold)
   ctx.font = "700 46px Arial Black, Arial, sans-serif";
   const etG = ctx.createLinearGradient(PAD, EV_Y - 46, PAD + 580, EV_Y);
-  etG.addColorStop(0, GOLD3); etG.addColorStop(1, dark ? GOLD2 : GOLD);
+  etG.addColorStop(0, dark ? GOLD3 : "#f5d57a"); 
+  etG.addColorStop(1, dark ? GOLD2 : LIGHT_ACCENT);
   ctx.fillStyle = etG; ctx.textAlign = "left";
   ctx.fillText("LEGISLATIVE SUMMIT 2026", PAD, EV_Y);
 
   // Location
   ctx.font = "700 30px Arial, sans-serif";
-  ctx.fillStyle = dark ? "#f5f0e8" : "#0a1628";
+  ctx.fillStyle = dark ? "#f5f0e8" : "#1a1a2e";
   ctx.fillText("REDEEMER'S UNIVERSITY, EDE", PAD, LOC_Y);
 
   // Date
@@ -378,13 +514,14 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode) {
   const qrImg = await generateQRImage(qrURL, 220, NAVY);
   if (qrImg) {
     // Shadow for QR card
-    ctx.shadowColor = dark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.15)";
+    ctx.shadowColor = dark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.12)";
     ctx.shadowBlur = 20; ctx.shadowOffsetY = 4;
     ctx.fillStyle = "#ffffff";
     rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 14); ctx.fill();
     ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
     // Gold border on QR card
-    ctx.strokeStyle = "rgba(201,146,10,0.35)"; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = dark ? "rgba(201,146,10,0.35)" : "rgba(139,105,20,0.3)"; 
+    ctx.lineWidth = 1.5;
     rrect(ctx, QR_X, QR_Y, QR_CARD_W, QR_CARD_H, 14); ctx.stroke();
     ctx.drawImage(qrImg, QR_X + QR_PAD, QR_Y + QR_PAD, QR_SIZE, QR_SIZE);
   }
