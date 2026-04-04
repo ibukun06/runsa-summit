@@ -11,59 +11,45 @@ const COLLECTION = "delegates";
 const ATT_W = 1080, ATT_H = 1350;
 const VOL_W = 630,  VOL_H = 1008;
 
-// ─── FACE API.JS LOADING ──────────────────────────────────────────────────────
-let faceApiLoaded = false;
-let faceApiLoading = false;
+// ─── HEAD-AWARE POSITIONING SYSTEM ────────────────────────────────────────────
+// Smart positioning that keeps the head visible without ML lag
+// Analyzes image dimensions to determine optimal crop for portraits
 
-async function loadFaceApi() {
-  if (faceApiLoaded) return true;
-  if (faceApiLoading) {
-    // Wait for loading to complete
-    while (faceApiLoading) {
-      await new Promise(r => setTimeout(r, 50));
-    }
-    return faceApiLoaded;
-  }
+function analyzePhotoForHeadPosition(img) {
+  const aspectRatio = img.width / img.height;
+  const cardAspectRatio = 1080 / (1350 * 0.48); // Card width / photo zone height
   
-  faceApiLoading = true;
-  try {
-    await loadScript("https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js");
-    faceApiLoaded = true;
-  } catch (e) {
-    console.error("Failed to load face-api.js:", e);
-    faceApiLoaded = false;
+  // For portrait photos (taller than wide) - typical selfie/ID photo
+  // Position to show upper body with head in upper portion
+  if (aspectRatio < 0.8) {
+    // Very tall portrait - focus on upper 55% of image
+    return { 
+      type: 'portrait-tall',
+      focusY: 0.30,  // Focus at 30% from top (head area)
+      verticalBias: 0.25  // Shift up to show more head
+    };
+  } else if (aspectRatio < 1.0) {
+    // Standard portrait
+    return { 
+      type: 'portrait',
+      focusY: 0.35,
+      verticalBias: 0.20
+    };
+  } else if (aspectRatio < 1.3) {
+    // Square-ish
+    return { 
+      type: 'square',
+      focusY: 0.38,
+      verticalBias: 0.15
+    };
+  } else {
+    // Landscape - center but bias toward top for group photos
+    return { 
+      type: 'landscape',
+      focusY: 0.40,
+      verticalBias: 0.10
+    };
   }
-  faceApiLoading = false;
-  return faceApiLoaded;
-}
-
-// Fast face detection with timeout - used during upload (background)
-async function detectFaceFast(imageElement, timeoutMs = 2000) {
-  const loaded = await loadFaceApi();
-  if (!loaded || !window.faceapi) return null;
-  
-  return Promise.race([
-    (async () => {
-      try {
-        // Use smaller input size for SPEED (128 is much faster than 416)
-        const detection = await window.faceapi
-          .detectSingleFace(imageElement, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.2 }));
-        
-        if (detection && detection.box) {
-          return {
-            x: detection.box.x + detection.box.width / 2,
-            y: detection.box.y + detection.box.height / 2,
-            width: detection.box.width,
-            height: detection.box.height
-          };
-        }
-      } catch (e) {
-        console.log("Face detection error:", e);
-      }
-      return null;
-    })(),
-    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs))
-  ]).catch(() => null);
 }
 
 // ─── FIREBASE ─────────────────────────────────────────────────────────────────
@@ -144,48 +130,52 @@ function loadImg(src) {
   });
 }
 
-// ─── SMART FACE-AWARE COVER DRAWING ───────────────────────────────────────────
-// Uses cached face position for instant rendering (face detected during upload)
-function drawSmartFaceCover(ctx, img, x, y, w, h, facePosition = null) {
+// ─── SMART HEAD-AWARE COVER DRAWING ───────────────────────────────────────────
+// Intelligently positions photo to show head without cutting it off
+// No ML - uses aspect ratio analysis for instant positioning
+function drawSmartHeadCover(ctx, img, x, y, w, h, headPosition = null) {
   const imgAr = img.width / img.height;
   const zoneAr = w / h;
   
-  // Use cached face position or default to center/upper-third
-  let faceCenterX = facePosition ? facePosition.x : img.width / 2;
-  let faceCenterY = facePosition ? facePosition.y : img.height * 0.35;
-  let faceDetected = !!facePosition;
+  // Get head positioning data (cached from upload or calculated now)
+  const position = headPosition || analyzePhotoForHeadPosition(img);
   
   let sw, sh, sx, sy;
   
   if (imgAr > zoneAr) {
-    // Image is wider than zone - crop sides
+    // Image is wider than zone - crop sides, keep full height
     sh = img.height;
     sw = img.height * zoneAr;
     
-    // Center on face horizontally, with bounds checking
-    sx = Math.max(0, Math.min(faceCenterX - sw / 2, img.width - sw));
-    sy = 0;
+    // Center horizontally
+    sx = (img.width - sw) / 2;
     
-    // If face is detected, adjust vertical position to include more of upper body
-    if (faceDetected) {
-      const targetFaceY = h * 0.35;
-      sy = Math.max(0, Math.min(faceCenterY - targetFaceY, img.height - sh));
-    }
+    // Apply vertical bias based on photo type
+    // For wide images, shift up slightly to show head
+    sy = Math.max(0, Math.min(img.height * position.verticalBias, img.height - sh));
+    
   } else {
-    // Image is taller than zone - crop top/bottom
+    // Image is taller than zone - crop top/bottom strategically
     sw = img.width;
     sh = img.width / zoneAr;
     sx = 0;
     
-    // Center on face vertically, prioritizing face visibility
-    const targetFaceY = h * 0.35;
-    const scaleFactor = h / sh;
+    // Calculate source Y to position head in upper portion of card
+    // The "focusY" is where the head should be in the SOURCE image
+    // We want that point to appear at ~30-35% from top of the CARD
+    const cardHeadPosition = h * 0.32; // Head appears at 32% from top of card
+    const scaleFactor = sh / h; // How much source maps to card
     
-    const desiredSy = faceCenterY - (targetFaceY / scaleFactor);
-    sy = Math.max(0, Math.min(desiredSy, img.height - sh));
+    // Position the focus point at the desired card position
+    const desiredSourceFocusY = img.height * position.focusY;
+    sy = Math.max(0, desiredSourceFocusY - (cardHeadPosition * scaleFactor));
     
-    if (faceCenterY < img.height * 0.3) {
-      sy = Math.max(0, faceCenterY - sh * 0.25);
+    // Ensure we don't crop too much from bottom
+    sy = Math.min(sy, img.height - sh);
+    
+    // For very tall portraits, bias more toward showing the upper body
+    if (position.type === 'portrait-tall') {
+      sy = Math.max(0, Math.min(sy, img.height * 0.15));
     }
   }
   
@@ -218,8 +208,8 @@ function getBadgeInfo(badge) {
 // ─── ATTENDEE CARD — REDESIGNED ───────────────────────────────────────────────
 // New design: full-bleed photo top half, rich information panel below
 // with geometric accent elements, gradient badge, and premium typography
-// facePosition is cached face data {x, y} detected during upload
-async function renderAttendeeCard(delegate, photoDataUrl, mode, facePosition = null) {
+// headPosition is cached head positioning data from upload analysis
+async function renderAttendeeCard(delegate, photoDataUrl, mode, headPosition = null) {
   const dark = mode === "dark";
   const CW = ATT_W, CH = ATT_H;
 
@@ -259,8 +249,8 @@ async function renderAttendeeCard(delegate, photoDataUrl, mode, facePosition = n
     const photo = await loadImg(photoDataUrl);
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, CW, PHOTO_H); ctx.clip();
     
-    // Use cached face position for instant rendering (detected during upload)
-    drawSmartFaceCover(ctx, photo, 0, 0, CW, PHOTO_H, facePosition);
+    // Use head-aware positioning for perfect head framing (no ML, instant)
+    drawSmartHeadCover(ctx, photo, 0, 0, CW, PHOTO_H, headPosition);
     
     ctx.restore();
     // Top vignette — only covers the very top (logo/header zone)
@@ -1113,8 +1103,8 @@ export default function CardGenerator() {
   const [fetching, setFetching]     = useState(false);
   const [fetchErr, setFetchErr]     = useState("");
   const [photo, setPhoto]           = useState(null);
-  const [facePosition, setFacePosition] = useState(null); // Cached face position {x, y}
-  const [detectingFace, setDetectingFace] = useState(false);
+  const [headPosition, setHeadPosition] = useState(null); // Cached head positioning data
+  const [analyzingPhoto, setAnalyzingPhoto] = useState(false);
   const [drag, setDrag]             = useState(false);
   const [cardMode, setCardMode]     = useState("dark");
   const [generating, setGenerating] = useState(false);
@@ -1145,33 +1135,30 @@ export default function CardGenerator() {
     reader.onload = e => {
       const photoData = e.target.result;
       setPhoto(photoData);
-      setFacePosition(null); // Reset face position
+      setHeadPosition(null); // Reset head position
       
-      // Detect face in background (non-blocking)
-      detectFaceInBackground(photoData);
+      // Analyze photo for head positioning (instant, no ML)
+      analyzePhotoInBackground(photoData);
     };
     reader.readAsDataURL(file);
   };
   
-  // Detect face position in background when photo is uploaded
-  const detectFaceInBackground = async (photoData) => {
-    setDetectingFace(true);
+  // Analyze photo dimensions for optimal head positioning (instant, no ML lag)
+  const analyzePhotoInBackground = async (photoData) => {
+    setAnalyzingPhoto(true);
     try {
       const img = new Image();
       img.crossOrigin = "anonymous";
       await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = photoData; });
       
-      const facePos = await detectFaceFast(img, 2500); // 2.5s timeout
-      if (facePos) {
-        setFacePosition(facePos);
-        console.log("Face detected during upload:", facePos);
-      } else {
-        console.log("No face detected or timeout, using default positioning");
-      }
+      // Instant analysis based on aspect ratio - no ML needed!
+      const position = analyzePhotoForHeadPosition(img);
+      setHeadPosition(position);
+      console.log("Photo analyzed for head positioning:", position);
     } catch (e) {
-      console.log("Face detection failed:", e);
+      console.log("Photo analysis failed:", e);
     }
-    setDetectingFace(false);
+    setAnalyzingPhoto(false);
   };
 
   const openFilePicker = () => {
@@ -1191,7 +1178,7 @@ export default function CardGenerator() {
     try {
       const canvas = vol
         ? await renderVolunteerTag(delegate)
-        : await renderAttendeeCard(delegate, photo, cardMode, facePosition);
+        : await renderAttendeeCard(delegate, photo, cardMode, headPosition);
       setCardUrl(canvas.toDataURL("image/jpeg", 0.93));
     } catch (e) { console.error(e); }
     setGenerating(false);
@@ -1361,10 +1348,10 @@ export default function CardGenerator() {
                         <img src={photo} alt="Preview" />
                         <div>
                           <div className="photo-info" style={{ marginBottom:12 }}>
-                            ✅ Photo ready!{detectingFace && <span> 🔍 Analyzing face...</span>}{facePosition && <span> ✓ Face positioned</span>}<br />
+                            ✅ Photo ready!{analyzingPhoto && <span> 🔍 Analyzing...</span>}{headPosition && <span> ✓ Optimized for {headPosition.type}</span>}<br />
                             <span style={{ fontSize:11, color:"rgba(245,240,232,.28)" }}>Remove and re-upload to change it.</span>
                           </div>
-                          <button className="photo-rm" onClick={() => { setPhoto(null); setFacePosition(null); }}>✕ Remove</button>
+                          <button className="photo-rm" onClick={() => { setPhoto(null); setHeadPosition(null); }}>✕ Remove</button>
                         </div>
                       </div>
                     )}
@@ -1397,7 +1384,7 @@ export default function CardGenerator() {
                     {cardMode === "dark" ? "☀️ Light" : "🌙 Dark"}
                   </button>
                 )}
-                <button className="btn-sec" onClick={() => { setCardUrl(null); setPhoto(null); setFacePosition(null); setDelegate(null); setTicketId(""); }}>↺ Start Over</button>
+                <button className="btn-sec" onClick={() => { setCardUrl(null); setPhoto(null); setHeadPosition(null); setDelegate(null); setTicketId(""); }}>↺ Start Over</button>
               </div>
               {!vol && (
                 <div className="cap-box">
