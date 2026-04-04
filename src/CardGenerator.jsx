@@ -146,6 +146,7 @@ function loadImg(src) {
 
 // ─── SMART FACE-AWARE COVER DRAWING ───────────────────────────────────────────
 // Uses cached face position for instant rendering (face detected during upload)
+// ─── SMART FACE-AWARE COVER DRAWING ───────────────────────────────────────────
 function drawSmartFaceCover(ctx, img, x, y, w, h, facePosition = null) {
   const imgAr = img.width / img.height;
   const zoneAr = w / h;
@@ -158,40 +159,37 @@ function drawSmartFaceCover(ctx, img, x, y, w, h, facePosition = null) {
   let sw, sh, sx, sy;
   
   if (imgAr > zoneAr) {
-    // Image is wider than zone - crop sides
+    // Image is wider than zone - crop sides (Untouched for landscapes/group shots)
     sh = img.height;
     sw = img.height * zoneAr;
-    
-    // Center on face horizontally, with bounds checking
     sx = Math.max(0, Math.min(faceCenterX - sw / 2, img.width - sw));
     sy = 0;
     
-    // If face is detected, adjust vertical position to include more of upper body
     if (faceDetected) {
       const targetFaceY = h * 0.35;
       sy = Math.max(0, Math.min(faceCenterY - targetFaceY, img.height - sh));
     }
   } else {
-    // Image is taller than zone - crop top/bottom
+    // Image is taller than zone - crop top/bottom (Portrait adjustment)
     sw = img.width;
     sh = img.width / zoneAr;
     sx = 0;
     
-    // Center on face vertically, prioritizing face visibility
-    const targetFaceY = h * 0.35;
+    // INCREASED SLIGHTLY to 0.39 to drop portrait heads just a little
+    const targetFaceY = h * 0.39;
     const scaleFactor = h / sh;
     
     const desiredSy = faceCenterY - (targetFaceY / scaleFactor);
     sy = Math.max(0, Math.min(desiredSy, img.height - sh));
     
+    // Adjusted buffer to 0.28 to prevent scalping extreme close-up selfies
     if (faceCenterY < img.height * 0.3) {
-      sy = Math.max(0, faceCenterY - sh * 0.25);
+      sy = Math.max(0, faceCenterY - sh * 0.28);
     }
   }
   
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
 }
-
 // Legacy function for backward compatibility (fallback)
 function drawSmartCover(ctx, img, x, y, w, h) {
   const imgAr = img.width / img.height;
@@ -1015,13 +1013,43 @@ const CSS = `
   .btn-gen:disabled::after { display: none; }
 
   /* ── PREVIEW ── */
-  .preview { text-align: center; animation: slideUp 0.45s cubic-bezier(0.34,1.1,0.64,1) both; }
+  .preview { 
+    text-align: center; 
+    perspective: 1200px; /* Added for 3D depth */
+    animation: slideUp 0.45s cubic-bezier(0.34,1.1,0.64,1) both; 
+  }
   .preview-lbl {
     font-family: 'Bebas Neue', sans-serif; font-size: 16px;
     letter-spacing: 0.18em; text-transform: uppercase;
     color: var(--gold2); margin-bottom: 24px;
   }
 
+  @keyframes levitate25D {
+    0%, 100% { 
+      transform: translateY(0px) rotateX(4deg) rotateY(-3deg); 
+      box-shadow: -15px 25px 45px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,146,10,0.22); 
+    }
+    50% { 
+      transform: translateY(-12px) rotateX(-2deg) rotateY(3deg); 
+      box-shadow: 15px 35px 55px rgba(0,0,0,0.7), 0 0 0 1px rgba(201,146,10,0.35); 
+    }
+  }
+
+  .card-wrap {
+    display: inline-block; max-width: 340px; width: 100%;
+    border-radius: 20px; overflow: hidden;
+    transform-style: preserve-3d;
+    animation: popIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both, levitate25D 6s ease-in-out infinite 0.45s;
+    will-change: transform, box-shadow;
+  }
+  .card-wrap:hover { 
+    animation-play-state: paused;
+    transform: scale(1.04) rotateX(0) rotateY(0) translateY(-4px); 
+    box-shadow: 0 36px 88px rgba(0,0,0,0.8), 0 0 0 1px rgba(201,146,10,0.4), 0 0 60px rgba(26,58,107,0.3); 
+    transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.4s ease;
+  }
+  .card-wrap.vol { max-width: 210px; border-radius: 14px; }
+  .card-wrap img { width: 100%; display: block; }
   .card-wrap {
     display: inline-block; max-width: 340px; width: 100%;
     border-radius: 20px; overflow: hidden;
