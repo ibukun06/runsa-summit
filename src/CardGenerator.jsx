@@ -151,8 +151,8 @@ function drawSmartHeadCover(ctx, img, x, y, w, h, headPosition = null) {
     sx = (img.width - sw) / 2;
     
     // Apply vertical bias based on photo type
-    // For wide images, shift up slightly to show head
-    sy = Math.max(0, Math.min(img.height * position.verticalBias, img.height - sh));
+    // Reduced bias multiplier to bring the image down and save the top of the head
+    sy = Math.max(0, Math.min(img.height * (position.verticalBias * 0.4), img.height - sh));
     
   } else {
     // Image is taller than zone - crop top/bottom strategically
@@ -161,9 +161,8 @@ function drawSmartHeadCover(ctx, img, x, y, w, h, headPosition = null) {
     sx = 0;
     
     // Calculate source Y to position head in upper portion of card
-    // The "focusY" is where the head should be in the SOURCE image
-    // We want that point to appear at ~30-35% from top of the CARD
-    const cardHeadPosition = h * 0.32; // Head appears at 32% from top of card
+    // INCREASED to 0.45 (from 0.32) to map the head lower on the card, pulling the image down
+    const cardHeadPosition = h * 0.45; 
     const scaleFactor = sh / h; // How much source maps to card
     
     // Position the focus point at the desired card position
@@ -175,13 +174,13 @@ function drawSmartHeadCover(ctx, img, x, y, w, h, headPosition = null) {
     
     // For very tall portraits, bias more toward showing the upper body
     if (position.type === 'portrait-tall') {
-      sy = Math.max(0, Math.min(sy, img.height * 0.15));
+      // REDUCED to 0.05 (from 0.15) to aggressively prevent top-cropping in tall selfies
+      sy = Math.max(0, Math.min(sy, img.height * 0.05));
     }
   }
   
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
 }
-
 // Legacy function for backward compatibility (fallback)
 function drawSmartCover(ctx, img, x, y, w, h) {
   const imgAr = img.width / img.height;
