@@ -1148,6 +1148,9 @@ export default function CardGenerator() {
   const [generating, setGenerating] = useState(false);
   const [cardUrl, setCardUrl]       = useState(null);
   const [copied, setCopied]         = useState(false);
+  
+  // ADDED: Reference for the hidden file input
+  const fileInputRef                = useRef(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1203,14 +1206,10 @@ export default function CardGenerator() {
   };
 
   const openFilePicker = () => {
-    const input = document.createElement("input");
-    input.type = "file"; input.accept = "image/*";
-    input.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0;";
-    const cleanup = () => { try { document.body.removeChild(input); } catch {} };
-    input.onchange = e => { const f = e.target.files?.[0]; if (f) handlePhoto(f); cleanup(); };
-    input.addEventListener("cancel", cleanup);
-    setTimeout(cleanup, 300000);
-    document.body.appendChild(input); input.click();
+    // UPDATED: Safely trigger the hidden input directly
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   const handleGenerate = async () => {
@@ -1375,11 +1374,25 @@ export default function CardGenerator() {
                       Your Photo <span style={{ color:"rgba(245,240,232,.28)" }}>(Recommended for best results)</span>
                     </p>
                     {!photo ? (
-                      <div className={`upload-zone ${drag ? "drag" : ""}`}
-                        onDragOver={e => { e.preventDefault(); setDrag(true); }}
-                        onDragLeave={() => setDrag(false)}
-                        onDrop={e => { e.preventDefault(); setDrag(false); handlePhoto(e.dataTransfer.files[0]); }}
-                        onClick={openFilePicker}>
+                      <>
+                        {/* ADDED: Hidden native input to satisfy Safari/iOS security rules */}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          ref={fileInputRef}
+                          style={{ display: "none" }}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handlePhoto(f);
+                            if (e.target) e.target.value = null; // Reset so the same file can be clicked again
+                          }}
+                        />
+                        <div className={`upload-zone ${drag ? "drag" : ""}`}
+                          onDragOver={e => { e.preventDefault(); setDrag(true); }}
+                          onDragLeave={() => setDrag(false)}
+                          onDrop={e => { e.preventDefault(); setDrag(false); handlePhoto(e.dataTransfer.files[0]); }}
+                          onClick={openFilePicker}>
+                          
                         <div className="up-icon">📷</div>
                         <div className="up-title">Tap or drop your photo</div>
                         <div className="up-sub">JPG or PNG · Front-facing photo works best</div>
