@@ -1397,6 +1397,7 @@ export default function CardGenerator() {
                         <div className="up-title">Tap or drop your photo</div>
                         <div className="up-sub">JPG or PNG · Front-facing photo works best</div>
                       </div>
+                      </>
                     ) : (
                       <div className="photo-row">
                         <img src={photo} alt="Preview" />
