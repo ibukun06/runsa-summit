@@ -1187,17 +1187,6 @@ export default function CardGenerator() {
   reader.onerror = () => alert("Couldn't read that file. Please try a JPEG or PNG.");
   reader.readAsDataURL(file);
 };
-    const reader = new FileReader();
-    reader.onload = e => {
-      const photoData = e.target.result;
-      setPhoto(photoData);
-      setFacePosition(null); // Reset face position
-      
-      // Detect face in background (non-blocking)
-      detectFaceInBackground(photoData);
-    };
-    reader.readAsDataURL(file);
-  };
   
   // Detect face position in background when photo is uploaded
   const detectFaceInBackground = async (photoData) => {
