@@ -145,53 +145,75 @@ function loadImg(src) {
 }
 
 // ─── SMART FACE-AWARE COVER DRAWING ───────────────────────────────────────────
-// FIXED: Shifts face position UP to include forehead/hair, preventing scalping
+// ZOOM OUT approach: Shows more of the image to fit head, hair, and body
 function drawSmartFaceCover(ctx, img, x, y, w, h, facePosition = null) {
   const imgAr = img.width / img.height;
   const zoneAr = w / h;
   
-  // Use cached face position or default to center/upper-third
-  let faceCenterX = facePosition ? facePosition.x : img.width / 2;
-  // FIXED: Shift face center UP by 25% of face height to include forehead/hair
-  let faceCenterY = facePosition 
-    ? facePosition.y - (facePosition.height * 0.25) // Shift up for head room
-    : img.height * 0.30; // Default higher for better composition
   let faceDetected = !!facePosition;
   
+  // If face detected, ZOOM OUT to show head + hair + body
+  if (faceDetected && facePosition) {
+    // Calculate the region to show: face + padding for head and body
+    // The face is typically ~1/3 of head height, so we need ~3x face height for full head
+    const faceHeight = facePosition.height;
+    const faceCenterX = facePosition.x;
+    const faceCenterY = facePosition.y;
+    
+    // Define crop region: 2.5x face height above (forehead/hair) + face + 3x below (body)
+    const paddingTop = faceHeight * 2.2;  // Room for forehead and hair
+    const paddingBottom = faceHeight * 3.5; // Room for neck, shoulders, upper body
+    
+    // Calculate ideal crop box in source image
+    let cropTop = Math.max(0, faceCenterY - paddingTop);
+    let cropBottom = Math.min(img.height, faceCenterY + paddingBottom);
+    let cropHeight = cropBottom - cropTop;
+    
+    // Calculate width based on card aspect ratio to maintain proportions
+    let cropWidth = cropHeight * zoneAr;
+    
+    // Center horizontally on face
+    let cropLeft = faceCenterX - (cropWidth / 2);
+    
+    // Ensure crop stays within image bounds
+    if (cropLeft < 0) cropLeft = 0;
+    if (cropLeft + cropWidth > img.width) {
+      cropLeft = Math.max(0, img.width - cropWidth);
+      // If still too wide, recalculate height
+      if (cropLeft === 0) {
+        cropWidth = img.width;
+        cropHeight = cropWidth / zoneAr;
+        // Recenter vertically
+        cropTop = Math.max(0, faceCenterY - (cropHeight * 0.35));
+        if (cropTop + cropHeight > img.height) {
+          cropTop = Math.max(0, img.height - cropHeight);
+        }
+      }
+    }
+    
+    // Final bounds check
+    cropTop = Math.max(0, Math.min(cropTop, img.height - cropHeight));
+    
+    ctx.drawImage(img, cropLeft, cropTop, cropWidth, cropHeight, x, y, w, h);
+    return;
+  }
+  
+  // No face detected - use smart default positioning
   let sw, sh, sx, sy;
   
   if (imgAr > zoneAr) {
-    // Image is wider than zone - crop sides
+    // Wide image - crop sides, keep height
     sh = img.height;
     sw = img.height * zoneAr;
-    
-    // Center on face horizontally, with bounds checking
-    sx = Math.max(0, Math.min(faceCenterX - sw / 2, img.width - sw));
+    sx = (img.width - sw) / 2;
     sy = 0;
-    
-    if (faceDetected) {
-      // Position face in upper portion with head room
-      const targetFaceY = h * 0.32;
-      sy = Math.max(0, Math.min(faceCenterY - targetFaceY, img.height - sh));
-    }
   } else {
-    // Image is taller than zone - crop top/bottom
+    // Tall image - crop top/bottom, bias toward showing upper body
     sw = img.width;
     sh = img.width / zoneAr;
     sx = 0;
-    
-    // FIXED: Better positioning for portraits to show full head
-    const targetFaceY = h * 0.35; // Face appears at 35% from top of card
-    const scaleFactor = h / sh;
-    
-    const desiredSy = faceCenterY - (targetFaceY * scaleFactor);
-    sy = Math.max(0, Math.min(desiredSy, img.height - sh));
-    
-    // Extra buffer for close-up selfies to prevent scalping
-    if (faceDetected && facePosition.height > img.height * 0.4) {
-      // Large face in image = close-up selfie, give more head room
-      sy = Math.max(0, sy - (sh * 0.05));
-    }
+    // Start from top to show head area
+    sy = Math.max(0, Math.min(img.height * 0.15, img.height - sh));
   }
   
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
