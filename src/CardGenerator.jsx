@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const REG_SITE = "https://legislative-summit-registration.vercel.app";
@@ -1148,9 +1148,6 @@ export default function CardGenerator() {
   const [generating, setGenerating] = useState(false);
   const [cardUrl, setCardUrl]       = useState(null);
   const [copied, setCopied]         = useState(false);
-  
-  // ADDED: Reference for the hidden file input
-  const fileInputRef                = useRef(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1172,16 +1169,24 @@ export default function CardGenerator() {
 
   const handlePhoto = (file) => {
   if (!file) return;
-  // iOS/Safari can return empty file.type for HEIC and some JPEGs
-  // Fall back to checking the file extension if MIME type is missing
-  const isImage = file.type.startsWith("image/") || 
-    /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i.test(file.name);
-  if (!isImage) return;
-  const isHeic = /\.heic$/i.test(file.name) || file.type === "image/heic";
-  if (isHeic) {
-    alert("HEIC photos aren't supported in browsers yet. Please convert to JPEG first, or use the Share → Save as JPEG option in your Photos app.");
+  const looksLikeImage = file.type.startsWith("image/") ||
+    /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i.test(file.name) ||
+    file.size > 0;
+  if (!looksLikeImage) return;
+  if (/\.heic$/i.test(file.name) || file.type === "image/heic" || file.type === "image/heif") {
+    alert("📸 HEIC format isn't supported in browsers.\n\nIn your Photos app: tap Share → tap the file icon → choose Save as JPEG. Then upload that file.");
     return;
   }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const photoData = e.target.result;
+    setPhoto(photoData);
+    setFacePosition(null);
+    detectFaceInBackground(photoData);
+  };
+  reader.onerror = () => alert("Couldn't read that file. Please try a JPEG or PNG.");
+  reader.readAsDataURL(file);
+};
     const reader = new FileReader();
     reader.onload = e => {
       const photoData = e.target.result;
@@ -1216,11 +1221,21 @@ export default function CardGenerator() {
   };
 
   const openFilePicker = () => {
-    // UPDATED: Safely trigger the hidden input directly
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*,image/heic,image/heif";
+  input.style.cssText = "position:fixed;bottom:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none;";
+  const cleanup = () => { try { document.body.removeChild(input); } catch {} };
+  input.onchange = (e) => {
+    const f = e.target.files?.[0];
+    if (f) handlePhoto(f);
+    cleanup();
   };
+  input.addEventListener("cancel", cleanup);
+  setTimeout(cleanup, 300000);
+  document.body.appendChild(input);
+  input.click();
+};
 
   const handleGenerate = async () => {
     if (!delegate) return;
@@ -1385,18 +1400,7 @@ export default function CardGenerator() {
                     </p>
                     {!photo ? (
                       <>
-                        {/* ADDED: Hidden native input to satisfy Safari/iOS security rules */}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          ref={fileInputRef}
-                          style={{ display: "none" }}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) handlePhoto(f);
-                            if (e.target) e.target.value = null; // Reset so the same file can be clicked again
-                          }}
-                        />
+                        
                         <div className={`upload-zone ${drag ? "drag" : ""}`}
                           onDragOver={e => { e.preventDefault(); setDrag(true); }}
                           onDragLeave={() => setDrag(false)}
