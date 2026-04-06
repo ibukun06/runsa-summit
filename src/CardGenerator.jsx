@@ -1171,7 +1171,17 @@ export default function CardGenerator() {
   };
 
   const handlePhoto = (file) => {
-    if (!file || !file.type.startsWith("image/")) return;
+  if (!file) return;
+  // iOS/Safari can return empty file.type for HEIC and some JPEGs
+  // Fall back to checking the file extension if MIME type is missing
+  const isImage = file.type.startsWith("image/") || 
+    /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i.test(file.name);
+  if (!isImage) return;
+  const isHeic = /\.heic$/i.test(file.name) || file.type === "image/heic";
+  if (isHeic) {
+    alert("HEIC photos aren't supported in browsers yet. Please convert to JPEG first, or use the Share → Save as JPEG option in your Photos app.");
+    return;
+  }
     const reader = new FileReader();
     reader.onload = e => {
       const photoData = e.target.result;
