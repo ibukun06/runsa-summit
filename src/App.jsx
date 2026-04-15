@@ -1267,7 +1267,8 @@ const POSITIONS_BY_TYPE = {
   "guest": [
     "Rt. Hon. Speaker, House of Assembly",
     "Honourable Member, House of Assembly",
-    "Guest Speaker / Panelist",
+    "Guest Speaker",
+    "Guest",
   ],
   "runsa-lc-principal": [
     "Speaker",
