@@ -1332,7 +1332,7 @@ const DEPARTMENTS = [
   "Industrial Mathematics & Computer Science", "Industrial Technology Education", 
   "Information Technology", "Insurance", "Law", "Marketing", "Mass Communication", 
   "Mechanical Engineering", "Medical Laboratory Science", "Microbiology", 
-  "Nursing Science", "Petroleum Chemistry", "Philosophy", "Physics with Electronics", 
+  "Nursing Science", "Petroleum Chemistry", "Philosophy", "Physical Science s", "Physics with Electronics", 
   "Physiotherapy", "Political Science", "Psychology", "Public Administration", 
   "Public Health", "Quantity Surveying", "Social Work", "Sociology", 
   "Statistics", "Statistics & Data Science", "Technical Education", 
