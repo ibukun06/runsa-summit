@@ -1260,7 +1260,6 @@ const POSITIONS_BY_TYPE = {
     "Financial Secretary",
     "Other Legislative Officer",
     "Honourable Member",
-    "Departmental Representative",
     "Student",
     "Staff",
   ],
