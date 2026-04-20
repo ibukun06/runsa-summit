@@ -961,7 +961,7 @@ export default function App() {
       return; 
     }
     
-    if (regs.length >= 450) { alert("Registration is now closed. The maximum number of delegates (450) has been reached."); return; }
+    if (regs.length >= 600) { alert("Registration is now closed. The maximum number of delegates (450) has been reached."); return; }
     const nameWords = s => s.trim().toLowerCase().replace(/\s+/g, " ").split(" ").filter(Boolean).sort().join(" ");
     const incomingWords = nameWords(form.name);
     const existing = regs.find(r => nameWords(r.name || "") === incomingWords);
@@ -2086,12 +2086,12 @@ function StatCards({ total, checkedIn, pending, onFilterCheckin, T }) {
   const animTotal    = useCountUp(total, 900);
   const animChecked  = useCountUp(checkedIn, 900);
   const animPending  = useCountUp(pending, 900);
-  const animSpots    = useCountUp(450 - total, 900);
+  const animSpots    = useCountUp(600 - total, 900);
   const stats = [
-    { label:"Total Registered", value:animTotal,   raw:total,     max:450,       accent:BRAND.gold,    click:null,        hint:"" },
+    { label:"Total Registered", value:animTotal,   raw:total,     max:600,       accent:BRAND.gold,    click:null,        hint:"" },
     { label:"Checked In",       value:animChecked, raw:checkedIn, max:total||1,  accent:"#2e9e5b",     click:"checked",   hint:"Click to filter" },
     { label:"Pending Entry",    value:animPending, raw:pending,   max:total||1,  accent:"#c97a10",     click:"pending",   hint:"Click to filter" },
-    { label:"Spots Remaining",  value:animSpots,   raw:450-total, max:450,       accent:BRAND.navyMid, click:null,        hint:"" },
+    { label:"Spots Remaining",  value:animSpots,   raw:600-total, max:600,       accent:BRAND.navyMid, click:null,        hint:"" },
   ];
   return (
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:12, marginBottom:24 }} className="fade-up-2">
