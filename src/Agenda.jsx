@@ -34,16 +34,24 @@ const LIGHT = {
 
 // ─── IMAGE PATHS ──────────────────────────────────────────────────────────────
 // Save images to public/ folder:
-//  /public/speakers/   → sobadu-oluwanifemi.jpg, rt-hon-adewale.jpg, hon-adewunmi.jpg
-//                         hon-kasope.jpg, hon-abiola.jpg, hon-anisere.jpg, dr-lanre.jpg
-//                         akinola-boluwatife.jpg, odunsi-oluwatobiloba.jpg, ayodele-olamilekun.jpg
-//                         chief-whip.jpg (Hon. Oluwafemi Ibukunoluwa)
-//  /public/patrons/    → patron-vc.jpg (Prof. Shedrach), patron-dean.jpg (Prof. Adesina)
-//  /public/gallery/    → gallery-1.jpg … gallery-12.jpg
-//  All images: JPG preferred, max 400KB each.
+//  /public/speakers/        → sobadu-oluwanifemi.jpg/.png, rt-hon-adewale.jpg/.png, hon-adewunmi.jpg/.png
+//                              hon-kasope.jpg/.png, hon-abiola.jpg/.png, hon-anisere.jpg/.png, dr-lanre.jpg/.png
+//                              akinola-boluwatife.jpg/.png, odunsi-oluwatobiloba.jpg/.png, ayodele-olamilekun.jpg/.png
+//                              chief-whip.jpg/.png (Hon. Oluwafemi Ibukunoluwa)
+//  /public/patrons/         → patron-vc.jpg/.png (Prof. Shedrach), patron-dean.jpg/.png (Prof. Adesina)
+//  /public/gallery/         → gallery-1.jpg/.png … gallery-12.jpg/.png (PNG gives clearer quality)
+//  /public/institutions/    → ui-logo.png, lasu-logo.png, bu-logo.png, au-logo.png,
+//                              jabu-logo.png, uniosun-logo.png, yabatech-logo.png, oau-logo.png, cu-logo.png
+//  /public/council-logo.png → RUNSA Legislative Council official logo (replaces "LS" text in nav/footer)
+//  All images: JPG or PNG supported. PNG recommended for logos and clearer photos. Max 400KB each.
 const SP = "/speakers";
 const PA = "/patrons";
 const GA = "/gallery";
+const INST = "/institutions";
+
+// Council logo — place your official logo at /public/council-logo.png
+// If the file is missing the "LS" text badge will be shown as fallback.
+const COUNCIL_LOGO = "/council-logo.png";
 
 // ─── PEOPLE DATA ──────────────────────────────────────────────────────────────
 const PEOPLE = {
@@ -354,21 +362,55 @@ const SESSIONS = [
   },
 ];
 
-// ─── GALLERY DATA ──────────────────────────────────────────────────────────────
-const GALLERY_ITEMS = [
-  { id: "g1",  src: `${GA}/gallery-1.jpg`,  caption: "Red Carpet Arrivals" },
-  { id: "g2",  src: `${GA}/gallery-2.jpg`,  caption: "Opening Ceremony" },
-  { id: "g3",  src: `${GA}/gallery-3.jpg`,  caption: "Welcome Address" },
-  { id: "g4",  src: `${GA}/gallery-4.jpg`,  caption: "Keynote Address" },
-  { id: "g5",  src: `${GA}/gallery-5.jpg`,  caption: "Legislative Trivia Quiz" },
-  { id: "g6",  src: `${GA}/gallery-6.jpg`,  caption: "Panel Discussion" },
-  { id: "g7",  src: `${GA}/gallery-7.jpg`,  caption: "House Sitting Session" },
-  { id: "g8",  src: `${GA}/gallery-8.jpg`,  caption: "Pitch Yourself" },
-  { id: "g9",  src: `${GA}/gallery-9.jpg`,  caption: "Awards Presentation" },
-  { id: "g10", src: `${GA}/gallery-10.jpg`, caption: "Networking Session" },
-  { id: "g11", src: `${GA}/gallery-11.jpg`, caption: "Vote of Thanks" },
-  { id: "g12", src: `${GA}/gallery-12.jpg`, caption: "Group Photograph" },
+// ─── GALLERY DATA — grouped by event segment ──────────────────────────────────
+// Add more images per section by extending the `items` array.
+// PNG files are fully supported — just use the correct extension in `src`.
+const GALLERY_SECTIONS = [
+  {
+    id: "red-carpet", label: "Red Carpet & Registration",
+    items: [
+      { id: "g1", src: `${GA}/gallery-1.jpg`, caption: "Red Carpet Arrivals" },
+      { id: "g2", src: `${GA}/gallery-2.jpg`, caption: "Delegate Check-In" },
+    ],
+  },
+  {
+    id: "opening", label: "Opening Ceremony",
+    items: [
+      { id: "g3", src: `${GA}/gallery-3.jpg`, caption: "Opening Ceremony" },
+      { id: "g4", src: `${GA}/gallery-4.jpg`, caption: "Welcome Address" },
+    ],
+  },
+  {
+    id: "keynotes", label: "Keynote Sessions",
+    items: [
+      { id: "g5", src: `${GA}/gallery-5.jpg`, caption: "Keynote Address" },
+      { id: "g6", src: `${GA}/gallery-6.jpg`, caption: "Legislative Trivia Quiz" },
+    ],
+  },
+  {
+    id: "panel", label: "Panel Session",
+    items: [
+      { id: "g7", src: `${GA}/gallery-7.jpg`, caption: "Panel Discussion" },
+    ],
+  },
+  {
+    id: "house-sitting", label: "House Sitting",
+    items: [
+      { id: "g8", src: `${GA}/gallery-8.jpg`, caption: "House Sitting Session" },
+    ],
+  },
+  {
+    id: "awards-closing", label: "Awards & Closing",
+    items: [
+      { id: "g9",  src: `${GA}/gallery-9.jpg`,  caption: "Pitch Yourself" },
+      { id: "g10", src: `${GA}/gallery-10.jpg`, caption: "Awards Presentation" },
+      { id: "g11", src: `${GA}/gallery-11.jpg`, caption: "Vote of Thanks" },
+      { id: "g12", src: `${GA}/gallery-12.jpg`, caption: "Group Photograph" },
+    ],
+  },
 ];
+// Flat list kept for backwards-compat
+const GALLERY_ITEMS = GALLERY_SECTIONS.flatMap(s => s.items);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  GLOBAL STYLES
@@ -378,12 +420,13 @@ const GlobalStyles = memo(({ isDark }) => {
   const css = `
     @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@400;600;700;900&family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+    html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; width: 100%; max-width: 100%; overflow-x: hidden; }
     body {
       font-family: 'Inter', sans-serif;
       background: ${B.bg};
       color: ${B.cream};
       min-height: 100vh; overflow-x: hidden;
+      width: 100%; max-width: 100%;
       transition: background 0.4s ease, color 0.4s ease;
     }
     ::selection { background: rgba(201,146,10,0.35); color: ${B.cream}; }
@@ -416,6 +459,10 @@ const GlobalStyles = memo(({ isDark }) => {
     @keyframes orbFloat   { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(20px,-20px) scale(1.05)} }
     @keyframes heartbeat  { 0%,100%{transform:scale(1)} 14%{transform:scale(1.08)} 28%{transform:scale(1)} 42%{transform:scale(1.05)} 56%{transform:scale(1)} }
     @keyframes slideDown  { from{opacity:0;transform:translateY(-16px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes slideNextIn  { from{opacity:0;transform:translateX(80px)}  to{opacity:1;transform:translateX(0)} }
+    @keyframes slidePrevIn  { from{opacity:0;transform:translateX(-80px)} to{opacity:1;transform:translateX(0)} }
+    @keyframes slideNextOut { from{opacity:1;transform:translateX(0)}     to{opacity:0;transform:translateX(-80px)} }
+    @keyframes slidePrevOut { from{opacity:1;transform:translateX(0)}     to{opacity:0;transform:translateX(80px)} }
     @keyframes glow360    {
       0%  {box-shadow:0 0 0 0 rgba(201,146,10,0);}
       25% {box-shadow:4px 0 18px 2px rgba(201,146,10,0.25);}
@@ -635,15 +682,20 @@ const PersonModal = memo(({ person, onClose }) => {
   if (!person) return null;
   const hasImg = person.image && !imgError;
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:500, background:"rgba(2,6,14,0.95)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20, animation:"fadeIn 0.22s ease" }}>
-      <div onClick={e=>e.stopPropagation()} className="au-popIn" style={{ width:"100%", maxWidth:540, background: isDark?"linear-gradient(150deg,rgba(10,22,40,0.99),rgba(4,10,22,0.99))":"linear-gradient(150deg,rgba(255,253,248,0.99),rgba(248,244,236,0.99))", border:`1px solid ${B.borderGold}`, borderRadius:26, boxShadow:`0 40px 100px rgba(0,0,0,0.75), ${B.shadowGold}`, position:"relative", maxHeight:"92vh", overflowY:"auto", overflowX:"hidden" }}>
-        <div style={{ height:5, background:"linear-gradient(90deg,#c9920a,#e8b84b,#39e07a,#7ab8f5,#c9920a)", backgroundSize:"300% 100%", animation:"gradShift 4s ease infinite", borderRadius:"26px 26px 0 0" }} />
-        <button onClick={onClose} style={{ position:"absolute", top:14, right:14, width:38, height:38, zIndex:5, borderRadius:"50%", border:`1px solid ${B.border}`, background:"transparent", color:B.textMuted, fontSize:22, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s" }}
-          onMouseEnter={e=>{e.currentTarget.style.color=B.goldLight;e.currentTarget.style.borderColor=B.borderGold;e.currentTarget.style.boxShadow=`0 0 14px ${B.shadowGold}`;}}
-          onMouseLeave={e=>{e.currentTarget.style.color=B.textMuted;e.currentTarget.style.borderColor=B.border;e.currentTarget.style.boxShadow="none";}}>
-          &times;
-        </button>
-        <div style={{ padding:"clamp(1.6rem,4vw,2.6rem)" }}>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:500, background:"rgba(2,6,14,0.95)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"10px", animation:"fadeIn 0.22s ease" }}>
+      <div onClick={e=>e.stopPropagation()} className="au-popIn" style={{ width:"100%", maxWidth:540, background: isDark?"linear-gradient(150deg,rgba(10,22,40,0.99),rgba(4,10,22,0.99))":"linear-gradient(150deg,rgba(255,253,248,0.99),rgba(248,244,236,0.99))", border:`1px solid ${B.borderGold}`, borderRadius:26, boxShadow:`0 40px 100px rgba(0,0,0,0.75), ${B.shadowGold}`, position:"relative", maxHeight:"90vh", display:"flex", flexDirection:"column", overflowX:"hidden" }}>
+        {/* Rainbow top bar */}
+        <div style={{ flexShrink:0, height:5, background:"linear-gradient(90deg,#c9920a,#e8b84b,#39e07a,#7ab8f5,#c9920a)", backgroundSize:"300% 100%", animation:"gradShift 4s ease infinite", borderRadius:"26px 26px 0 0" }} />
+        {/* Sticky close-button row — always visible even when modal content scrolls */}
+        <div style={{ flexShrink:0, position:"sticky", top:0, zIndex:10, display:"flex", justifyContent:"flex-end", padding:"10px 14px 0", background:isDark?"rgba(10,22,40,0.98)":"rgba(255,253,248,0.98)" }}>
+          <button onClick={onClose} style={{ width:38, height:38, borderRadius:"50%", border:`1px solid ${B.border}`, background:"transparent", color:B.textMuted, fontSize:22, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s" }}
+            onMouseEnter={e=>{e.currentTarget.style.color=B.goldLight;e.currentTarget.style.borderColor=B.borderGold;e.currentTarget.style.boxShadow=`0 0 14px ${B.shadowGold}`;}}
+            onMouseLeave={e=>{e.currentTarget.style.color=B.textMuted;e.currentTarget.style.borderColor=B.border;e.currentTarget.style.boxShadow="none";}}>
+            &times;
+          </button>
+        </div>
+        {/* Scrollable body */}
+        <div style={{ overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"0 clamp(1.2rem,4vw,2.4rem) clamp(1.4rem,4vw,2.2rem)" }}>
           <div style={{ textAlign:"center", marginBottom:24 }}>
             {hasImg ? (
               <div style={{ position:"relative", display:"inline-block" }}>
@@ -667,45 +719,126 @@ const PersonModal = memo(({ person, onClose }) => {
             <p style={{ fontSize:"0.65rem", fontWeight:700, letterSpacing:"0.14em", textTransform:"uppercase", color:B.goldLight, marginBottom:10 }}>Biography</p>
             <p style={{ fontFamily:"'EB Garamond',serif", fontSize:"0.98rem", color:B.textMuted, lineHeight:1.85 }}>{person.bio}</p>
           </div>
-        </div>
+        </div>{/* end scrollable body */}
       </div>
     </div>
   );
 });
 
-// ─── GALLERY LIGHTBOX ─────────────────────────────────────────────────────────
-const Lightbox = memo(({ images, idx, onClose, onNav }) => {
+// ─── GALLERY LIGHTBOX — animated album with swipe/slide support ──────────────
+const Lightbox = memo(({ images, sectionLabel, idx, onClose, onNav }) => {
   const { isDark } = useTheme();
   const B = isDark ? DARK : LIGHT;
+  const [animDir, setAnimDir]       = useState(null);
+  const [displayIdx, setDisplayIdx] = useState(idx);
+  const prevIdxRef = useRef(idx);
+
+  useEffect(() => {
+    if (idx !== prevIdxRef.current) {
+      const dir = idx > prevIdxRef.current ? "next" : "prev";
+      setAnimDir(dir);
+      prevIdxRef.current = idx;
+      const t = setTimeout(() => { setDisplayIdx(idx); setAnimDir(null); }, 30);
+      return () => clearTimeout(t);
+    }
+  }, [idx]);
+
   useEffect(() => {
     const fn = e => { if(e.key==="Escape")onClose(); if(e.key==="ArrowLeft")onNav(-1); if(e.key==="ArrowRight")onNav(1); };
     document.addEventListener("keydown", fn);
     document.body.style.overflow = "hidden";
     return () => { document.removeEventListener("keydown", fn); document.body.style.overflow = ""; };
   }, [onClose, onNav]);
-  const img = images[idx];
+
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
+  const handleTouchStart = e => { touchStartX.current = e.touches[0].clientX; touchStartY.current = e.touches[0].clientY; };
+  const handleTouchEnd   = e => {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+    if (Math.abs(dx) > 45 && Math.abs(dx) > dy * 1.5) {
+      if (dx < 0 && idx < images.length - 1) onNav(1);
+      else if (dx > 0 && idx > 0) onNav(-1);
+    }
+    touchStartX.current = null;
+  };
+
+  const img = images[displayIdx];
   if (!img) return null;
+
+  const slideAnim = animDir === "next"
+    ? "slideNextIn 0.32s cubic-bezier(0.34,1.1,0.64,1) both"
+    : animDir === "prev"
+    ? "slidePrevIn 0.32s cubic-bezier(0.34,1.1,0.64,1) both"
+    : "none";
+
   const navBtn = (label, action, side) => (
-    <button onClick={e=>{e.stopPropagation();action();}} style={{ position:"absolute", [side]:16, top:"50%", transform:"translateY(-50%)", width:50, height:50, borderRadius:"50%", border:`1px solid ${B.borderGold}`, background:"rgba(6,13,26,0.85)", color:B.goldLight, fontSize:24, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s", zIndex:10 }}
-      onMouseEnter={e=>{e.currentTarget.style.background="rgba(201,146,10,0.15)";e.currentTarget.style.boxShadow="0 0 22px rgba(201,146,10,0.35)";}}
+    <button onClick={e=>{e.stopPropagation();action();}}
+      style={{ position:"absolute", [side]:12, top:"50%", transform:"translateY(-50%)", width:48, height:48, borderRadius:"50%", border:`1px solid ${B.borderGold}`, background:"rgba(6,13,26,0.85)", color:B.goldLight, fontSize:26, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s", zIndex:10 }}
+      onMouseEnter={e=>{e.currentTarget.style.background="rgba(201,146,10,0.2)";e.currentTarget.style.boxShadow="0 0 22px rgba(201,146,10,0.4)";}}
       onMouseLeave={e=>{e.currentTarget.style.background="rgba(6,13,26,0.85)";e.currentTarget.style.boxShadow="none";}}>
       {label}
     </button>
   );
+
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:600, background:"rgba(2,5,12,0.97)", backdropFilter:"blur(22px)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, animation:"fadeIn 0.25s ease" }}>
-      <button onClick={onClose} style={{ position:"absolute", top:18, right:18, width:46, height:46, borderRadius:"50%", border:`1px solid ${B.borderGold}`, background:"rgba(6,13,26,0.85)", color:B.goldLight, fontSize:26, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s", zIndex:10 }}
-        onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 0 22px rgba(201,146,10,0.3)";}}
-        onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";}}>&times;</button>
-      {idx > 0 && navBtn("‹", ()=>onNav(-1), "left")}
-      {idx < images.length-1 && navBtn("›", ()=>onNav(1), "right")}
-      <div onClick={e=>e.stopPropagation()} className="au-scaleIn" style={{ maxWidth:960, width:"100%", textAlign:"center" }}>
-        <div style={{ position:"relative", borderRadius:18, overflow:"hidden", border:`1px solid ${B.borderGold}`, boxShadow:"0 24px 70px rgba(0,0,0,0.6)" }}>
-          <img src={img.src} alt={img.caption} style={{ width:"100%", maxHeight:"72vh", objectFit:"contain", background:`linear-gradient(135deg,${B.bgMid},${B.bg})`, display:"block" }} />
+    <div onClick={onClose} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}
+      style={{ position:"fixed", inset:0, zIndex:600, background:"rgba(2,5,12,0.97)", backdropFilter:"blur(22px)", WebkitBackdropFilter:"blur(22px)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", animation:"fadeIn 0.25s ease" }}>
+
+      {/* Sticky header bar */}
+      <div style={{ flexShrink:0, width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"13px 18px", borderBottom:`1px solid rgba(201,146,10,0.18)`, background:"rgba(2,5,12,0.7)", backdropFilter:"blur(12px)" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:"0.63rem", fontWeight:800, letterSpacing:"0.14em", textTransform:"uppercase", color:B.goldLight }}>{sectionLabel}</span>
+          <span style={{ fontSize:"0.63rem", color:B.textFaint }}>{displayIdx + 1} / {images.length}</span>
         </div>
-        <p style={{ marginTop:14, fontSize:"0.85rem", color:B.textMuted, fontFamily:"'Cinzel',serif" }}>{img.caption} <span style={{ color:B.textFaint }}>({idx+1} / {images.length})</span></p>
-        <p style={{ fontSize:"0.72rem", color:B.textFaint, marginTop:6 }}>Use ← → arrow keys or swipe to navigate</p>
+        <button onClick={onClose}
+          style={{ width:40, height:40, borderRadius:"50%", border:`1px solid ${B.borderGold}`, background:"rgba(6,13,26,0.85)", color:B.goldLight, fontSize:24, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s" }}
+          onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 0 22px rgba(201,146,10,0.35)";}}
+          onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";}}>
+          &times;
+        </button>
       </div>
+
+      {/* Main image area */}
+      <div onClick={e=>e.stopPropagation()} style={{ flex:1, position:"relative", width:"100%", maxWidth:980, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", padding:"12px 60px" }}>
+        {idx > 0 && navBtn("‹", ()=>onNav(-1), "left")}
+        {idx < images.length - 1 && navBtn("›", ()=>onNav(1), "right")}
+        <div key={displayIdx} style={{ width:"100%", textAlign:"center", animation:slideAnim }}>
+          <div style={{ borderRadius:16, overflow:"hidden", border:`1px solid ${B.borderGold}`, boxShadow:"0 24px 70px rgba(0,0,0,0.6)", display:"inline-block", maxWidth:"100%" }}>
+            <img src={img.src} alt={img.caption} style={{ width:"100%", maxHeight:"calc(100vh - 210px)", objectFit:"contain", background:`linear-gradient(135deg,${B.bgMid},${B.bg})`, display:"block" }} />
+          </div>
+          <p style={{ marginTop:11, fontSize:"0.84rem", color:B.textMuted, fontFamily:"'Cinzel',serif" }}>{img.caption}</p>
+        </div>
+      </div>
+
+      {/* Thumbnail strip */}
+      {images.length > 1 && (
+        <div onClick={e=>e.stopPropagation()} style={{ flexShrink:0, display:"flex", gap:7, overflowX:"auto", padding:"8px 16px 12px", maxWidth:980, width:"100%", scrollbarWidth:"none" }}>
+          {images.map((thumb, ti) => (
+            <button key={thumb.id} onClick={()=>onNav(ti - idx)}
+              style={{ flexShrink:0, width:54, height:40, borderRadius:7, overflow:"hidden", border:`2px solid ${ti === displayIdx ? B.goldLight : "transparent"}`, cursor:"pointer", background:"transparent", padding:0, opacity:ti === displayIdx ? 1 : 0.5, transition:"all 0.22s", boxShadow:ti === displayIdx ? "0 0 12px rgba(201,146,10,0.45)" : "none" }}>
+              <img src={thumb.src} alt={thumb.caption} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }} />
+            </button>
+          ))}
+        </div>
+      )}
+      <p style={{ flexShrink:0, fontSize:"0.65rem", color:B.textFaint, paddingBottom:10 }}>Swipe or use ← → keys to navigate · Tap outside to close</p>
+    </div>
+  );
+});
+
+// ─── LOGO BADGE — shows an image logo; falls back to text initials ────────────
+const LogoBadge = memo(({ src, fallback, size = 40, pulse = false, style: extraStyle = {} }) => {
+  const { isDark } = useTheme();
+  const B = isDark ? DARK : LIGHT;
+  const [err, setErr] = useState(false);
+  return (
+    <div style={{ width:size, height:size, borderRadius:"50%", border:`2px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", flexShrink:0, boxShadow:"0 0 16px rgba(201,146,10,0.3)", animation:pulse?"heartbeat 4s ease-in-out infinite":"none", background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, ...extraStyle }}>
+      {src && !err
+        ? <img src={src} alt="logo" onError={()=>setErr(true)} style={{ width:"86%", height:"86%", objectFit:"contain" }} />
+        : <span style={{ fontFamily:"'Cinzel',serif", fontSize:Math.round(size*0.275), fontWeight:900, color:B.goldLight }}>{fallback}</span>
+      }
     </div>
   );
 });
@@ -732,7 +865,7 @@ const Navigation = memo(({ activeSection }) => {
       <div style={{ maxWidth:1240, margin:"0 auto", padding:"0 20px" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", height:66 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }} onClick={()=>scrollTo("hero")}>
-            <div style={{ width:40, height:40, borderRadius:"50%", border:`2px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Cinzel',serif", fontSize:11, fontWeight:900, color:B.goldLight, boxShadow:"0 0 16px rgba(201,146,10,0.3)", animation:"heartbeat 4s ease-in-out infinite" }}>LS</div>
+            <LogoBadge src={COUNCIL_LOGO} fallback="LS" size={40} pulse={true} />
             <div>
               <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:15, color:B.goldLight, letterSpacing:"0.1em", display:"block", lineHeight:1 }}>LEGISLATIVE SUMMIT</span>
               <span style={{ fontSize:8, color:B.textFaint, letterSpacing:"0.12em", textTransform:"uppercase" }}>2026 · RUNSA</span>
@@ -1089,6 +1222,22 @@ function SpeakersSection({ onPersonClick }) {
   );
 }
 
+// ─── INSTITUTION LOGO CELL — shows logo PNG, falls back to short-name text ────
+function InstitutionLogo({ logo, short, pending }) {
+  const { isDark } = useTheme();
+  const B = isDark ? DARK : LIGHT;
+  const [err, setErr] = useState(false);
+  if (logo && !err) {
+    return (
+      <img src={logo} alt={short} onError={()=>setErr(true)}
+        style={{ width:"80%", height:"80%", objectFit:"contain", display:"block" }} />
+    );
+  }
+  return (
+    <span style={{ fontSize:9, fontWeight:900, color:pending?B.textFaint:B.goldLight, fontFamily:"'Cinzel',serif", letterSpacing:"0.04em", textAlign:"center" }}>{short}</span>
+  );
+}
+
 // ─── VOTE OF THANKS SECTION ────────────────────────────────────────────────────
 function VoteOfThanksSection({ onPersonClick }) {
   const { isDark } = useTheme();
@@ -1102,15 +1251,15 @@ function VoteOfThanksSection({ onPersonClick }) {
   ];
 
   const externalInstitutions = [
-    { name:"Students' Representative Council", parent:"University of Ibadan Students' Union", short:"UI" },
-    { name:"Students' Parliament Council", parent:"Lagos State University, Ojo", short:"LASU" },
-    { name:"Student Legislative Council", parent:"Babcock University, Ilisan-Remo", short:"BU" },
-    { name:"Student Legislative Council", parent:"Adeleke University, Ede", short:"AU" },
-    { name:"SRC, Students' Union & Law Council", parent:"Joseph Ayo Babalola University", short:"JABU" },
-    { name:"Student Representative Council", parent:"Osun State University", short:"UNIOSUN" },
-    { name:"Senate Council, Students' Union", parent:"Yaba College of Technology", short:"YabaTech" },
-    { name:"Students' Representative Council (SRC), Great Ife Students' Union", parent:"Obafemi Awolowo University", short:"OAU" },
-    { name:"Students' Council", parent:"Covenant University", short:"CU", pending:true },
+    { name:"Students' Representative Council", parent:"University of Ibadan Students' Union", short:"UI",       logo:`${INST}/ui-logo.png` },
+    { name:"Students' Parliament Council",     parent:"Lagos State University, Ojo",          short:"LASU",     logo:`${INST}/lasu-logo.png` },
+    { name:"Student Legislative Council",      parent:"Babcock University, Ilisan-Remo",      short:"BU",       logo:`${INST}/bu-logo.png` },
+    { name:"Student Legislative Council",      parent:"Adeleke University, Ede",              short:"AU",       logo:`${INST}/au-logo.png` },
+    { name:"SRC, Students' Union & Law Council",parent:"Joseph Ayo Babalola University",     short:"JABU",     logo:`${INST}/jabu-logo.png` },
+    { name:"Student Representative Council",   parent:"Osun State University",               short:"UNIOSUN",  logo:`${INST}/uniosun-logo.png` },
+    { name:"Senate Council, Students' Union",  parent:"Yaba College of Technology",           short:"YabaTech",logo:`${INST}/yabatech-logo.png` },
+    { name:"Students' Representative Council (SRC), Great Ife Students' Union", parent:"Obafemi Awolowo University", short:"OAU", logo:`${INST}/oau-logo.png` },
+    { name:"Students' Council",                parent:"Covenant University",                  short:"CU",       logo:`${INST}/cu-logo.png`, pending:true },
   ];
 
   return (
@@ -1174,7 +1323,8 @@ function VoteOfThanksSection({ onPersonClick }) {
             <div key={i} className={`rv-${i%2===0?"l":"r"}`} style={{ display:"flex", alignItems:"flex-start", gap:14, padding:"16px 18px", borderRadius:16, background:isDark?"rgba(6,10,20,0.55)":"rgba(255,255,255,0.78)", border:`1.5px solid ${inst.pending?B.border:B.borderGold}`, position:"relative", overflow:"hidden", transition:"all 0.25s" }}
               onMouseEnter={e=>{e.currentTarget.style.borderColor=inst.pending?B.border:B.goldLight;e.currentTarget.style.transform="translateY(-2px)";}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor=inst.pending?B.border:B.borderGold;e.currentTarget.style.transform="translateY(0)";}}>
-              <div style={{ width:40, height:40, borderRadius:10, flexShrink:0, background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`1.5px solid ${inst.pending?B.border:B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:900, color:inst.pending?B.textFaint:B.goldLight, fontFamily:"'Cinzel',serif", letterSpacing:"0.04em" }}>{inst.short}</div>
+              <div style={{ width:44, height:44, borderRadius:10, flexShrink:0, background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`1.5px solid ${inst.pending?B.border:B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+                <InstitutionLogo logo={inst.logo} short={inst.short} pending={inst.pending} />
               <div style={{ flex:1 }}>
                 <p style={{ fontSize:"0.78rem", fontWeight:700, color:inst.pending?B.textFaint:B.cream, marginBottom:3, fontFamily:"'Cinzel',serif", lineHeight:1.3 }}>{inst.name}</p>
                 <p style={{ fontSize:"0.68rem", color:B.textFaint }}>{inst.parent}</p>
@@ -1196,36 +1346,68 @@ function VoteOfThanksSection({ onPersonClick }) {
 function GallerySection() {
   const { isDark } = useTheme();
   const B = isDark ? DARK : LIGHT;
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [curIdx, setCurIdx] = useState(0);
+  // Lightbox state: which section + which index within that section
+  const [lightbox, setLightbox] = useState(null); // { images, sectionLabel, idx }
   const [loadedMap, setLoadedMap] = useState({});
-  const [errorMap, setErrorMap] = useState({});
+  const [errorMap,  setErrorMap]  = useState({});
   useScrollReveal();
-  const openLightbox = i => { setCurIdx(i); setLightboxOpen(true); };
-  const navLightbox = dir => setCurIdx(p => Math.max(0, Math.min(p+dir, GALLERY_ITEMS.length-1)));
+
+  const openLightbox = (section, itemIdx) => setLightbox({ images: section.items, sectionLabel: section.label, idx: itemIdx });
+  const navLightbox  = dir => setLightbox(lb => lb ? { ...lb, idx: Math.max(0, Math.min(lb.idx + dir, lb.images.length - 1)) } : null);
+
   return (
     <section id="gallery" style={{ padding:"clamp(3.5rem,9vh,5.5rem) 20px", maxWidth:1140, margin:"0 auto" }}>
-      <SectionHeader pretitle="Memories" title="PHOTO GALLERY" subtitle="A visual chronicle of the RUNSA Legislative Summit 2026. Click any photo to view it in full." />
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))", gap:16 }}>
-        {GALLERY_ITEMS.map((item,i) => {
-          const hasErr = errorMap[item.id];
-          const hasLoaded = loadedMap[item.id];
-          return (
-            <div key={item.id} className="rv-s img-zoom hover-lift" onClick={()=>!hasErr&&openLightbox(i)} style={{ animationDelay:`${(i%6)*0.06}s`, position:"relative", borderRadius:18, overflow:"hidden", border:`1px solid ${B.border}`, cursor:hasErr?"default":"pointer", aspectRatio:"4/3", background:isDark?"rgba(6,10,20,0.6)":"rgba(26,58,107,0.06)", transition:"all 0.3s cubic-bezier(0.34,1.1,0.64,1)" }}>
-              {!hasErr ? (
-                <img src={item.src} alt={item.caption} loading="lazy" onLoad={()=>setLoadedMap(m=>({...m,[item.id]:true}))} onError={()=>setErrorMap(m=>({...m,[item.id]:true}))} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:hasLoaded?1:0, transition:"opacity 0.4s ease" }} />
-              ) : (
-                <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:10 }}>
-                  <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke={B.textFaint} strokeWidth="1.2"><rect x="2" y="6" width="32" height="24" rx="3"/><circle cx="12" cy="16" r="3"/><path d="M2 24l8-7 6 6 5-4 13 9" strokeLinejoin="round"/></svg>
-                  <p style={{ fontSize:"0.72rem", color:B.textFaint, textAlign:"center", padding:"0 12px" }}>{item.caption}<br /><span style={{ fontSize:"0.62rem", opacity:0.6 }}>Photo coming soon</span></p>
+      <SectionHeader pretitle="Memories" title="PHOTO GALLERY" subtitle="Tap a section cover to open its album. Swipe or use arrow keys to browse within each segment." />
+
+      {GALLERY_SECTIONS.map((section, si) => (
+        <div key={section.id} className="rv" style={{ marginBottom:40 }}>
+          {/* Section label */}
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14 }}>
+            <div style={{ width:4, height:20, borderRadius:2, background:`linear-gradient(to bottom,${B.goldLight},${B.navyMid})` }} />
+            <p style={{ fontSize:"0.72rem", fontWeight:700, letterSpacing:"0.14em", textTransform:"uppercase", color:B.goldLight }}>{section.label}</p>
+            <span style={{ fontSize:"0.65rem", color:B.textFaint }}>({section.items.length} photo{section.items.length !== 1 ? "s" : ""})</span>
+          </div>
+          {/* Photo grid for this section */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:12 }}>
+            {section.items.map((item, ii) => {
+              const hasErr    = errorMap[item.id];
+              const hasLoaded = loadedMap[item.id];
+              return (
+                <div key={item.id} className="rv-s img-zoom hover-lift" onClick={()=>!hasErr && openLightbox(section, ii)}
+                  style={{ animationDelay:`${(ii%4)*0.06}s`, position:"relative", borderRadius:16, overflow:"hidden", border:`1px solid ${B.border}`, cursor:hasErr?"default":"pointer", aspectRatio:"4/3", background:isDark?"rgba(6,10,20,0.6)":"rgba(26,58,107,0.06)", transition:"all 0.28s cubic-bezier(0.34,1.1,0.64,1)" }}>
+                  {!hasErr ? (
+                    <img src={item.src} alt={item.caption} loading="lazy"
+                      onLoad={()=>setLoadedMap(m=>({...m,[item.id]:true}))}
+                      onError={()=>setErrorMap(m=>({...m,[item.id]:true}))}
+                      style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", opacity:hasLoaded?1:0, transition:"opacity 0.4s ease" }} />
+                  ) : (
+                    <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:10 }}>
+                      <svg width="34" height="34" viewBox="0 0 36 36" fill="none" stroke={B.textFaint} strokeWidth="1.2"><rect x="2" y="6" width="32" height="24" rx="3"/><circle cx="12" cy="16" r="3"/><path d="M2 24l8-7 6 6 5-4 13 9" strokeLinejoin="round"/></svg>
+                      <p style={{ fontSize:"0.7rem", color:B.textFaint, textAlign:"center", padding:"0 12px" }}>{item.caption}<br /><span style={{ fontSize:"0.6rem", opacity:0.6 }}>Photo coming soon</span></p>
+                    </div>
+                  )}
+                  {!hasErr && (
+                    <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"18px 12px 11px", background:"linear-gradient(to top,rgba(3,8,16,0.9),transparent)" }}>
+                      <p style={{ fontSize:"0.73rem", fontWeight:600, color:"#f5f0e8", margin:0 }}>{item.caption}</p>
+                    </div>
+                  )}
+                  {/* Album badge on first photo */}
+                  {ii === 0 && !hasErr && (
+                    <div style={{ position:"absolute", top:9, left:9, display:"flex", alignItems:"center", gap:5, padding:"3px 9px", borderRadius:100, background:"rgba(201,146,10,0.18)", border:`1px solid rgba(201,146,10,0.45)`, backdropFilter:"blur(8px)" }}>
+                      <svg width="9" height="9" viewBox="0 0 12 12" fill={B.goldLight}><rect x="0" y="0" width="5" height="5" rx="1"/><rect x="7" y="0" width="5" height="5" rx="1"/><rect x="0" y="7" width="5" height="5" rx="1"/><rect x="7" y="7" width="5" height="5" rx="1"/></svg>
+                      <span style={{ fontSize:"0.58rem", fontWeight:700, color:B.goldLight, letterSpacing:"0.07em" }}>ALBUM</span>
+                    </div>
+                  )}
                 </div>
-              )}
-              {!hasErr && <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"22px 14px 14px", background:"linear-gradient(to top, rgba(3,8,16,0.92), transparent)" }}><p style={{ fontSize:"0.76rem", fontWeight:600, color:"#f5f0e8", margin:0 }}>{item.caption}</p><p style={{ fontSize:"0.62rem", color:"rgba(245,240,232,0.5)", marginTop:2 }}>{i+1} of {GALLERY_ITEMS.length}</p></div>}
-            </div>
-          );
-        })}
-      </div>
-      {lightboxOpen && <Lightbox images={GALLERY_ITEMS} idx={curIdx} onClose={()=>setLightboxOpen(false)} onNav={navLightbox} />}
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {lightbox && (
+        <Lightbox images={lightbox.images} sectionLabel={lightbox.sectionLabel} idx={lightbox.idx} onClose={()=>setLightbox(null)} onNav={navLightbox} />
+      )}
     </section>
   );
 }
@@ -1416,7 +1598,7 @@ function Footer() {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:36, marginBottom:44 }}>
           <div>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
-              <div style={{ width:38, height:38, borderRadius:"50%", border:`2px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Cinzel',serif", fontSize:11, fontWeight:900, color:B.goldLight, animation:"pulseGlow 3s infinite" }}>LS</div>
+              <LogoBadge src={COUNCIL_LOGO} fallback="LS" size={38} pulse={false} style={{ animation:"pulseGlow 3s infinite" }} />
               <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:17, color:B.goldLight, letterSpacing:"0.1em" }}>LEGISLATIVE SUMMIT</span>
             </div>
             <p style={{ fontSize:"0.76rem", color:B.textFaint, lineHeight:1.8 }}>Legislating the Future for Democratic Leadership. The inaugural student legislative summit of Redeemer's University Nigeria.</p>
@@ -1485,6 +1667,13 @@ export default function Agenda() {
   const toggle = useCallback(() => setIsDark(d => !d), []);
   const [activeSection, setActiveSection] = useState("hero");
   const [selectedPerson, setSelectedPerson] = useState(null);
+
+  // ── Fix mobile viewport zoom (ensures correct 1:1 scale on all devices) ──
+  useEffect(() => {
+    let meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) { meta = document.createElement("meta"); meta.name = "viewport"; document.head.prepend(meta); }
+    meta.content = "width=device-width, initial-scale=1.0, viewport-fit=cover";
+  }, []);
 
   // Persist completed sessions to localStorage (survives tab reloads)
   const [completedSessions, setCompletedSessions] = useState(() => {
