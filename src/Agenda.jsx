@@ -56,10 +56,10 @@ const PEOPLE = {
     initials: "SA", category: "patron", featured: false,
   },
   sobadu: {
-    id: "sobadu-oluwanifemi", name: "Rt. Hon. Sobodu Oluwanifemi Oladipupo",
+    id: "sobodu-oluwanifemi", name: "Rt. Hon. Sobodu Oluwanifemi Oladipupo",
     role: "Speaker, RUNSA Legislative Council", title: "Rt. Hon.",
     institution: "Redeemer's University, Ede",
-    image: `${SP}/sobadu-oluwanifemi.jpg`,
+    image: `${SP}/sobodu-oluwanifemi.jpg`,
     bio: "An eloquent and visionary leader of the RUNSA Legislative Council. Rt. Hon. Sobodu Oluwanifemi brings unmatched oratory and institutional drive to student governance. His passion for democratic student representation and welfare reform has made him a standout figure in campus legislative circles. As the presiding Speaker of the Council, he officially welcomes all delegates and dignitaries to this landmark summit.",
     initials: "SO", category: "speaker", featured: true,
   },
@@ -734,7 +734,7 @@ const Navigation = memo(({ activeSection }) => {
           <div style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }} onClick={()=>scrollTo("hero")}>
             <div style={{ width:40, height:40, borderRadius:"50%", border:`2px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Cinzel',serif", fontSize:11, fontWeight:900, color:B.goldLight, boxShadow:"0 0 16px rgba(201,146,10,0.3)", animation:"heartbeat 4s ease-in-out infinite" }}>LS</div>
             <div>
-              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:15, color:B.goldLight, letterSpacing:"0.1em", display:"block", lineHeight:1 }}>LEG SUMMIT</span>
+              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:15, color:B.goldLight, letterSpacing:"0.1em", display:"block", lineHeight:1 }}>LEGISLATIVE SUMMIT</span>
               <span style={{ fontSize:8, color:B.textFaint, letterSpacing:"0.12em", textTransform:"uppercase" }}>2026 · RUNSA</span>
             </div>
           </div>
@@ -1417,7 +1417,7 @@ function Footer() {
           <div>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
               <div style={{ width:38, height:38, borderRadius:"50%", border:`2px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Cinzel',serif", fontSize:11, fontWeight:900, color:B.goldLight, animation:"pulseGlow 3s infinite" }}>LS</div>
-              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:17, color:B.goldLight, letterSpacing:"0.1em" }}>LEG SUMMIT</span>
+              <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:17, color:B.goldLight, letterSpacing:"0.1em" }}>LEGISLATIVE SUMMIT</span>
             </div>
             <p style={{ fontSize:"0.76rem", color:B.textFaint, lineHeight:1.8 }}>Legislating the Future for Democratic Leadership. The inaugural student legislative summit of Redeemer's University Nigeria.</p>
           </div>
