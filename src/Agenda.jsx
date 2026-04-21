@@ -1325,6 +1325,7 @@ function VoteOfThanksSection({ onPersonClick }) {
               onMouseLeave={e=>{e.currentTarget.style.borderColor=inst.pending?B.border:B.borderGold;e.currentTarget.style.transform="translateY(0)";}}>
               <div style={{ width:44, height:44, borderRadius:10, flexShrink:0, background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`1.5px solid ${inst.pending?B.border:B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
                 <InstitutionLogo logo={inst.logo} short={inst.short} pending={inst.pending} />
+              </div>
               <div style={{ flex:1 }}>
                 <p style={{ fontSize:"0.78rem", fontWeight:700, color:inst.pending?B.textFaint:B.cream, marginBottom:3, fontFamily:"'Cinzel',serif", lineHeight:1.3 }}>{inst.name}</p>
                 <p style={{ fontSize:"0.68rem", color:B.textFaint }}>{inst.parent}</p>
