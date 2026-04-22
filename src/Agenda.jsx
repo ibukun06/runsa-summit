@@ -8,6 +8,9 @@ import { useState, useEffect, useRef, useCallback, createContext, useContext, me
 const ThemeCtx = createContext({ isDark: true, toggle: () => {} });
 const useTheme = () => useContext(ThemeCtx);
 
+// Detect touch-primary devices once — disables JS hover handlers on mobile for smooth scrolling
+const isTouchDevice = typeof window !== "undefined" && window.matchMedia("(hover:none)").matches;
+
 // ─── BRAND PALETTES ───────────────────────────────────────────────────────────
 const DARK = {
   bg: "#030810", bgMid: "#060d1a", bgSurface: "rgba(6,10,20,0.82)", bgCard: "rgba(6,13,26,0.92)",
@@ -60,7 +63,7 @@ const PEOPLE = {
     role: "Vice Chancellor, Redeemer's University, Ede", title: "Prof.",
     institution: "Redeemer's University, Ede",
     image: `${PA}/patron-vc.jpg`,
-    bio: "Distinguished academic, visionary administrator, and Chief Patron of the inaugural RUNSA Legislative Summit 2026. Prof. Akindele's commitment to student-led governance and institutional excellence has been foundational to this entire initiative. As Vice Chancellor, his leadership exemplifies the transformative power of democratic values in education, and his presence at the Awards Presentation honours the outstanding delegates of this historic day.",
+    bio: "Professor Shadrach Olufemi Akindele is a distinguished scholar and the fourth substantive Vice-Chancellor of Redeemer's University. A renowned Professor of Forestry, he began his academic career as a Teaching Assistant at the University of Ibadan in 1987, and moved to the Federal University of Technology, Akure (FUTA) as an Assistant Lecturer in 1988, rising to Full Professor in 2005.\n\nHe served as a Visiting Professor at both the University of British Columbia, Vancouver, Canada, and the University of Alberta, Edmonton — showcasing his dedication to research and passion for educational development. In university administration, he has served as Head of Department, Dean, Chairman of the Committee of Deans, Member of the University Governing Council, Director of a University Centre, and Chairman of several University Committees.\n\nAs Chief Patron and Vice Chancellor of Redeemer's University, Prof. Akindele's unwavering belief in student-led governance and institutional excellence has been the cornerstone of this entire initiative. His presence at the Awards Presentation honours the outstanding delegates of this historic gathering.",
     initials: "SA", category: "patron", featured: false,
   },
   sobadu: {
@@ -76,7 +79,7 @@ const PEOPLE = {
     role: "Main Keynote Speaker — Speaker 5", title: "Rt. Hon.",
     institution: "",
     image: `${SP}/rt-hon-adewale.jpg`,
-    bio: "The summit's headline speaker, Rt. Hon. Egbedun brings charismatic leadership and razor-sharp legislative acumen to the podium. His keynote address — the summit's centrepiece — promises a powerful, transformative exploration of the role of student legislation in national development and the future of democratic leadership in Nigeria. A figure whose words have the rare ability to move minds and shift narratives.",
+    bio: "Rt. Hon. Adewale Olumide Egbedun is a prominent Nigerian legislator and the Speaker of the 8th Osun State House of Assembly, representing Odo-Otin State Constituency. On 6th June 2023, he was elected Speaker unopposed — marking a significant milestone and positioning him as one of the youngest individuals to occupy such a role in Osun's legislative history.\n\nIn his acceptance address, he laid out a clear legislative vision focused on strengthening governance through impactful lawmaking; emphasising the welfare of workers, the improvement of citizens' living standards, and a commitment to reviewing existing laws to repeal policies considered outdated, unfair, or burdensome.\n\nWidely seen as a conciliatory and reform-minded leader, Rt. Hon. Egbedun's approach is grounded in dialogue, cooperation, and stability. Humble in disposition yet firm in responsibility, he stands as a symbol of modern legislative leadership — youth-driven, reform-oriented, and deeply committed to public service.",
     initials: "AE", category: "speaker", featured: true,
   },
   honAdewunmi: {
@@ -84,7 +87,7 @@ const PEOPLE = {
     role: "Keynote Speaker 1", title: "Hon.",
     institution: "",
     image: `${SP}/hon-adewunmi.jpg`,
-    bio: "Opening the day's keynote addresses, Hon. Irekandu sets the intellectual tone of the summit with a compelling exploration of the architecture of sustainable student governance and the legislative frameworks that drive meaningful change. His meticulous research and gifted communication consistently yield practical, transferable insights for building stronger student institutions.",
+    bio: "Hon. Adewumi Adeyemi Irekandu is a two-term legislator in the Osun State House of Assembly, representing Obokun State Constituency, with a strong reputation for combining legislative excellence with impactful grassroots development.\n\nAs a lawmaker, he has sponsored and championed several notable bills, including the Osun State Disability Protection Bill, which has been enacted into law. Beyond the Assembly, he is the founder of the Adewumi Adeyemi Foundation — implementing scholarship programmes, the Back-to-School Initiative, rural water projects, food support schemes, and youth and women empowerment programmes.\n\nHis leadership journey began in student politics, where he rose to become President of the FUTA Students' Union (2007/2008). He organises platforms such as the Shift Conference and the NewGen Leader Initiative, focusing on youth mentoring and leadership development. He is also founder of LightSpace Consult Limited, an architectural firm, and continues his academic advancement as a PhD candidate and law student.",
     initials: "AI", category: "speaker", featured: true,
   },
   honKasope: {
@@ -92,7 +95,7 @@ const PEOPLE = {
     role: "Keynote Speaker 2", title: "Hon. Prince Dr.",
     institution: "",
     image: `${SP}/hon-kasope.jpg`,
-    bio: "A distinguished speaker and legislator, renowned for his deep understanding of legislative oversight in student unions — its mechanisms, its power, and its broader implications for accountable and transparent leadership. His academic and practical research in student union governance has made him a respected and formidable voice whose address promises to be one of the summit's most insightful sessions.",
+    bio: "Hon. Prince Dr. Kasope Ajibade Abolarin is a distinguished Nigerian legislator, medical professional, and public servant, currently representing Ifedayo State Constituency in the Osun State House of Assembly.\n\nA trained Medical Doctor, he earned his MBChB degree from Obafemi Awolowo University (OAU) — a background that has significantly shaped his approach to policymaking, public welfare, and legislative oversight. His expertise in healthcare has positioned him as a key figure in legislative conversations surrounding public health and sustainable community development.\n\nWithin the Assembly, he serves as the Osun Central Senatorial Whip and as Chairman of the House Committee on Health, where he plays a critical role in health-related policy direction and strengthening oversight on matters affecting healthcare systems across the state. He represents a modern model of leadership — driven by competence, service, and a clear commitment to sustainable development.",
     initials: "KA", category: "speaker", featured: true,
   },
   honAbiola: {
@@ -100,7 +103,7 @@ const PEOPLE = {
     role: "Keynote Speaker 3", title: "Hon.",
     institution: "",
     image: `${SP}/hon-abiola.jpg`,
-    bio: "A tech-forward thinker and dynamic speaker who bridges traditional governance with modern innovation. Hon. Awoyeye's address brings a visionary perspective on digital transformation in legislative processes and the frameworks needed for building productive cross-institutional collaboration. He also anchors the Legislative Trivia Quiz segments, bringing fresh energy to every moment he leads.",
+    bio: "Hon. Abiola Jeremiah Awoyeye is a trailblazing Nigerian legislator, engineer, and youth-focused public servant, currently representing Ife Central State Constituency in the Osun State House of Assembly. Widely recognised for his modern approach to governance, he stands as the youngest lawmaker in the Assembly — a new wave of leadership defined by innovation, inclusion, and purposeful representation.\n\nA trained Electrical Engineer, he holds a Master's degree in Sustainable Energy, reflecting his passion for infrastructure development and progressive policy thinking. In 2023, he emerged victorious at just 28 years old — becoming not only the youngest member of the Assembly, but also the first candidate of his political platform to win the Ife Central seat.\n\nHe currently serves as Chairman of the House Committee on Youths, Sports and Special Needs, placing him at the heart of youth empowerment and inclusive governance. Highly tech-savvy, he maintains an active social media presence to communicate legislative progress and inspire young Nigerians to engage in governance. He also anchors the Legislative Trivia Quiz segments at this summit.",
     initials: "AA", category: "speaker", featured: true,
   },
   drLanre: {
@@ -108,7 +111,7 @@ const PEOPLE = {
     role: "Keynote Speaker 4 — Policy Expert", title: "Dr.",
     institution: "",
     image: `${SP}/dr-lanre.jpg`,
-    bio: "A celebrated policy expert whose experience in governance reform, policy formulation, and leadership development has made him a sought-after voice at national forums. Dr. Sodipo's keynote is a masterclass in visionary thinking and decisive action — delivering rich insights on policy-making for the next generation of leaders. A panelist whose intellectual range and depth consistently elevate every stage he graces.",
+    bio: "Dr. Lanre Oyegbola-Sodipo is a Nigerian public servant and grassroots administrator, currently serving as the Chairman of Abeokuta North Local Government Area in Ogun State. As the chief executive of the local council, he plays a strategic role in coordinating governance at the community level — overseeing administration, development planning, and the delivery of essential services across the LGA.\n\nHe leads the local government's executive operations, working closely with elected councillors, supervisory councillors, and career civil servants to ensure effective governance and implementation of council policies.\n\nHis leadership is deeply rooted in grassroots engagement and local administrative experience. Before assuming office, he was actively involved in political and community structures within Abeokuta North, gaining practical insight into the everyday needs of residents. With a leadership style shaped by community responsiveness and administrative coordination, Dr. Oyegbola-Sodipo continues to strengthen local governance through service delivery, development-focused initiatives, and effective grassroots administration.",
     initials: "LS", category: "speaker", featured: true,
   },
   honAnisere: {
@@ -116,7 +119,7 @@ const PEOPLE = {
     role: "Speaker 6 — House Sitting Presiding Officer", title: "Hon.",
     institution: "",
     image: `${SP}/hon-anisere.jpg`,
-    bio: "Presiding officer of the summit's marquee House Sitting session, Hon. Anisere commands the chamber with precision and decorum. Demonstrating live parliamentary procedures at the highest standard, this immersive session showcases motion debates, real-time resolution passing, and democratic practice in action — an unforgettable live legislative experience for every delegate in attendance.",
+    bio: "Hon. Anisere Peter Oluwafemi is a brand strategist, media and communications professional, on-air personality, and award-winning public speaker with over half a decade of experience moderating high-end panel sessions and discussing socio-political issues on radio.\n\nAs a 2023 Lagos State Youth Ambassador, he led a cross-functional team of 50 young leaders, coordinating over 40 impactful projects that reached more than 50,000 youths and schoolchildren across Lagos State. He received the Ten Outstanding Young Persons (TOYP) Award of JCIN-LASU in the Politics and Legal Affairs category, and was sponsored on a fully funded study tour to Finland — earning certification as a Fellow of the Management Institute of Finland, Helsinki.\n\nHe has contributed to high-level policy engagements with the Lagos State Government under the Ministry of Youth and Social Development. He is currently the Head of Digital Communications and New Media for the Member, House of Representatives (Kosofe Federal Constituency), and represents Lagos West Senatorial District in the Nigerian Youth Parliament as Press Secretary. He holds a background in Public Administration from The Polytechnic, Ibadan, and Political Science from Lagos State University.",
     initials: "AN", category: "speaker", featured: true,
   },
   akinolaBoluwatife: {
@@ -154,7 +157,7 @@ const PATRONS = [
     role: "Vice Chancellor, Redeemer's University, Ede",
     image: `${PA}/patron-vc.jpg`,
     initials: "SA",
-    bio: "Distinguished academic, visionary administrator, and Chief Patron of the inaugural RUNSA Legislative Summit 2026. Prof. Akindele's unwavering belief in student-led governance and institutional excellence has been the cornerstone of this entire initiative. As Vice Chancellor of Redeemer's University, his leadership exemplifies the transformative power of democratic values in education, and his presence as Awards presenter honours the outstanding delegates of this historic gathering.",
+    bio: "Professor Shadrach Olufemi Akindele is a distinguished scholar and the fourth substantive Vice-Chancellor of Redeemer's University. A renowned Professor of Forestry, he began his academic career as a Teaching Assistant at the University of Ibadan in 1987, and moved to the Federal University of Technology, Akure (FUTA) as an Assistant Lecturer in 1988, rising to Full Professor in 2005.\n\nHe served as a Visiting Professor at both the University of British Columbia, Vancouver, Canada, and the University of Alberta, Edmonton. In university administration, he has served as Head of Department, Dean, Chairman of the Committee of Deans, Member of the University Governing Council, Director of a University Centre, and Chairman of several University Committees.\n\nAs Chief Patron and Vice Chancellor, Prof. Akindele's unwavering belief in student-led governance has been the cornerstone of this entire initiative. His presence as Awards presenter at this summit honours the outstanding delegates of this historic gathering.",
   },
   {
     id: "patron-dean",
@@ -163,7 +166,7 @@ const PATRONS = [
     role: "Dean, Faculty of Engineering, Redeemer's University",
     image: `${PA}/patron-dean.jpg`,
     initials: "OA",
-    bio: "A distinguished academic leader and esteemed Patron of the RUNSA Legislative Summit 2026. Prof. Adesina's generous support as Dean of the Faculty of Engineering — whose world-class Sapetro Lecture Theatre proudly hosts this historic summit — reflects his deep commitment to nurturing the holistic development of students beyond the classroom. His encouragement of student-led initiatives is an inspiration to all.",
+    bio: "Prof. Olanrewaju Seun Adesina is an international scholar, Professor of Materials Engineering, corrosion consultant, and certified project and policy advisor. He serves as Dean of the Faculty of Engineering at Redeemer's University, and has held academic roles at Bowen University, Landmark University, and Tshwane University of Technology.\n\nA highly accomplished researcher, he has authored and co-authored over 120 peer-reviewed publications attracting more than 1,600 scholarly citations, earning prestigious grants and international recognition from the National Research Foundation (NRF), the European Commission, and the Council for Scientific and Industrial Research (CSIR).\n\nIn 2023, he was inducted into the Nigerian Young Academy (NYA). In 2024, he received Redeemer's University Researcher of the Year (STEM) award, and has been ranked among Nigeria's Top 100 Researchers by SciVal for three consecutive years (2023–2025). He was also awarded the STEM-Africa Award in 2025. His generous support as Dean of Engineering — whose world-class Sapetro Lecture Theatre hosts this historic summit — reflects his deep commitment to the holistic development of students.",
   },
 ];
 
@@ -542,6 +545,48 @@ const GlobalStyles = memo(({ isDark }) => {
     }
     @media(min-width:769px) { .hide-d { display:none!important; } }
     ${!isDark ? `.g-text { background:linear-gradient(135deg,#7a5c00,#a07800,#5a4000); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }` : ""}
+
+    /* ── SECTION-SPECIFIC REVEAL VARIANTS ── */
+    /* Speakers: card-deal tilt entrance */
+    .spk-section .rv-s {
+      opacity:0; transform:translateY(50px) rotate(var(--cd-tilt,0deg)) scale(0.86);
+      transition:opacity 0.7s cubic-bezier(0.34,1.15,0.64,1), transform 0.7s cubic-bezier(0.34,1.15,0.64,1);
+    }
+    .spk-section .rv-s.on { opacity:1; transform:translateY(0) rotate(0deg) scale(1); }
+
+    /* Committee: spotlight podium entrance */
+    .committee-section .rv-s {
+      opacity:0; transform:translateY(60px) scale(0.82);
+      filter:brightness(0.5);
+      transition:opacity 0.75s cubic-bezier(0.34,1.1,0.64,1), transform 0.75s cubic-bezier(0.34,1.1,0.64,1), filter 0.75s ease;
+    }
+    .committee-section .rv-s.on { opacity:1; transform:translateY(0) scale(1); filter:brightness(1); }
+
+    /* Institutions: stamp-in entrance */
+    .inst-section .rv-s {
+      opacity:0; transform:scale(1.18) rotate(var(--st-rot,0deg));
+      transition:opacity 0.52s cubic-bezier(0.34,1.1,0.64,1), transform 0.52s cubic-bezier(0.34,1.1,0.64,1);
+    }
+    .inst-section .rv-s.on { opacity:1; transform:scale(1) rotate(0deg); }
+
+    /* Headline speaker shimmer bar */
+    @keyframes headlineShimmer {
+      0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%}
+    }
+    .headline-bar { background:linear-gradient(90deg,transparent,rgba(201,146,10,0.55),rgba(232,184,75,0.8),rgba(201,146,10,0.55),transparent); background-size:300% 100%; animation:headlineShimmer 2.8s ease-in-out infinite; }
+
+    /* Card backdrop — off on mobile for performance */
+    .card-backdrop { backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); }
+
+    /* ── MOBILE PERFORMANCE ── */
+    @media(max-width:768px) {
+      .card-backdrop { backdrop-filter:none; -webkit-backdrop-filter:none; background-color:${isDark?"rgba(6,10,20,0.93)":"rgba(255,255,255,0.96)"}!important; }
+      .glass         { backdrop-filter:none; -webkit-backdrop-filter:none; }
+      .glass-strong  { backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+      .rv, .rv-l, .rv-r, .rv-s { transition-duration:0.38s!important; }
+      .hover-lift:hover { transform:none; box-shadow:none!important; }
+      .hover-glow:hover { box-shadow:none!important; border-color:inherit!important; }
+    }
   `;
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
 });
@@ -595,7 +640,7 @@ const ParticleCanvas = memo(({ isDark }) => {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     let W, H, animId;
-    const COUNT = window.innerWidth < 768 ? 35 : 65;
+    const COUNT = window.innerWidth < 768 ? 14 : 52;
     const DIST = 115;
     const particles = [];
     const resize = () => {
@@ -634,7 +679,7 @@ const ParticleCanvas = memo(({ isDark }) => {
     draw();
     return () => { cancelAnimationFrame(animId); ro.disconnect(); };
   }, [isDark]);
-  return <canvas ref={canvasRef} style={{ position:"absolute", inset:0, width:"100%", height:"100%", zIndex:1, pointerEvents:"none" }} />;
+  return <canvas ref={canvasRef} style={{ position:"absolute", inset:0, width:"100%", height:"100%", zIndex:1, pointerEvents:"none", willChange:"transform", transform:"translateZ(0)" }} />;
 });
 
 // ─── SPIRAL / ORB BACKGROUND ──────────────────────────────────────────────────
@@ -717,7 +762,11 @@ const PersonModal = memo(({ person, onClose }) => {
           <div style={{ height:1, background:`linear-gradient(90deg,transparent,${B.borderGold},transparent)`, marginBottom:22 }} />
           <div>
             <p style={{ fontSize:"0.65rem", fontWeight:700, letterSpacing:"0.14em", textTransform:"uppercase", color:B.goldLight, marginBottom:10 }}>Biography</p>
-            <p style={{ fontFamily:"'EB Garamond',serif", fontSize:"0.98rem", color:B.textMuted, lineHeight:1.85 }}>{person.bio}</p>
+            <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+              {person.bio.split("\n\n").map((para, i) => (
+                <p key={i} style={{ fontFamily:"'EB Garamond',serif", fontSize:"0.98rem", color:B.textMuted, lineHeight:1.85 }}>{para}</p>
+              ))}
+            </div>
           </div>
         </div>{/* end scrollable body */}
       </div>
@@ -1000,7 +1049,26 @@ const SessionCard = memo(({ session, index, isCompleted, onToggleComplete, onPer
   const B = isDark ? DARK : LIGHT;
   const [expanded, setExpanded] = useState(false);
   const [justDone, setJustDone] = useState(false);
+  const [isOverflow, setIsOverflow] = useState(false);
+  const descRef = useRef(null);
   const prevCompletedRef = useRef(isCompleted);
+
+  // Detect whether description text actually overflows the 2-line clamp
+  useEffect(() => {
+    const el = descRef.current;
+    if (!el) return;
+    const check = () => {
+      // Temporarily uncollapse to measure real height
+      el.style.webkitLineClamp = "none";
+      const full = el.scrollHeight;
+      el.style.webkitLineClamp = "";
+      setIsOverflow(full > el.clientHeight + 4);
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [session.desc, expanded]);
 
   useEffect(() => {
     if (!prevCompletedRef.current && isCompleted) {
@@ -1030,9 +1098,9 @@ const SessionCard = memo(({ session, index, isCompleted, onToggleComplete, onPer
       </div>
 
       {/* Card */}
-      <div onClick={()=>setExpanded(e=>!e)} style={{ background:bgCol, backdropFilter:"blur(14px) saturate(160%)", WebkitBackdropFilter:"blur(14px) saturate(160%)", border:`1.5px solid ${borderCol}`, borderRadius:19, padding:"clamp(1rem,2.5vw,1.4rem)", boxShadow:isLive?"0 6px 32px rgba(201,146,10,0.12)":B.shadowCard, transition:"all 0.25s cubic-bezier(0.34,1.1,0.64,1)", cursor:"pointer", position:"relative", overflow:"hidden" }}
-        onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow=`0 10px 36px rgba(0,0,0,0.45), 0 0 22px rgba(201,146,10,0.1)`;}}
-        onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow=isLive?"0 6px 32px rgba(201,146,10,0.12)":B.shadowCard;}}>
+      <div onClick={()=>setExpanded(e=>!e)} className="card-backdrop" style={{ background:bgCol, border:`1.5px solid ${borderCol}`, borderRadius:19, padding:"clamp(1rem,2.5vw,1.4rem)", boxShadow:isLive?"0 6px 32px rgba(201,146,10,0.12)":B.shadowCard, transition:"all 0.25s cubic-bezier(0.34,1.1,0.64,1)", cursor:"pointer", position:"relative", overflow:"hidden" }}
+        onMouseEnter={isTouchDevice?undefined:e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow=`0 10px 36px rgba(0,0,0,0.45), 0 0 22px rgba(201,146,10,0.1)`;}}
+        onMouseLeave={isTouchDevice?undefined:e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow=isLive?"0 6px 32px rgba(201,146,10,0.12)":B.shadowCard;}}>
 
         {/* Done flash ripple overlay */}
         {justDone && (
@@ -1063,8 +1131,15 @@ const SessionCard = memo(({ session, index, isCompleted, onToggleComplete, onPer
         {/* Title */}
         <h3 style={{ fontFamily:"'Cinzel',serif", fontSize:"clamp(0.92rem,2vw,1.08rem)", fontWeight:700, color:isCompleted?B.textMuted:isPast&&!isCompleted?B.textFaint:B.cream, letterSpacing:"0.02em", margin:"0 0 8px", lineHeight:1.35, textDecoration:isCompleted?"line-through":"none", textDecorationColor:"rgba(57,224,122,0.5)", transition:"color 0.3s" }}>{session.title}</h3>
 
-        {/* Description */}
-        <p style={{ fontSize:"0.81rem", color:B.textMuted, lineHeight:1.65, margin:"0 0 12px", fontFamily:"'EB Garamond',serif", fontStyle:"italic", display:"-webkit-box", WebkitLineClamp:expanded?undefined:2, WebkitBoxOrient:"vertical", overflow:expanded?"visible":"hidden" }}>{session.desc}</p>
+        {/* Description with smart overflow indicator */}
+        <div style={{ position:"relative", marginBottom:12 }}>
+          <p ref={descRef} style={{ fontSize:"0.81rem", color:B.textMuted, lineHeight:1.65, margin:0, fontFamily:"'EB Garamond',serif", fontStyle:"italic", display:"-webkit-box", WebkitLineClamp:expanded?undefined:2, WebkitBoxOrient:"vertical", overflow:expanded?"visible":"hidden" }}>{session.desc}</p>
+          {isOverflow && !expanded && (
+            <div style={{ position:"absolute", bottom:0, left:0, right:0, height:28, background:`linear-gradient(to top, ${isDark?"rgba(6,10,20,0.82)":"rgba(255,255,255,0.88)"}, transparent)`, display:"flex", alignItems:"flex-end", justifyContent:"center", paddingBottom:1, pointerEvents:"none" }}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke={B.textFaint} strokeWidth="1.8" style={{ animation:"bounce 2s ease-in-out infinite" }}><path d="M2 5l5 5 5-5"/></svg>
+            </div>
+          )}
+        </div>
 
         {/* Speaker chips */}
         {session.people.length > 0 && (
@@ -1092,12 +1167,12 @@ const SessionCard = memo(({ session, index, isCompleted, onToggleComplete, onPer
             </span>
             {isCompleted ? "Completed ✓" : "Mark Done"}
           </button>
-          <button onClick={e=>{e.stopPropagation();setExpanded(v=>!v);}} style={{ background:"transparent", border:"none", cursor:"pointer", display:"flex", alignItems:"center", gap:5, color:B.textFaint, fontSize:"0.7rem", fontWeight:500, padding:4, transition:"color 0.2s" }}
-            onMouseEnter={e=>e.currentTarget.style.color=B.goldLight}
-            onMouseLeave={e=>e.currentTarget.style.color=B.textFaint}>
-            {expanded ? "Collapse" : "Expand"}
-            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ transform:expanded?"rotate(180deg)":"rotate(0)", transition:"transform 0.3s" }}><path d="M2 4l4 4 4-4" /></svg>
-          </button>
+          {isOverflow && (
+            <span style={{ fontSize:"0.65rem", color:B.textFaint, display:"flex", alignItems:"center", gap:4, userSelect:"none", pointerEvents:"none" }}>
+              {expanded ? "tap to collapse" : "tap to read more"}
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ transform:expanded?"rotate(180deg)":"rotate(0deg)", transition:"transform 0.32s cubic-bezier(0.34,1.1,0.64,1)", flexShrink:0 }}><path d="M2 4l4 4 4-4"/></svg>
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -1162,9 +1237,9 @@ const SpeakerCard = memo(({ person, index, onClick }) => {
   const [imgError, setImgError]   = useState(false);
   const hasImg = person.image && !imgError;
   return (
-    <div className="rv-s spk-card" onClick={()=>onClick(person)} style={{ animationDelay:`${(index%6)*0.07}s`, background:isDark?"rgba(6,10,20,0.75)":"rgba(255,255,255,0.88)", border:`1.5px solid ${B.border}`, borderRadius:22, padding:26, textAlign:"center", cursor:"pointer", transition:"all 0.32s cubic-bezier(0.34,1.1,0.64,1)", position:"relative", overflow:"hidden", backdropFilter:"blur(10px)" }}
-      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-8px) scale(1.02)";e.currentTarget.style.borderColor=B.borderGold;e.currentTarget.style.boxShadow=`0 20px 55px rgba(0,0,0,0.5), ${B.shadowGold}`;}}
-      onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0) scale(1)";e.currentTarget.style.borderColor=B.border;e.currentTarget.style.boxShadow="none";}}>
+    <div className="rv-s spk-card" onClick={()=>onClick(person)} style={{ "--cd-tilt":`${index%2===0?-6:6}deg`, animationDelay:`${(index%6)*0.07}s`, background:isDark?"rgba(6,10,20,0.75)":"rgba(255,255,255,0.88)", border:`1.5px solid ${B.border}`, borderRadius:22, padding:26, textAlign:"center", cursor:"pointer", transition:"all 0.32s cubic-bezier(0.34,1.1,0.64,1)", position:"relative", overflow:"hidden" }}
+      onMouseEnter={isTouchDevice?undefined:e=>{e.currentTarget.style.transform="translateY(-8px) scale(1.02)";e.currentTarget.style.borderColor=B.borderGold;e.currentTarget.style.boxShadow=`0 20px 55px rgba(0,0,0,0.5), ${B.shadowGold}`;}}
+      onMouseLeave={isTouchDevice?undefined:e=>{e.currentTarget.style.transform="translateY(0) scale(1)";e.currentTarget.style.borderColor=B.border;e.currentTarget.style.boxShadow="none";}}>
       <div className="spk-glow" style={{ position:"absolute", inset:0, borderRadius:22, background:"radial-gradient(circle at 50% 0%, rgba(201,146,10,0.1), transparent 55%)", opacity:0, transition:"opacity 0.3s", pointerEvents:"none" }} />
       <div style={{ marginBottom:18, position:"relative", display:"inline-block" }}>
         {hasImg ? (
@@ -1195,21 +1270,48 @@ function SpeakersSection({ onPersonClick }) {
   const B = isDark ? DARK : LIGHT;
   const featured = Object.values(PEOPLE).filter(p => p.category === "speaker" && p.featured);
   const others   = Object.values(PEOPLE).filter(p => p.category !== "speaker" && p.category !== "patron" && !p.featured);
+  // Pull out the headline speaker for center-stage treatment
+  const mainKeynote = featured.find(p => p.id === "rt-hon-adewale");
+  const supporting  = featured.filter(p => p.id !== "rt-hon-adewale");
   useScrollReveal();
   return (
     <section id="speakers" style={{ padding:"clamp(3.5rem,9vh,5.5rem) 20px", maxWidth:1140, margin:"0 auto" }}>
       <SectionHeader pretitle="Distinguished Guests & Officials" title="OUR SPEAKERS" subtitle="Click any card to discover their full biography, role, and contribution to this historic summit." />
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(215px,1fr))", gap:20, marginBottom:52 }}>
-        {featured.map((p,i) => <SpeakerCard key={p.id} person={p} index={i} onClick={onPersonClick} />)}
+
+      <div className="spk-section">
+        {/* ── Headline speaker — centre stage ── */}
+        {mainKeynote && (
+          <div className="rv" style={{ display:"flex", flexDirection:"column", alignItems:"center", marginBottom:32 }}>
+            <div style={{ position:"relative", width:"100%", maxWidth:290 }}>
+              {/* Pedestal label */}
+              <div style={{ height:3, borderRadius:"3px 3px 0 0", marginBottom:0 }} className="headline-bar" />
+              <div style={{ padding:"5px 14px 6px", background:"rgba(201,146,10,0.1)", border:`1px solid ${B.borderGold}`, borderBottom:"none", borderRadius:"0 0 0 0", textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                <span style={{ fontSize:10, fontWeight:700, letterSpacing:"0.14em", color:B.goldLight }}>⭐ HEADLINE SPEAKER</span>
+              </div>
+              <SpeakerCard person={mainKeynote} index={0} onClick={onPersonClick} />
+            </div>
+          </div>
+        )}
+
+        {/* ── Supporting speakers — centred flex wrap ── */}
+        <div style={{ display:"flex", flexWrap:"wrap", gap:20, justifyContent:"center", marginBottom:52 }}>
+          {supporting.map((p,i) => (
+            <div key={p.id} style={{ width:"clamp(185px,22%,235px)", flexShrink:0 }}>
+              <SpeakerCard person={p} index={i+1} onClick={onPersonClick} />
+            </div>
+          ))}
+        </div>
       </div>
+
+      {/* Also featuring */}
       {others.length > 0 && (
         <>
           <div className="rv" style={{ textAlign:"center", marginBottom:24 }}>
             <p style={{ fontSize:"0.68rem", fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:B.goldLight }}>Also Featuring</p>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:14 }}>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:14, justifyContent:"center" }}>
             {others.map((p,i) => (
-              <div key={p.id} className="rv-s hover-lift" onClick={()=>onPersonClick(p)} style={{ background:isDark?"rgba(6,10,20,0.55)":"rgba(255,255,255,0.78)", border:`1.5px solid ${B.border}`, borderRadius:16, padding:"18px 16px", textAlign:"center", cursor:"pointer", transition:"all 0.28s cubic-bezier(0.34,1.1,0.64,1)" }}>
+              <div key={p.id} className="rv-s hover-lift" onClick={()=>onPersonClick(p)} style={{ width:"clamp(160px,20%,200px)", background:isDark?"rgba(6,10,20,0.55)":"rgba(255,255,255,0.78)", border:`1.5px solid ${B.border}`, borderRadius:16, padding:"18px 16px", textAlign:"center", cursor:"pointer", transition:"all 0.28s cubic-bezier(0.34,1.1,0.64,1)" }}>
                 <div style={{ width:54, height:54, borderRadius:"50%", background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`2px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 11px", fontSize:15, fontWeight:700, color:B.goldLight, fontFamily:"'Cinzel',serif", animation:"pulseGlow 4s infinite" }}>{p.initials}</div>
                 <h4 style={{ fontFamily:"'Cinzel',serif", fontSize:"0.75rem", fontWeight:700, color:B.cream, marginBottom:4 }}>{p.name}</h4>
                 <p style={{ fontSize:"0.64rem", color:B.goldLight }}>{p.role}</p>
@@ -1270,8 +1372,8 @@ function VoteOfThanksSection({ onPersonClick }) {
       <div style={{ display:"flex", flexDirection:"column", gap:16, marginBottom:52 }}>
         {appreciations.map((item,i) => (
           <div key={i} className={`rv-${i%2===0?"l":"r"} hover-glow`} onClick={()=>item.person&&onPersonClick(item.person)} style={{ display:"flex", alignItems:"center", gap:22, padding:"22px 28px", borderRadius:20, background:isDark?"rgba(6,10,20,0.7)":"rgba(255,255,255,0.88)", border:`1.5px solid ${B.borderGold}`, cursor:item.person?"pointer":"default", transition:"all 0.32s cubic-bezier(0.34,1.1,0.64,1)", backdropFilter:"blur(10px)" }}
-            onMouseEnter={e=>{if(item.person){e.currentTarget.style.borderColor=B.goldLight;e.currentTarget.style.boxShadow=B.shadowGold;e.currentTarget.style.transform="translateX(5px)";}}}
-            onMouseLeave={e=>{e.currentTarget.style.borderColor=B.borderGold;e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="translateX(0)";}}>
+            onMouseEnter={isTouchDevice||!item.person?undefined:e=>{e.currentTarget.style.borderColor=B.goldLight;e.currentTarget.style.boxShadow=B.shadowGold;e.currentTarget.style.transform="translateX(5px)";}}
+            onMouseLeave={isTouchDevice||!item.person?undefined:e=>{e.currentTarget.style.borderColor=B.borderGold;e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="translateX(0)";}}>
             {item.person && <div style={{ width:60, height:60, borderRadius:"50%", flexShrink:0, background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`2.5px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, fontWeight:700, color:B.goldLight, fontFamily:"'Cinzel',serif", boxShadow:"0 0 20px rgba(201,146,10,0.25)", animation:"heartbeat 5s ease-in-out infinite" }}>{item.person.initials}</div>}
             <div style={{ flex:1 }}>
               <h3 style={{ fontFamily:"'Cinzel',serif", fontSize:"0.98rem", fontWeight:700, color:B.cream, marginBottom:5 }}>{item.title}</h3>
@@ -1314,15 +1416,18 @@ function VoteOfThanksSection({ onPersonClick }) {
 
       {/* External institutions */}
       <div className="rv">
-        <div style={{ textAlign:"center", marginBottom:22 }}>
+        <div style={{ textAlign:"center", marginBottom:28 }}>
           <p style={{ fontSize:"0.68rem", fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:B.goldLight, marginBottom:6 }}>Our Invited Institutions</p>
           <p style={{ fontSize:"0.78rem", color:B.textFaint, fontFamily:"'EB Garamond',serif", fontStyle:"italic" }}>The legislative bodies & student councils who honoured us with their presence</p>
+          <div style={{ width:40, height:1, background:`linear-gradient(90deg,transparent,${B.borderGold},transparent)`, margin:"14px auto 0" }} />
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:12 }}>
+        <div className="inst-section" style={{ display:"flex", flexWrap:"wrap", gap:12, justifyContent:"center" }}>
           {externalInstitutions.map((inst,i) => (
-            <div key={i} className={`rv-${i%2===0?"l":"r"}`} style={{ display:"flex", alignItems:"flex-start", gap:14, padding:"16px 18px", borderRadius:16, background:isDark?"rgba(6,10,20,0.55)":"rgba(255,255,255,0.78)", border:`1.5px solid ${inst.pending?B.border:B.borderGold}`, position:"relative", overflow:"hidden", transition:"all 0.25s" }}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=inst.pending?B.border:B.goldLight;e.currentTarget.style.transform="translateY(-2px)";}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=inst.pending?B.border:B.borderGold;e.currentTarget.style.transform="translateY(0)";}}>
+            <div key={i} className="rv-s" style={{ "--st-rot":`${(i%2===0?-2:2)}deg`, width:"clamp(250px,30%,310px)", display:"flex", alignItems:"flex-start", gap:14, padding:"16px 18px", borderRadius:16, background:isDark?"rgba(6,10,20,0.55)":"rgba(255,255,255,0.78)", border:`1.5px solid ${inst.pending?B.border:B.borderGold}`, position:"relative", overflow:"hidden", transition:"all 0.25s", animationDelay:`${i*0.05}s` }}
+              onMouseEnter={isTouchDevice?undefined:e=>{e.currentTarget.style.borderColor=inst.pending?B.border:B.goldLight;e.currentTarget.style.transform="translateY(-3px) scale(1.01)";e.currentTarget.style.boxShadow=inst.pending?"none":B.shadowGold;}}
+              onMouseLeave={isTouchDevice?undefined:e=>{e.currentTarget.style.borderColor=inst.pending?B.border:B.borderGold;e.currentTarget.style.transform="translateY(0) scale(1)";e.currentTarget.style.boxShadow="none";}}>
+              {/* Top accent line */}
+              {!inst.pending && <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:"linear-gradient(90deg,transparent,rgba(201,146,10,0.5),transparent)" }} />}
               <div style={{ width:44, height:44, borderRadius:10, flexShrink:0, background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`1.5px solid ${inst.pending?B.border:B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
                 <InstitutionLogo logo={inst.logo} short={inst.short} pending={inst.pending} />
               </div>
@@ -1422,8 +1527,8 @@ const PatronCard = memo(({ patron, index, onClick }) => {
   const hasImg = patron.image && !imgError;
   return (
     <div className={`rv-${index%2===0?"l":"r"} hover-glow`} onClick={()=>onClick(patron)} style={{ display:"flex", alignItems:"center", gap:20, padding:"22px 24px", borderRadius:20, background:isDark?"rgba(6,10,20,0.65)":"rgba(255,255,255,0.88)", border:`1.5px solid ${B.borderGold}`, cursor:"pointer", transition:"all 0.32s cubic-bezier(0.34,1.1,0.64,1)", position:"relative", overflow:"hidden" }}
-      onMouseEnter={e=>{e.currentTarget.style.borderColor=B.goldLight;e.currentTarget.style.boxShadow=B.shadowGold;e.currentTarget.style.transform="translateY(-4px)";}}
-      onMouseLeave={e=>{e.currentTarget.style.borderColor=B.borderGold;e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="translateY(0)";}}>
+      onMouseEnter={isTouchDevice?undefined:e=>{e.currentTarget.style.borderColor=B.goldLight;e.currentTarget.style.boxShadow=B.shadowGold;e.currentTarget.style.transform="translateY(-4px)";}}
+      onMouseLeave={isTouchDevice?undefined:e=>{e.currentTarget.style.borderColor=B.borderGold;e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="translateY(0)";}}>
       {/* Top glow strip */}
       <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:"linear-gradient(90deg,transparent,rgba(201,146,10,0.5),transparent)", opacity:0.6 }} />
       {/* Photo */}
@@ -1463,8 +1568,8 @@ const CommitteeLeaderCard = memo(({ leader, index }) => {
   const hasImg = leader.image && !imgError;
   return (
     <div className="rv-s" style={{ animationDelay:`${index*0.08}s`, background:isDark?"rgba(6,10,20,0.7)":"rgba(255,255,255,0.88)", border:`1.5px solid ${B.borderGold}`, borderRadius:20, padding:"24px 18px", textAlign:"center", position:"relative", overflow:"hidden", transition:"all 0.28s cubic-bezier(0.34,1.1,0.64,1)" }}
-      onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-5px)";e.currentTarget.style.boxShadow=B.shadowGold;e.currentTarget.style.borderColor=B.goldLight;}}
-      onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";e.currentTarget.style.borderColor=B.borderGold;}}>
+      onMouseEnter={isTouchDevice?undefined:e=>{e.currentTarget.style.transform="translateY(-5px)";e.currentTarget.style.boxShadow=B.shadowGold;e.currentTarget.style.borderColor=B.goldLight;}}
+      onMouseLeave={isTouchDevice?undefined:e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="none";e.currentTarget.style.borderColor=B.borderGold;}}>
       <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:"linear-gradient(90deg,transparent,rgba(201,146,10,0.6),transparent)" }} />
       <div style={{ marginBottom:14, position:"relative", display:"inline-block" }}>
         {hasImg ? (
@@ -1498,8 +1603,12 @@ function AcknowledgementsSection({ onPersonClick }) {
       {/* PATRONS */}
       <div className="rv" style={{ marginBottom:60 }}>
         <p style={{ fontSize:"0.68rem", fontWeight:700, letterSpacing:"0.16em", textTransform:"uppercase", color:B.goldLight, marginBottom:22, textAlign:"center" }}>Our Patrons</p>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))", gap:16 }}>
-          {PATRONS.map((patron,i) => <PatronCard key={patron.id} patron={patron} index={i} onClick={onPersonClick} />)}
+        <div style={{ display:"flex", flexWrap:"wrap", gap:16, justifyContent:"center" }}>
+          {PATRONS.map((patron,i) => (
+            <div key={patron.id} style={{ width:"clamp(300px,45%,460px)", flex:"0 1 clamp(300px,45%,460px)" }}>
+              <PatronCard patron={patron} index={i} onClick={onPersonClick} />
+            </div>
+          ))}
         </div>
       </div>
 
@@ -1510,17 +1619,40 @@ function AcknowledgementsSection({ onPersonClick }) {
           <p style={{ fontSize:"0.78rem", color:B.textFaint, fontFamily:"'EB Garamond',serif", fontStyle:"italic" }}>The dedicated team behind every detail of this summit</p>
         </div>
 
-        {/* 4 leaders with photo cards */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:16, marginBottom:32 }}>
-          {COMMITTEE_LEADERS.map((leader,i) => <CommitteeLeaderCard key={leader.id} leader={leader} index={i} />)}
+        {/* 4 leaders — diamond / arc layout */}
+        <div className="committee-section" style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:14, marginBottom:36 }}>
+          {/* Row 1: single centre leader */}
+          <div style={{ width:"clamp(200px,55%,260px)" }}>
+            <CommitteeLeaderCard key={COMMITTEE_LEADERS[0].id} leader={COMMITTEE_LEADERS[0]} index={0} />
+          </div>
+          {/* Row 2: two side-by-side leaders */}
+          <div style={{ display:"flex", gap:14, width:"100%", maxWidth:540, justifyContent:"center" }}>
+            <div style={{ flex:"0 1 clamp(190px,44%,255px)" }}>
+              <CommitteeLeaderCard key={COMMITTEE_LEADERS[1].id} leader={COMMITTEE_LEADERS[1]} index={1} />
+            </div>
+            <div style={{ flex:"0 1 clamp(190px,44%,255px)" }}>
+              <CommitteeLeaderCard key={COMMITTEE_LEADERS[2].id} leader={COMMITTEE_LEADERS[2]} index={2} />
+            </div>
+          </div>
+          {/* Row 3: single centre leader */}
+          <div style={{ width:"clamp(200px,55%,260px)" }}>
+            <CommitteeLeaderCard key={COMMITTEE_LEADERS[3].id} leader={COMMITTEE_LEADERS[3]} index={3} />
+          </div>
         </div>
 
-        {/* Unit listings */}
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:12 }}>
+        {/* Decorative connector lines */}
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:28, justifyContent:"center" }}>
+          <div style={{ height:1, flex:1, maxWidth:120, background:`linear-gradient(to right,transparent,${B.borderGold})` }} />
+          <span style={{ fontSize:"0.62rem", fontWeight:700, letterSpacing:"0.14em", textTransform:"uppercase", color:B.goldLight }}>Unit Teams</span>
+          <div style={{ height:1, flex:1, maxWidth:120, background:`linear-gradient(to left,transparent,${B.borderGold})` }} />
+        </div>
+
+        {/* Unit listings — centred flex wrap */}
+        <div style={{ display:"flex", flexWrap:"wrap", gap:12, justifyContent:"center" }}>
           {COMMITTEE_UNITS.map((unit,ui) => (
-            <div key={ui} className="rv-s" style={{ padding:"16px 18px", borderRadius:16, background:isDark?"rgba(6,10,20,0.5)":"rgba(255,255,255,0.75)", border:`1.5px solid ${B.border}`, transition:"all 0.25s" }}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=B.borderGold;e.currentTarget.style.transform="translateY(-2px)";}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=B.border;e.currentTarget.style.transform="translateY(0)";}}>
+            <div key={ui} className="rv-s" style={{ width:"clamp(240px,30%,300px)", padding:"16px 18px", borderRadius:16, background:isDark?"rgba(6,10,20,0.5)":"rgba(255,255,255,0.75)", border:`1.5px solid ${B.border}`, transition:"all 0.25s", animationDelay:`${ui*0.06}s` }}
+              onMouseEnter={isTouchDevice?undefined:e=>{e.currentTarget.style.borderColor=B.borderGold;e.currentTarget.style.transform="translateY(-2px)";}}
+              onMouseLeave={isTouchDevice?undefined:e=>{e.currentTarget.style.borderColor=B.border;e.currentTarget.style.transform="translateY(0)";}}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
                 <div style={{ width:6, height:6, borderRadius:"50%", background:B.goldLight, boxShadow:`0 0 8px ${B.goldLight}`, flexShrink:0 }} />
                 <p style={{ fontSize:"0.66rem", fontWeight:700, letterSpacing:"0.14em", textTransform:"uppercase", color:B.goldLight }}>{unit.unit}</p>
