@@ -115,7 +115,7 @@ const PEOPLE = {
     initials: "LS", category: "speaker", featured: true,
   },
   honAnisere: {
-    id: "hon-anisere", name: "Hon. Anisere",
+    id: "hon-anisere", name: "Hon. Anisere Peter Oluwafemi",
     role: "Speaker 6 — House Sitting Presiding Officer", title: "Hon.",
     institution: "",
     image: `${SP}/hon-anisere.png`,
@@ -277,7 +277,7 @@ const SESSIONS = [
     id: "trivia-1", start: "10:34", end: "10:49",
     title: "Legislative Trivia Quiz — Round 1",
     desc: "An engaging and competitive quiz testing delegates' knowledge of parliamentary history, Nigerian governance structures, and legislative procedures. Top performers advance to the Grand Final Round!",
-    cat: "interactive", people: ["honAbiola"],
+    cat: "interactive", people: [],
   },
   {
     id: "speaker-2", start: "10:49", end: "11:14",
@@ -289,7 +289,7 @@ const SESSIONS = [
     id: "trivia-final", start: "11:14", end: "11:29",
     title: "Legislative Trivia Quiz — Grand Final",
     desc: "The grand finale! Top quiz contestants battle for the championship title and exclusive summit prizes in this thrilling concluding round. Democracy, knowledge, and glory on the line.",
-    cat: "interactive", people: ["honAbiola"],
+    cat: "interactive", people: [],
   },
   {
     id: "speaker-3", start: "11:29", end: "11:54",
@@ -619,7 +619,13 @@ let _rvMO = null;
 function _initScrollReveal() {
   if (_rvIO) return; // already running
   _rvIO = new IntersectionObserver(
-    entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("on"); }),
+    entries => entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add("on");
+      } else {
+        e.target.classList.remove("on");
+      }
+    }),
     { threshold: 0.06, rootMargin: "0px 0px -20px 0px" }
   );
   const observeNew = () => {
@@ -1581,7 +1587,7 @@ const PatronCard = memo(({ patron, index, onClick }) => {
         {hasImg ? (
           <div style={{ position:"relative" }}>
             {!imgLoaded && <div style={{ width:78, height:78, borderRadius:"50%", background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`3px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontFamily:"'Cinzel',serif", fontSize:22, fontWeight:900, color:B.goldLight }}>{patron.initials}</span></div>}
-            <img src={patron.image} alt={patron.name} onLoad={()=>setImgLoaded(true)} onError={()=>setImgError(true)} style={{ width:78, height:78, borderRadius:"50%", objectFit:"cover", border:`3px solid ${B.goldLight}`, boxShadow:`0 0 24px rgba(201,146,10,0.3)`, display:imgLoaded?"block":"none", animation:imgLoaded?"scaleIn 0.4s ease":"none" }} />
+            <img src={patron.image} alt={patron.name} onLoad={()=>setImgLoaded(true)} onError={()=>setImgError(true)} style={{ width:78, height:78, borderRadius:"50%", objectFit:"cover", objectPosition:"center top", border:`3px solid ${B.goldLight}`, boxShadow:`0 0 24px rgba(201,146,10,0.3)`, display:imgLoaded?"block":"none", animation:imgLoaded?"scaleIn 0.4s ease":"none" }} />
             <div style={{ position:"absolute", inset:-4, borderRadius:"50%", border:`1px solid rgba(201,146,10,0.3)`, animation:"pulseGlow 3s infinite", pointerEvents:"none" }} />
           </div>
         ) : (
@@ -1620,7 +1626,7 @@ const CommitteeLeaderCard = memo(({ leader, index }) => {
         {hasImg ? (
           <>
             {!imgLoaded && <div style={{ width:80, height:80, borderRadius:"50%", background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`2.5px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto" }}><span style={{ fontFamily:"'Cinzel',serif", fontSize:24, fontWeight:900, color:B.goldLight }}>{leader.initials}</span></div>}
-            <img src={leader.image} alt={leader.name} onLoad={()=>setImgLoaded(true)} onError={()=>setImgError(true)} style={{ width:80, height:80, borderRadius:"50%", objectFit:"cover", border:`2.5px solid ${B.goldLight}`, boxShadow:`0 0 22px rgba(201,146,10,0.3)`, display:imgLoaded?"block":"none", margin:"0 auto", animation:imgLoaded?"scaleIn 0.35s ease":"none" }} />
+            <img src={leader.image} alt={leader.name} onLoad={()=>setImgLoaded(true)} onError={()=>setImgError(true)} style={{ width:80, height:80, borderRadius:"50%", objectFit:"cover", objectPosition:"center top", border:`2.5px solid ${B.goldLight}`, boxShadow:`0 0 22px rgba(201,146,10,0.3)`, display:imgLoaded?"block":"none", margin:"0 auto", animation:imgLoaded?"scaleIn 0.35s ease":"none" }} />
           </>
         ) : (
           <div style={{ width:80, height:80, borderRadius:"50%", background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`2.5px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto", animation:"pulseGlow 3.5s infinite" }}>
