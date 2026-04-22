@@ -2236,6 +2236,7 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
     if (sortField === "name")         { av = (a.name||"").toLowerCase(); bv = (b.name||"").toLowerCase(); }
     else if (sortField === "position"){ av = (a.position||"").toLowerCase(); bv = (b.position||"").toLowerCase(); }
     else if (sortField === "institution"){ av = (a.institution||"").toLowerCase(); bv = (b.institution||"").toLowerCase(); }
+    else if (sortField === "department"){ av = (a.department||a.level||"").toLowerCase(); bv = (b.department||b.level||"").toLowerCase(); }
     else if (sortField === "checkin") { av = a.signedIn ? 1 : 0; bv = b.signedIn ? 1 : 0; }
     else /* registeredAt */           { av = a.registeredAt||""; bv = b.registeredAt||""; }
     if (av < bv) return sortDir === "asc" ? -1 : 1;
@@ -2372,7 +2373,7 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
       )}
 
       {/* Download row — both admin levels can download */}
-      <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap", alignItems:"center" }}>
+      <div style={{ display:"flex", gap:8, marginBottom:8, flexWrap:"wrap", alignItems:"center" }}>
         <span style={{ fontSize:11, color:T.textMuted, marginRight:4 }}>Export:</span>
         <button onClick={() => downloadCSV(filtered, `RUNSA-Summit-Delegates-${new Date().toISOString().slice(0,10)}.csv`)}
           style={{ padding:"7px 16px", background: T.dark ? "rgba(57,224,122,0.1)" : "rgba(26,58,107,0.06)",
@@ -2403,6 +2404,36 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
           📊 All Excel ({regs.length})
         </button>
       </div>
+
+      {/* Group downloads — Chapel Executives, Departmental Reps, Students */}
+      {(() => {
+        const chapelExecs   = regs.filter(r => (r.position||"").toLowerCase().includes("chapel"));
+        const deptReps      = regs.filter(r => (r.position||"").toLowerCase().includes("departmental representative"));
+        const students      = regs.filter(r => r.delegateType === "run-student" && !(r.position||"").toLowerCase().includes("chapel") && !(r.position||"").toLowerCase().includes("departmental representative"));
+        const groups = [
+          { label:"Chapel Executives", data: chapelExecs, color:"#7ab8f5", bg: T.dark ? "rgba(122,184,245,0.1)" : "rgba(26,58,107,0.06)", border:"rgba(122,184,245,0.35)" },
+          { label:"Dept. Reps",        data: deptReps,    color: T.dark ? BRAND.goldLight : BRAND.gold, bg: T.dark ? "rgba(201,146,10,0.1)" : "rgba(201,146,10,0.06)", border:"rgba(201,146,10,0.35)" },
+          { label:"Students",          data: students,    color: T.dark ? "#c4a8f5" : "#6b3fa0", bg: T.dark ? "rgba(196,168,245,0.1)" : "rgba(107,63,160,0.06)", border:"rgba(196,168,245,0.35)" },
+        ];
+        return (
+          <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap", alignItems:"center" }}>
+            <span style={{ fontSize:11, color:T.textMuted, marginRight:4 }}>By group:</span>
+            {groups.map(g => (
+              <div key={g.label} style={{ display:"flex", gap:4 }}>
+                <button onClick={() => downloadCSV(g.data, `RUNSA-${g.label.replace(/\s+/g,"-")}-${new Date().toISOString().slice(0,10)}.csv`)}
+                  style={{ padding:"7px 13px", background:g.bg, border:`1px solid ${g.border}`, color:g.color, borderRadius:"7px 0 0 7px", fontSize:11, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>
+                  📄 {g.label} ({g.data.length})
+                </button>
+                <button onClick={async () => await downloadXLSX(g.data, `RUNSA-${g.label.replace(/\s+/g,"-")}-${new Date().toISOString().slice(0,10)}.xlsx`)}
+                  title={`Download ${g.label} as Excel`}
+                  style={{ padding:"7px 10px", background:g.bg, border:`1px solid ${g.border}`, borderLeft:"none", color:g.color, borderRadius:"0 7px 7px 0", fontSize:11, fontWeight:600, cursor:"pointer" }}>
+                  📊
+                </button>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       <div style={{ fontSize:12, color:T.textMuted, marginBottom:12 }}>
         Showing {filtered.length} of {total} registrations
@@ -2481,7 +2512,7 @@ function DelegateTable({ filtered, superAdmin, onDeleteDelegate, T, search = "",
               <th style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.09em", borderBottom:`1px solid ${T.border}`, whiteSpace:"nowrap" }}>ID</th>
               <SortTh field="name" label="Name" />
               <SortTh field="institution" label="Institution" />
-              <th style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.09em", borderBottom:`1px solid ${T.border}` }}>Department</th>
+              <SortTh field="department" label="Department" />
               <SortTh field="position" label="Position" />
               <th style={{ padding:"12px 16px", textAlign:"left", fontSize:9, fontWeight:700, color: T.dark ? BRAND.goldLight : BRAND.navy, textTransform:"uppercase", letterSpacing:"0.09em", borderBottom:`1px solid ${T.border}` }}>Badge</th>
               <SortTh field="registeredAt" label="Date" />
