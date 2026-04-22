@@ -54,7 +54,7 @@ const INST = "/institutions";
 
 // Council logo — place your official logo at /public/council-logo.png
 // If the file is missing the "LS" text badge will be shown as fallback.
-const COUNCIL_LOGO = "/council-logo.png";
+const COUNCIL_LOGO = "/legislative-council-logo.jpg";
 
 // ─── PEOPLE DATA ──────────────────────────────────────────────────────────────
 const PEOPLE = {
