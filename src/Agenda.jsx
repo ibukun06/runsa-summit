@@ -142,7 +142,7 @@ const PEOPLE = {
     id: "ayodele-olamilekun", name: "Hon. Ayodele Olamilekan",
     role: "Deputy Speaker, RUNSA Legislative Council", title: "Hon.",
     institution: "Redeemer's University, Ede",
-    image: `${SP}/ayodele-olamilekun.jpg`,
+    image: `${SP}/ayodele-olamilekan.jpg`,
     bio: "A distinguished member and Deputy Speaker of the RUNSA Legislative Council, charged with delivering the summit's closing Vote of Thanks — a moment of collective gratitude that closes this landmark event on a note of appreciation, unity, and hope for the future of student legislative excellence. His eloquence and warmth embody everything this summit stands for.",
     initials: "AO", category: "appreciation", featured: false,
   },
@@ -172,8 +172,8 @@ const PATRONS = [
 
 // ─── PLANNING COMMITTEE LEADERS (with photo cards) ────────────────────────────
 const COMMITTEE_LEADERS = [
-  { id: "pcl-speaker", name: "Rt. Hon. Sobodu Oluwanifemi", role: "Hon. Speaker, RUNSA Legislative Council", initials: "SO", image: `${SP}/sobadu-oluwanifemi.jpg` },
-  { id: "pcl-dep", name: "Hon. Ayodele Olamilekan", role: "Hon. Deputy Speaker, RUNSA Legislative Council", initials: "AO", image: `${SP}/ayodele-olamilekun.jpg` },
+  { id: "pcl-speaker", name: "Rt. Hon. Sobodu Oluwanifemi", role: "Hon. Speaker, RUNSA Legislative Council", initials: "SO", image: `${SP}/sobodu-oluwanifemi.jpg` },
+  { id: "pcl-dep", name: "Hon. Ayodele Olamilekan", role: "Hon. Deputy Speaker, RUNSA Legislative Council", initials: "AO", image: `${SP}/ayodele-olamilekan.jpg` },
   { id: "pcl-whip", name: "Hon. Oluwafemi Ibukunoluwa", role: "Chief Whip, RUNSA Legislative Council", initials: "OI", image: `${SP}/chief-whip.jpg` },
   { id: "pcl-chair", name: "Hon. Odunsi Oluwatobiloba", role: "Chairperson, Planning Committee", initials: "OT", image: `${SP}/odunsi-oluwatobiloba.jpg` },
 ];
