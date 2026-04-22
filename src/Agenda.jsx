@@ -613,23 +613,40 @@ function showToast(msg, type = "info", dur = 2800) {
   setTimeout(() => { el.style.transform = "translateY(-20px)"; el.style.opacity = "0"; setTimeout(() => { if (c.contains(el)) c.removeChild(el); }, 350); }, dur);
 }
 
-// ─── SCROLL REVEAL — stable, MutationObserver-backed ─────────────────────────
+// ─── SCROLL REVEAL — singleton, survives full page load ───────────────────────
+let _rvIO = null;
+let _rvMO = null;
+function _initScrollReveal() {
+  if (_rvIO) return; // already running
+  _rvIO = new IntersectionObserver(
+    entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("on"); }),
+    { threshold: 0.06, rootMargin: "0px 0px -20px 0px" }
+  );
+  const observeNew = () => {
+    document.querySelectorAll(".rv,.rv-l,.rv-r,.rv-s").forEach(el => {
+      if (!el.dataset.rvObserved) { el.dataset.rvObserved = "1"; _rvIO.observe(el); }
+    });
+  };
+  observeNew();
+  _rvMO = new MutationObserver(observeNew);
+  _rvMO.observe(document.body, { childList: true, subtree: true });
+  // Re-sweep after all assets (images, fonts) finish loading so layout shifts are settled
+  const onLoad = () => {
+    setTimeout(() => {
+      document.querySelectorAll(".rv,.rv-l,.rv-r,.rv-s").forEach(el => {
+        if (!el.dataset.rvObserved) { el.dataset.rvObserved = "1"; _rvIO.observe(el); }
+      });
+    }, 120);
+  };
+  if (document.readyState === "complete") onLoad();
+  else window.addEventListener("load", onLoad, { once: true });
+}
+
 function useScrollReveal() {
   useEffect(() => {
-    const io = new IntersectionObserver(
-      entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("on"); }),
-      { threshold: 0.06, rootMargin: "0px 0px -20px 0px" }
-    );
-    const observeNew = () => {
-      document.querySelectorAll(".rv,.rv-l,.rv-r,.rv-s").forEach(el => {
-        if (!el.dataset.rvObserved) { el.dataset.rvObserved = "1"; io.observe(el); }
-      });
-    };
-    observeNew();
-    const mo = new MutationObserver(observeNew);
-    mo.observe(document.body, { childList: true, subtree: true });
-    return () => { io.disconnect(); mo.disconnect(); };
-  }, []); // runs once — MutationObserver handles new elements
+    _initScrollReveal();
+    // No cleanup — singleton lives forever so re-renders/unmounts don't break reveal
+  }, []);
 }
 
 // ─── PARTICLE CANVAS ──────────────────────────────────────────────────────────
@@ -745,7 +762,7 @@ const PersonModal = memo(({ person, onClose }) => {
             {hasImg ? (
               <div style={{ position:"relative", display:"inline-block" }}>
                 {!imgLoaded && <div style={{ width:136, height:136, borderRadius:"50%", background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`3px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto" }}><span style={{ fontFamily:"'Cinzel',serif", fontSize:44, fontWeight:900, color:B.goldLight }}>{person.initials}</span></div>}
-                <img src={person.image} alt={person.name} onLoad={()=>setImgLoaded(true)} onError={()=>setImgError(true)} style={{ width:136, height:136, borderRadius:"50%", objectFit:"cover", border:`3px solid ${B.goldLight}`, boxShadow:`0 0 50px rgba(201,146,10,0.3), 0 10px 30px rgba(0,0,0,0.45)`, margin:"0 auto", display:imgLoaded?"block":"none", animation:imgLoaded?"scaleIn 0.4s ease":"none" }} />
+                <img src={person.image} alt={person.name} onLoad={()=>setImgLoaded(true)} onError={()=>setImgError(true)} style={{ width:136, height:136, borderRadius:"50%", objectFit:"cover", objectPosition:"center top", border:`3px solid ${B.goldLight}`, boxShadow:`0 0 50px rgba(201,146,10,0.3), 0 10px 30px rgba(0,0,0,0.45)`, margin:"0 auto", display:imgLoaded?"block":"none", animation:imgLoaded?"scaleIn 0.4s ease":"none" }} />
                 <div style={{ position:"absolute", inset:-6, borderRadius:"50%", border:`1.5px solid rgba(201,146,10,0.35)`, animation:"pulseGlow 2.8s infinite", pointerEvents:"none" }} />
                 <div style={{ position:"absolute", inset:-14, borderRadius:"50%", border:"1px solid rgba(201,146,10,0.12)", animation:"pulseGlow 2.8s infinite 0.6s", pointerEvents:"none" }} />
               </div>
@@ -885,7 +902,7 @@ const LogoBadge = memo(({ src, fallback, size = 40, pulse = false, style: extraS
   return (
     <div style={{ width:size, height:size, borderRadius:"50%", border:`2px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", flexShrink:0, boxShadow:"0 0 16px rgba(201,146,10,0.3)", animation:pulse?"heartbeat 4s ease-in-out infinite":"none", background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, ...extraStyle }}>
       {src && !err
-        ? <img src={src} alt="logo" onError={()=>setErr(true)} style={{ width:"86%", height:"86%", objectFit:"contain" }} />
+        ? <img src={src} alt="logo" onError={()=>setErr(true)} style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:"50%" }} />
         : <span style={{ fontFamily:"'Cinzel',serif", fontSize:Math.round(size*0.275), fontWeight:900, color:B.goldLight }}>{fallback}</span>
       }
     </div>
@@ -1229,6 +1246,34 @@ function AgendaSection({ completedSessions, onToggleComplete, onPersonClick }) {
   );
 }
 
+// ─── SMALL PERSON AVATAR — image with initials fallback, used in "Also Featuring" ──
+const SmallPersonAvatar = memo(({ person, size = 54 }) => {
+  const { isDark } = useTheme();
+  const B = isDark ? DARK : LIGHT;
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError]   = useState(false);
+  const hasImg = person.image && !imgError;
+  return (
+    <div style={{ position:"relative", width:size, height:size, margin:"0 auto 11px" }}>
+      {hasImg ? (
+        <>
+          {!imgLoaded && (
+            <div style={{ width:size, height:size, borderRadius:"50%", background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`2px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:Math.round(size*0.28), fontWeight:700, color:B.goldLight, fontFamily:"'Cinzel',serif", position:"absolute", inset:0, animation:"pulseGlow 4s infinite" }}>
+              {person.initials}
+            </div>
+          )}
+          <img src={person.image} alt={person.name} onLoad={()=>setImgLoaded(true)} onError={()=>setImgError(true)}
+            style={{ width:size, height:size, borderRadius:"50%", objectFit:"cover", objectPosition:"center top", border:`2px solid ${B.goldLight}`, display:imgLoaded?"block":"none", animation:imgLoaded?"scaleIn 0.4s ease":"none", position:"absolute", inset:0 }} />
+        </>
+      ) : (
+        <div style={{ width:size, height:size, borderRadius:"50%", background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`2px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:Math.round(size*0.28), fontWeight:700, color:B.goldLight, fontFamily:"'Cinzel',serif", animation:"pulseGlow 4s infinite" }}>
+          {person.initials}
+        </div>
+      )}
+    </div>
+  );
+});
+
 // ─── SPEAKER CARD ─────────────────────────────────────────────────────────────
 const SpeakerCard = memo(({ person, index, onClick }) => {
   const { isDark } = useTheme();
@@ -1245,7 +1290,7 @@ const SpeakerCard = memo(({ person, index, onClick }) => {
         {hasImg ? (
           <>
             {!imgLoaded && <div style={{ width:106, height:106, borderRadius:"50%", background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`3px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto" }}><span style={{ fontFamily:"'Cinzel',serif", fontSize:32, fontWeight:900, color:B.goldLight }}>{person.initials}</span></div>}
-            <img src={person.image} alt={person.name} onLoad={()=>setImgLoaded(true)} onError={()=>setImgError(true)} style={{ width:106, height:106, borderRadius:"50%", objectFit:"cover", border:`3px solid ${B.goldLight}`, boxShadow:`0 4px 22px rgba(0,0,0,0.4), ${B.shadowGold}`, display:imgLoaded?"block":"none", margin:"0 auto", animation:imgLoaded?"scaleIn 0.4s ease":"none" }} />
+            <img src={person.image} alt={person.name} onLoad={()=>setImgLoaded(true)} onError={()=>setImgError(true)} style={{ width:106, height:106, borderRadius:"50%", objectFit:"cover", objectPosition:"center top", border:`3px solid ${B.goldLight}`, boxShadow:`0 4px 22px rgba(0,0,0,0.4), ${B.shadowGold}`, display:imgLoaded?"block":"none", margin:"0 auto", animation:imgLoaded?"scaleIn 0.4s ease":"none" }} />
           </>
         ) : (
           <div style={{ width:106, height:106, borderRadius:"50%", background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`3px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto", animation:"pulseGlow 3s infinite" }}><span style={{ fontFamily:"'Cinzel',serif", fontSize:32, fontWeight:900, color:B.goldLight }}>{person.initials}</span></div>
@@ -1312,7 +1357,7 @@ function SpeakersSection({ onPersonClick }) {
           <div style={{ display:"flex", flexWrap:"wrap", gap:14, justifyContent:"center" }}>
             {others.map((p,i) => (
               <div key={p.id} className="rv-s hover-lift" onClick={()=>onPersonClick(p)} style={{ width:"clamp(160px,20%,200px)", background:isDark?"rgba(6,10,20,0.55)":"rgba(255,255,255,0.78)", border:`1.5px solid ${B.border}`, borderRadius:16, padding:"18px 16px", textAlign:"center", cursor:"pointer", transition:"all 0.28s cubic-bezier(0.34,1.1,0.64,1)" }}>
-                <div style={{ width:54, height:54, borderRadius:"50%", background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`2px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 11px", fontSize:15, fontWeight:700, color:B.goldLight, fontFamily:"'Cinzel',serif", animation:"pulseGlow 4s infinite" }}>{p.initials}</div>
+                <SmallPersonAvatar person={p} size={54} />
                 <h4 style={{ fontFamily:"'Cinzel',serif", fontSize:"0.75rem", fontWeight:700, color:B.cream, marginBottom:4 }}>{p.name}</h4>
                 <p style={{ fontSize:"0.64rem", color:B.goldLight }}>{p.role}</p>
               </div>
@@ -1374,7 +1419,7 @@ function VoteOfThanksSection({ onPersonClick }) {
           <div key={i} className={`rv-${i%2===0?"l":"r"} hover-glow`} onClick={()=>item.person&&onPersonClick(item.person)} style={{ display:"flex", alignItems:"center", gap:22, padding:"22px 28px", borderRadius:20, background:isDark?"rgba(6,10,20,0.7)":"rgba(255,255,255,0.88)", border:`1.5px solid ${B.borderGold}`, cursor:item.person?"pointer":"default", transition:"all 0.32s cubic-bezier(0.34,1.1,0.64,1)", backdropFilter:"blur(10px)" }}
             onMouseEnter={isTouchDevice||!item.person?undefined:e=>{e.currentTarget.style.borderColor=B.goldLight;e.currentTarget.style.boxShadow=B.shadowGold;e.currentTarget.style.transform="translateX(5px)";}}
             onMouseLeave={isTouchDevice||!item.person?undefined:e=>{e.currentTarget.style.borderColor=B.borderGold;e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="translateX(0)";}}>
-            {item.person && <div style={{ width:60, height:60, borderRadius:"50%", flexShrink:0, background:`linear-gradient(135deg,${B.navyMid},${isDark?"#0d1e38":"#2a4a8a"})`, border:`2.5px solid ${B.goldLight}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17, fontWeight:700, color:B.goldLight, fontFamily:"'Cinzel',serif", boxShadow:"0 0 20px rgba(201,146,10,0.25)", animation:"heartbeat 5s ease-in-out infinite" }}>{item.person.initials}</div>}
+            {item.person && <SmallPersonAvatar person={item.person} size={60} />}
             <div style={{ flex:1 }}>
               <h3 style={{ fontFamily:"'Cinzel',serif", fontSize:"0.98rem", fontWeight:700, color:B.cream, marginBottom:5 }}>{item.title}</h3>
               <p style={{ fontSize:"0.8rem", color:B.textMuted, lineHeight:1.65 }}>{item.desc}</p>
