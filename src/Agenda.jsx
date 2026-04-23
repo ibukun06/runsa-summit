@@ -750,20 +750,20 @@ const PersonModal = memo(({ person, onClose }) => {
   if (!person) return null;
   const hasImg = person.image && !imgError;
   return (
-    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:500, background:"rgba(2,6,14,0.95)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"10px", animation:"fadeIn 0.22s ease" }}>
-      <div onClick={e=>e.stopPropagation()} className="au-popIn" style={{ width:"100%", maxWidth:540, background: isDark?"linear-gradient(150deg,rgba(10,22,40,0.99),rgba(4,10,22,0.99))":"linear-gradient(150deg,rgba(255,253,248,0.99),rgba(248,244,236,0.99))", border:`1px solid ${B.borderGold}`, borderRadius:26, boxShadow:`0 40px 100px rgba(0,0,0,0.75), ${B.shadowGold}`, position:"relative", maxHeight:"90vh", display:"flex", flexDirection:"column", overflowX:"hidden" }}>
+    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:1100, background:"rgba(2,6,14,0.55)", backdropFilter:"blur(22px) saturate(140%)", WebkitBackdropFilter:"blur(22px) saturate(140%)", display:"flex", alignItems:"center", justifyContent:"center", padding:"max(env(safe-area-inset-top, 0px) + 16px, 16px) 12px max(env(safe-area-inset-bottom, 0px) + 16px, 16px)", animation:"fadeIn 0.22s ease" }}>
+      <div onClick={e=>e.stopPropagation()} className="au-popIn" style={{ width:"100%", maxWidth:540, background: isDark?"linear-gradient(150deg,rgba(10,22,40,0.98),rgba(4,10,22,0.98))":"linear-gradient(150deg,rgba(255,253,248,0.98),rgba(248,244,236,0.98))", border:`1px solid ${B.borderGold}`, borderRadius:26, boxShadow:`0 40px 100px rgba(0,0,0,0.75), ${B.shadowGold}`, display:"flex", flexDirection:"column", overflowX:"hidden", maxHeight:"calc(100vh - max(env(safe-area-inset-top, 0px), 0px) - max(env(safe-area-inset-bottom, 0px), 0px) - 32px)" }}>
         {/* Rainbow top bar */}
         <div style={{ flexShrink:0, height:5, background:"linear-gradient(90deg,#c9920a,#e8b84b,#39e07a,#7ab8f5,#c9920a)", backgroundSize:"300% 100%", animation:"gradShift 4s ease infinite", borderRadius:"26px 26px 0 0" }} />
-        {/* Sticky close-button row — always visible even when modal content scrolls */}
-        <div style={{ flexShrink:0, position:"sticky", top:0, zIndex:10, display:"flex", justifyContent:"flex-end", padding:"10px 14px 0", background:isDark?"rgba(10,22,40,0.98)":"rgba(255,253,248,0.98)" }}>
+        {/* Close button — always visible, never scrolls away */}
+        <div style={{ flexShrink:0, display:"flex", justifyContent:"flex-end", padding:"10px 14px 0", background:isDark?"rgba(10,22,40,0.98)":"rgba(255,253,248,0.98)" }}>
           <button onClick={onClose} style={{ width:38, height:38, borderRadius:"50%", border:`1px solid ${B.border}`, background:"transparent", color:B.textMuted, fontSize:22, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.2s" }}
             onMouseEnter={e=>{e.currentTarget.style.color=B.goldLight;e.currentTarget.style.borderColor=B.borderGold;e.currentTarget.style.boxShadow=`0 0 14px ${B.shadowGold}`;}}
             onMouseLeave={e=>{e.currentTarget.style.color=B.textMuted;e.currentTarget.style.borderColor=B.border;e.currentTarget.style.boxShadow="none";}}>
             &times;
           </button>
         </div>
-        {/* Scrollable body */}
-        <div style={{ overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"0 clamp(1.2rem,4vw,2.4rem) clamp(1.4rem,4vw,2.2rem)" }}>
+        {/* Scrollable body — only this region scrolls, close button stays put */}
+        <div style={{ overflowY:"auto", WebkitOverflowScrolling:"touch", padding:"0 clamp(1.2rem,4vw,2.4rem) clamp(1.4rem,4vw,2.2rem)", flex:1 }}>
           <div style={{ textAlign:"center", marginBottom:24 }}>
             {hasImg ? (
               <div style={{ position:"relative", display:"inline-block" }}>

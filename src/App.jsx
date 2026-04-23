@@ -2134,6 +2134,7 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
   const [migrating, setMigrating] = useState(false);
   const [migrateResult, setMigrateResult] = useState(null); // { count, total }
   const [filterDelegateType, setFilterDelegateType] = useState("");
+  const [filterRunStudentGroup, setFilterRunStudentGroup] = useState(""); // "chapel" | "dept-rep" | "student" | ""
   const [filterCheckinStatus, setFilterCheckinStatus] = useState(""); // "checked" | "pending" | ""
   const [sortField, setSortField] = useState("registeredAt");
   const [sortDir, setSortDir] = useState("desc"); // "asc" | "desc"
@@ -2153,9 +2154,9 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
         searchRef.current?.focus();
       }
       // Escape → clear all filters
-      if (e.key === "Escape" && (search || filterInst || filterBadge || filterDelegateType || filterCheckinStatus)) {
+      if (e.key === "Escape" && (search || filterInst || filterBadge || filterDelegateType || filterCheckinStatus || filterRunStudentGroup)) {
         setSearch(""); setFilterInst(""); setFilterBadge("");
-        setFilterDelegateType(""); setFilterCheckinStatus("");
+        setFilterDelegateType(""); setFilterCheckinStatus(""); setFilterRunStudentGroup("");
       }
     };
     window.addEventListener("keydown", handler);
@@ -2227,8 +2228,14 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
     const matchInst = !filterInst || canonicaliseInstitution(r.institution || "", canonicals) === filterInst;
     const matchBadge = !filterBadge || (r.badge || "") === filterBadge;
     const matchType = !filterDelegateType || (r.delegateType || "") === filterDelegateType;
+    const pos = (r.position||"").toLowerCase();
+    const matchSubGroup = !filterRunStudentGroup || filterDelegateType !== "run-student" || (
+      filterRunStudentGroup === "chapel"   ? pos.includes("chapel") :
+      filterRunStudentGroup === "dept-rep" ? pos.includes("departmental representative") :
+      filterRunStudentGroup === "student"  ? (!pos.includes("chapel") && !pos.includes("departmental representative")) : true
+    );
     const matchCheckin = !filterCheckinStatus || (filterCheckinStatus === "checked" ? r.signedIn : !r.signedIn);
-    return matchSearch && matchInst && matchBadge && matchType && matchCheckin;
+    return matchSearch && matchInst && matchBadge && matchType && matchSubGroup && matchCheckin;
   });
 
   const filtered = [...baseFiltered].sort((a, b) => {
@@ -2346,7 +2353,7 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
           {allBadges.map(b => <option key={b} value={b}>{b}</option>)}
         </select>
         {/* Row 3: delegate type + check-in status */}
-        <select style={selectStyle(T, false)} value={filterDelegateType} onChange={e => setFilterDelegateType(e.target.value)}>
+        <select style={selectStyle(T, false)} value={filterDelegateType} onChange={e => { setFilterDelegateType(e.target.value); setFilterRunStudentGroup(""); }}>
           <option value="">All Delegate Types</option>
           {allDelegateTypes.map(dt => <option key={dt} value={dt}>{DELEGATE_TYPE_LABELS[dt] || dt}</option>)}
         </select>
@@ -2355,17 +2362,27 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
           <option value="checked">✓ Checked In</option>
           <option value="pending">⏳ Pending Entry</option>
         </select>
+        {/* Sub-filter: only visible when RUN Student is selected */}
+        {filterDelegateType === "run-student" && (
+          <select style={{ ...selectStyle(T, false), gridColumn:"1/-1", borderColor: T.dark ? "rgba(201,146,10,0.45)" : "rgba(201,146,10,0.4)", background: T.dark ? "rgba(201,146,10,0.06)" : "rgba(201,146,10,0.03)" }}
+            value={filterRunStudentGroup} onChange={e => setFilterRunStudentGroup(e.target.value)}>
+            <option value="">↳ All RUN Students</option>
+            <option value="chapel">↳ Chapel Executives</option>
+            <option value="dept-rep">↳ Departmental Representatives</option>
+            <option value="student">↳ Students (other)</option>
+          </select>
+        )}
       </div>
-      {/* Active filter chips + clear button */}
-      {(search || filterInst || filterBadge || filterDelegateType || filterCheckinStatus) && (
+      {(search || filterInst || filterBadge || filterDelegateType || filterCheckinStatus || filterRunStudentGroup) && (
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:10 }}>
           <span style={{ fontSize:11, color:T.textMuted, marginRight:2 }}>Active:</span>
           {search && <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: T.dark ? "rgba(201,146,10,0.12)" : "rgba(201,146,10,0.08)", border:"1px solid rgba(201,146,10,0.3)", color: T.dark ? BRAND.goldLight : BRAND.gold }}>"{search}"</span>}
           {filterInst && <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: T.dark ? "rgba(26,58,107,0.2)" : "rgba(26,58,107,0.06)", border:`1px solid ${T.border}`, color:T.text }}>📍 {filterInst.split(",")[0]}</span>}
           {filterBadge && <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: T.dark ? "rgba(26,58,107,0.2)" : "rgba(26,58,107,0.06)", border:`1px solid ${T.border}`, color:T.text }}>🏷 {filterBadge}</span>}
           {filterDelegateType && <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: T.dark ? "rgba(90,140,230,0.18)" : "rgba(26,58,107,0.06)", border:`1px solid rgba(90,140,230,0.35)`, color: T.dark ? "#a8c4f5" : BRAND.navyDark }}>{DELEGATE_TYPE_LABELS[filterDelegateType] || filterDelegateType}</span>}
+          {filterRunStudentGroup && <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: T.dark ? "rgba(201,146,10,0.12)" : "rgba(201,146,10,0.06)", border:"1px solid rgba(201,146,10,0.35)", color: T.dark ? BRAND.goldLight : BRAND.gold }}>↳ {filterRunStudentGroup === "chapel" ? "Chapel Executives" : filterRunStudentGroup === "dept-rep" ? "Dept. Reps" : "Students (other)"}</span>}
           {filterCheckinStatus && <span style={{ fontSize:11, padding:"3px 10px", borderRadius:20, background: filterCheckinStatus === "checked" ? "rgba(46,158,91,0.1)" : "rgba(201,122,16,0.1)", border:`1px solid ${filterCheckinStatus === "checked" ? "rgba(46,158,91,0.35)" : "rgba(201,122,16,0.35)"}`, color: filterCheckinStatus === "checked" ? "#2e9e5b" : "#c97a10" }}>{filterCheckinStatus === "checked" ? "✓ Checked In" : "⏳ Pending"}</span>}
-          <button onClick={() => { setSearch(""); setFilterInst(""); setFilterBadge(""); setFilterDelegateType(""); setFilterCheckinStatus(""); }}
+          <button onClick={() => { setSearch(""); setFilterInst(""); setFilterBadge(""); setFilterDelegateType(""); setFilterCheckinStatus(""); setFilterRunStudentGroup(""); }}
             style={{ fontSize:11, padding:"3px 12px", borderRadius:20, border:"1px solid rgba(192,57,43,0.35)", background:"rgba(192,57,43,0.06)", color:"#c0392b", cursor:"pointer", marginLeft:4, fontWeight:600 }}>
             ✕ Clear All
           </button>
@@ -2404,36 +2421,6 @@ function AdminView({ regs, onReset, onDeleteDelegate, checkinOpen, onToggleCheck
           📊 All Excel ({regs.length})
         </button>
       </div>
-
-      {/* Group downloads — Chapel Executives, Departmental Reps, Students */}
-      {(() => {
-        const chapelExecs   = regs.filter(r => (r.position||"").toLowerCase().includes("chapel"));
-        const deptReps      = regs.filter(r => (r.position||"").toLowerCase().includes("departmental representative"));
-        const students      = regs.filter(r => r.delegateType === "run-student" && !(r.position||"").toLowerCase().includes("chapel") && !(r.position||"").toLowerCase().includes("departmental representative"));
-        const groups = [
-          { label:"Chapel Executives", data: chapelExecs, color:"#7ab8f5", bg: T.dark ? "rgba(122,184,245,0.1)" : "rgba(26,58,107,0.06)", border:"rgba(122,184,245,0.35)" },
-          { label:"Dept. Reps",        data: deptReps,    color: T.dark ? BRAND.goldLight : BRAND.gold, bg: T.dark ? "rgba(201,146,10,0.1)" : "rgba(201,146,10,0.06)", border:"rgba(201,146,10,0.35)" },
-          { label:"Students",          data: students,    color: T.dark ? "#c4a8f5" : "#6b3fa0", bg: T.dark ? "rgba(196,168,245,0.1)" : "rgba(107,63,160,0.06)", border:"rgba(196,168,245,0.35)" },
-        ];
-        return (
-          <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap", alignItems:"center" }}>
-            <span style={{ fontSize:11, color:T.textMuted, marginRight:4 }}>By group:</span>
-            {groups.map(g => (
-              <div key={g.label} style={{ display:"flex", gap:4 }}>
-                <button onClick={() => downloadCSV(g.data, `RUNSA-${g.label.replace(/\s+/g,"-")}-${new Date().toISOString().slice(0,10)}.csv`)}
-                  style={{ padding:"7px 13px", background:g.bg, border:`1px solid ${g.border}`, color:g.color, borderRadius:"7px 0 0 7px", fontSize:11, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>
-                  📄 {g.label} ({g.data.length})
-                </button>
-                <button onClick={async () => await downloadXLSX(g.data, `RUNSA-${g.label.replace(/\s+/g,"-")}-${new Date().toISOString().slice(0,10)}.xlsx`)}
-                  title={`Download ${g.label} as Excel`}
-                  style={{ padding:"7px 10px", background:g.bg, border:`1px solid ${g.border}`, borderLeft:"none", color:g.color, borderRadius:"0 7px 7px 0", fontSize:11, fontWeight:600, cursor:"pointer" }}>
-                  📊
-                </button>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
 
       <div style={{ fontSize:12, color:T.textMuted, marginBottom:12 }}>
         Showing {filtered.length} of {total} registrations
