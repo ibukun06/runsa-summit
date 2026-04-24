@@ -66,7 +66,7 @@ const FB_CONFIG = {
   apiKey:            "AIzaSyC3SqUXGR0kqPCpG88BFRB9qUMAk08x_6Q",
   authDomain:        "runsa-summit.firebaseapp.com",
   projectId:         "runsa-summit",
-  databaseURL:       "https://runsa-summit-default-rtdb.firebaseio.com", // ← confirm this URL in your Firebase console
+  databaseURL:       "https://runsa-summit-default-rtdb.firebaseio.com/", // ← confirm this URL in your Firebase console
   storageBucket:     "runsa-summit.appspot.com",
   messagingSenderId: "YOUR_SENDER_ID",  // optional for Realtime DB
   appId:             "YOUR_APP_ID",     // optional for Realtime DB
