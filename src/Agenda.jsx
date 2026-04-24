@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback, createContext, useContext, me
 //  Single-file · All-in-one · Theme-aware · Fully Animated · Mobile-first
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const ThemeCtx = createContext({ isDark: true, toggle: () => {} });
+const ThemeCtx = createContext({ isDark: true, toggle: () => {}, isAdmin: false, setAdminMode: () => {} });
 const useTheme = () => useContext(ThemeCtx);
 
 // Detect touch-primary devices once — disables JS hover handlers on mobile for smooth scrolling
@@ -44,7 +44,7 @@ const LIGHT = {
 //  /public/patrons/         → patron-vc.jpg/.png (Prof. Shedrach), patron-dean.jpg/.png (Prof. Adesina)
 //  /public/gallery/         → gallery-1.jpg/.png … gallery-12.jpg/.png (PNG gives clearer quality)
 //  /public/institutions/    → ui-logo.png, lasu-logo.png, bu-logo.png, au-logo.png,
-//                              jabu-logo.png, uniosun-logo.png, yabatech-logo.png, oau-logo.png, cu-logo.png
+//                              jabu-logo.png, uniosun-logo.png, yabatech-logo.png, oau-logo.png
 //  /public/council-logo.png → RUNSA Legislative Council official logo (replaces "LS" text in nav/footer)
 //  All images: JPG or PNG supported. PNG recommended for logos and clearer photos. Max 400KB each.
 const SP = "/speakers";
@@ -55,6 +55,25 @@ const INST = "/institutions";
 // Council logo — place your official logo at /public/council-logo.png
 // If the file is missing the "LS" text badge will be shown as fallback.
 const COUNCIL_LOGO = "/legislative-council-logo.jpg";
+
+// ─── FIREBASE CONFIG ──────────────────────────────────────────────────────────
+// Uses the same "runsa-summit" project as the registration app.
+// Step 1: In console.firebase.google.com → runsa-summit → Build → Realtime Database → Create database
+// Step 2: Choose "Start in test mode" (rules allow read/write) for the summit day
+// Step 3: Copy the databaseURL shown (e.g. https://runsa-summit-default-rtdb.firebaseio.com)
+//         and paste it into databaseURL below. The other values are already correct.
+const FB_CONFIG = {
+  apiKey:            "AIzaSyC3SqUXGR0kqPCpG88BFRB9qUMAk08x_6Q",
+  authDomain:        "runsa-summit.firebaseapp.com",
+  projectId:         "runsa-summit",
+  databaseURL:       "https://runsa-summit-default-rtdb.firebaseio.com", // ← confirm this URL in your Firebase console
+  storageBucket:     "runsa-summit.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",  // optional for Realtime DB
+  appId:             "YOUR_APP_ID",     // optional for Realtime DB
+};
+
+// Module-level Firebase write handle — populated once on load
+let _fbSet = null;
 
 // ─── PEOPLE DATA ──────────────────────────────────────────────────────────────
 const PEOPLE = {
@@ -586,6 +605,25 @@ const GlobalStyles = memo(({ isDark }) => {
       .rv, .rv-l, .rv-r, .rv-s { transition-duration:0.38s!important; }
       .hover-lift:hover { transform:none; box-shadow:none!important; }
       .hover-glow:hover { box-shadow:none!important; border-color:inherit!important; }
+      /* Filter bar — horizontal scroll on mobile, no wrap */
+      .filter-scroll { overflow-x:auto!important; flex-wrap:nowrap!important; padding-bottom:6px; -webkit-overflow-scrolling:touch; scrollbar-width:none; justify-content:flex-start!important; }
+      .filter-scroll::-webkit-scrollbar { display:none; }
+      /* Session card tighter on mobile */
+      .session-ml { margin-left:28px!important; }
+      .tl-node    { left:-34px!important; }
+      /* Admin badge in nav */
+      .admin-badge { font-size:9px!important; padding:2px 7px!important; }
+    }
+    @keyframes sessionDoneFlash {
+      0%   { box-shadow: 0 0 0 0 rgba(57,224,122,0);   }
+      30%  { box-shadow: 0 0 0 10px rgba(57,224,122,0.45); }
+      60%  { box-shadow: 0 0 0 22px rgba(57,224,122,0.18); }
+      100% { box-shadow: 0 0 0 38px rgba(57,224,122,0);  }
+    }
+    @keyframes starBurst {
+      0%   { transform:translate(-50%,-50%) scale(0) rotate(0deg);   opacity:1; }
+      60%  { transform:translate(-50%,-50%) scale(1.6) rotate(120deg); opacity:0.8; }
+      100% { transform:translate(-50%,-50%) scale(2.4) rotate(180deg); opacity:0; }
     }
   `;
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
@@ -917,10 +955,20 @@ const LogoBadge = memo(({ src, fallback, size = 40, pulse = false, style: extraS
 
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 const Navigation = memo(({ activeSection }) => {
-  const { isDark, toggle } = useTheme();
+  const { isDark, toggle, isAdmin, setAdminMode } = useTheme();
   const B = isDark ? DARK : LIGHT;
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [showAdminInput, setShowAdminInput] = useState(false);
+  const [adminInput, setAdminInput] = useState("");
+  const handleAdminUnlock = () => {
+    if (adminInput === "Admin2026") {
+      setAdminMode(true); setShowAdminInput(false); setAdminInput(""); setMenuOpen(false);
+      showToast("Admin mode activated — you can now mark sessions", "success");
+    } else {
+      showToast("Incorrect password", "error");
+    }
+  };
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 70);
     window.addEventListener("scroll", fn, { passive:true });
@@ -981,9 +1029,30 @@ const Navigation = memo(({ activeSection }) => {
               {item.label}
             </button>
           ))}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 16px 4px", marginTop:6, borderTop:`1px solid ${B.border}` }}>
-            <span style={{ fontSize:11, color:B.textFaint }}>Appearance</span>
-            <button onClick={toggle} style={{ border:`1px solid ${B.borderGold}`, background:"transparent", borderRadius:8, padding:"5px 14px", cursor:"pointer", fontSize:13, color:B.goldLight }}>{isDark ? "☀️ Light" : "🌙 Dark"}</button>
+          <div style={{ marginTop:6, borderTop:`1px solid ${B.border}`, padding:"10px 16px 6px" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <span style={{ fontSize:11, color:B.textFaint }}>Appearance</span>
+              <button onClick={toggle} style={{ border:`1px solid ${B.borderGold}`, background:"transparent", borderRadius:8, padding:"5px 14px", cursor:"pointer", fontSize:13, color:B.goldLight }}>{isDark ? "☀️ Light" : "🌙 Dark"}</button>
+            </div>
+            {isAdmin ? (
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ width:7, height:7, borderRadius:"50%", background:B.green, animation:"greenPulse 1.8s infinite" }} />
+                  <span style={{ fontSize:11, fontWeight:700, color:B.green }}>Admin Mode Active</span>
+                </div>
+                <button onClick={()=>{ setAdminMode(false); showToast("Admin mode deactivated", "info"); }} style={{ border:"1px solid rgba(192,57,43,0.4)", background:"rgba(192,57,43,0.06)", borderRadius:8, padding:"5px 14px", cursor:"pointer", fontSize:11, color:"#e05a4a" }}>🔒 Lock</button>
+              </div>
+            ) : showAdminInput ? (
+              <div style={{ display:"flex", gap:6 }}>
+                <input value={adminInput} onChange={e=>setAdminInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleAdminUnlock()} type="password" placeholder="Admin password" autoFocus style={{ flex:1, padding:"7px 12px", borderRadius:8, border:`1px solid ${B.borderGold}`, background:isDark?"rgba(6,10,20,0.8)":"rgba(255,255,255,0.9)", color:B.cream, fontSize:12, fontFamily:"'Inter',sans-serif", outline:"none" }} />
+                <button onClick={handleAdminUnlock} style={{ padding:"7px 14px", borderRadius:8, border:`1px solid ${B.borderGold}`, background:"rgba(201,146,10,0.1)", color:B.goldLight, fontSize:11, fontWeight:700, cursor:"pointer" }}>Unlock</button>
+                <button onClick={()=>{setShowAdminInput(false);setAdminInput("");}} style={{ padding:"7px 10px", borderRadius:8, border:`1px solid ${B.border}`, background:"transparent", color:B.textMuted, fontSize:13, cursor:"pointer" }}>✕</button>
+              </div>
+            ) : (
+              <button onClick={()=>setShowAdminInput(true)} style={{ display:"flex", alignItems:"center", gap:7, width:"100%", padding:"8px 12px", borderRadius:8, border:`1px solid ${B.border}`, background:"transparent", color:B.textFaint, fontSize:12, cursor:"pointer", fontFamily:"'Inter',sans-serif" }}>
+                🔐 <span>Admin Mode</span>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1068,7 +1137,7 @@ const SectionHeader = memo(({ pretitle, title, subtitle }) => {
 
 // ─── SESSION CARD — with done-flash achievement effect ────────────────────────
 const SessionCard = memo(({ session, index, isCompleted, onToggleComplete, onPersonClick }) => {
-  const { isDark } = useTheme();
+  const { isDark, isAdmin } = useTheme();
   const B = isDark ? DARK : LIGHT;
   const [expanded, setExpanded] = useState(false);
   const [justDone, setJustDone] = useState(false);
@@ -1130,9 +1199,9 @@ const SessionCard = memo(({ session, index, isCompleted, onToggleComplete, onPer
           <div style={{ position:"absolute", inset:-3, borderRadius:21, pointerEvents:"none", border:"2.5px solid rgba(57,224,122,0.85)", animation:"doneRipple 0.95s cubic-bezier(0.2,0,0.8,1) forwards", zIndex:20 }} />
         )}
 
-        {/* Completed badge */}
+        {/* Completed badge — bottom-right, clear of category/live indicators */}
         {isCompleted && (
-          <div style={{ position:"absolute", top:8, right:8, padding:"3px 11px", borderRadius:100, background:"rgba(57,224,122,0.13)", border:"1px solid rgba(57,224,122,0.35)", display:"flex", alignItems:"center", gap:4 }}>
+          <div style={{ position:"absolute", bottom:10, right:12, padding:"3px 11px", borderRadius:100, background:"rgba(57,224,122,0.13)", border:"1px solid rgba(57,224,122,0.35)", display:"flex", alignItems:"center", gap:4, pointerEvents:"none" }}>
             <span style={{ width:6, height:6, borderRadius:"50%", background:B.green }} />
             <span style={{ fontSize:9, fontWeight:700, color:B.green, letterSpacing:"0.06em" }}>DONE</span>
           </div>
@@ -1182,21 +1251,25 @@ const SessionCard = memo(({ session, index, isCompleted, onToggleComplete, onPer
           </div>
         )}
 
-        {/* Actions */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:10, borderTop:`1px solid ${B.border}`, marginTop:8 }}>
-          <button onClick={e=>{e.stopPropagation();onToggleComplete(session.id);}} className="btn-spring" style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 13px", borderRadius:9, background:isCompleted?"rgba(57,224,122,0.1)":"rgba(26,58,107,0.1)", border:`1.5px solid ${isCompleted?"rgba(57,224,122,0.38)":B.border}`, color:isCompleted?B.green:B.textMuted, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'Inter',sans-serif", transition:"all 0.22s" }}>
-            <span style={{ width:15, height:15, borderRadius:4, border:`1.5px solid ${isCompleted?B.green:"currentColor"}`, background:isCompleted?B.green:"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:B.navyDeep, fontWeight:900, animation:justDone?"checkBounce 0.55s cubic-bezier(0.34,1.56,0.64,1)":"none" }}>
-              {isCompleted && "✓"}
-            </span>
-            {isCompleted ? "Completed ✓" : "Mark Done"}
-          </button>
-          {isOverflow && (
-            <span style={{ fontSize:"0.65rem", color:B.textFaint, display:"flex", alignItems:"center", gap:4, userSelect:"none", pointerEvents:"none" }}>
-              {expanded ? "tap to collapse" : "tap to read more"}
-              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ transform:expanded?"rotate(180deg)":"rotate(0deg)", transition:"transform 0.32s cubic-bezier(0.34,1.1,0.64,1)", flexShrink:0 }}><path d="M2 4l4 4 4-4"/></svg>
-            </span>
-          )}
-        </div>
+        {/* Actions — expand hint always; mark-done only for admin */}
+        {(isOverflow || isAdmin) && (
+          <div style={{ display:"flex", justifyContent:isAdmin?"space-between":"flex-end", alignItems:"center", paddingTop:10, borderTop:`1px solid ${B.border}`, marginTop:8 }}>
+            {isAdmin && (
+              <button onClick={e=>{e.stopPropagation();onToggleComplete(session.id);}} className="btn-spring" style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 13px", borderRadius:9, background:isCompleted?"rgba(57,224,122,0.12)":"rgba(26,58,107,0.1)", border:`1.5px solid ${isCompleted?"rgba(57,224,122,0.42)":B.border}`, color:isCompleted?B.green:B.textMuted, fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"'Inter',sans-serif", transition:"all 0.22s" }}>
+                <span style={{ width:15, height:15, borderRadius:4, border:`1.5px solid ${isCompleted?B.green:"currentColor"}`, background:isCompleted?B.green:"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:B.navyDeep, fontWeight:900, animation:justDone?"checkBounce 0.55s cubic-bezier(0.34,1.56,0.64,1)":"none" }}>
+                  {isCompleted && "✓"}
+                </span>
+                {isCompleted ? "✓ Done — Undo?" : "Mark Done"}
+              </button>
+            )}
+            {isOverflow && (
+              <span style={{ fontSize:"0.65rem", color:B.textFaint, display:"flex", alignItems:"center", gap:4, userSelect:"none", pointerEvents:"none" }}>
+                {expanded ? "tap to collapse" : "tap to read more"}
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ transform:expanded?"rotate(180deg)":"rotate(0deg)", transition:"transform 0.32s cubic-bezier(0.34,1.1,0.64,1)", flexShrink:0 }}><path d="M2 4l4 4 4-4"/></svg>
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1218,7 +1291,7 @@ function AgendaSection({ completedSessions, onToggleComplete, onPersonClick }) {
 
   return (
     <section id="agenda" style={{ padding:"clamp(3.5rem,9vh,5.5rem) 20px", maxWidth:820, margin:"0 auto", position:"relative" }}>
-      <SectionHeader pretitle="Order of Events" title="SUMMIT AGENDA" subtitle="Tap any session to expand. Click a speaker's name to view their profile. Mark each session done as the day unfolds!" />
+      <SectionHeader pretitle="Order of Events" title="SUMMIT AGENDA" subtitle="Tap any session to expand · Click a speaker chip to view their full profile." />
 
       {/* Progress tracker */}
       <div className="rv-s" style={{ marginBottom:32, padding:"18px 22px", borderRadius:18, background:isDark?"rgba(6,10,20,0.65)":"rgba(255,255,255,0.8)", border:`1px solid ${B.border}`, backdropFilter:"blur(12px)" }}>
@@ -1233,7 +1306,7 @@ function AgendaSection({ completedSessions, onToggleComplete, onPersonClick }) {
       </div>
 
       {/* Filters */}
-      <div className="rv" style={{ display:"flex", gap:8, marginBottom:32, flexWrap:"wrap", justifyContent:"center" }}>
+      <div className="rv filter-scroll" style={{ display:"flex", gap:8, marginBottom:32, flexWrap:"wrap", justifyContent:"center" }}>
         {filters.map(f => (
           <button key={f.k} onClick={()=>setFilter(f.k)} className="btn-spring" style={{ padding:"7px 17px", borderRadius:100, border:filter===f.k?"none":`1.5px solid ${B.border}`, background:filter===f.k?`linear-gradient(135deg,${B.gold},${B.navyMid})`:"transparent", color:filter===f.k?"#fff":B.textMuted, fontSize:11.5, fontWeight:600, cursor:"pointer", transition:"all 0.22s", whiteSpace:"nowrap", boxShadow:filter===f.k?"0 4px 16px rgba(201,146,10,0.3)":"none" }}>{f.l}</button>
         ))}
@@ -1412,7 +1485,6 @@ function VoteOfThanksSection({ onPersonClick }) {
     { name:"Student Representative Council",   parent:"Osun State University",               short:"UNIOSUN",  logo:`${INST}/uniosun-logo.png` },
     { name:"Senate Council, Students' Union",  parent:"Yaba College of Technology",           short:"YabaTech",logo:`${INST}/yabatech-logo.png` },
     { name:"Students' Representative Council (SRC), Great Ife Students' Union", parent:"Obafemi Awolowo University", short:"OAU", logo:`${INST}/oau-logo.png` },
-    { name:"Students' Council",                parent:"Covenant University",                  short:"CU",       logo:`${INST}/cu-logo.png`, pending:true },
   ];
 
   return (
@@ -1851,23 +1923,41 @@ export default function Agenda() {
   const toggle = useCallback(() => setIsDark(d => !d), []);
   const [activeSection, setActiveSection] = useState("hero");
   const [selectedPerson, setSelectedPerson] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const setAdminMode = useCallback(v => setIsAdmin(v), []);
 
-  // ── Fix mobile viewport zoom (ensures correct 1:1 scale on all devices) ──
+  // ── Fix mobile viewport zoom ──
   useEffect(() => {
     let meta = document.querySelector('meta[name="viewport"]');
     if (!meta) { meta = document.createElement("meta"); meta.name = "viewport"; document.head.prepend(meta); }
     meta.content = "width=device-width, initial-scale=1.0, viewport-fit=cover";
   }, []);
 
-  // Persist completed sessions to localStorage (survives tab reloads)
-  const [completedSessions, setCompletedSessions] = useState(() => {
-    try { const s = localStorage.getItem("runsa-2026-done"); return s ? new Set(JSON.parse(s)) : new Set(); }
-    catch { return new Set(); }
-  });
+  // ── Firebase Realtime Database — live session completion sync ──────────────
+  const [completedSessions, setCompletedSessions] = useState(new Set());
   useEffect(() => {
-    try { localStorage.setItem("runsa-2026-done", JSON.stringify([...completedSessions])); }
-    catch { /* ignore */ }
-  }, [completedSessions]);
+    let unsub = null;
+    (async () => {
+      try {
+        const [appMod, dbMod] = await Promise.all([
+          import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"),
+          import("https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"),
+        ]);
+        const { initializeApp, getApps, getApp } = appMod;
+        const { getDatabase, ref, onValue, set } = dbMod;
+        const app = getApps().find(a=>a.name==="runsa-summit") || initializeApp(FB_CONFIG, "runsa-summit");
+        const db = getDatabase(app);
+        _fbSet = (id, val) => set(ref(db, `runsa-2026/completed/${id}`), val);
+        unsub = onValue(ref(db, "runsa-2026/completed"), snap => {
+          const data = snap.val() || {};
+          setCompletedSessions(new Set(Object.keys(data).filter(k => data[k] === true)));
+        });
+      } catch {
+        // Firebase unavailable — silent fallback to empty set (data only exists in Firebase)
+      }
+    })();
+    return () => { if (typeof unsub === "function") unsub(); };
+  }, []);
 
   // Section tracker for nav active state
   useEffect(() => {
@@ -1880,19 +1970,22 @@ export default function Agenda() {
   }, []);
 
   const handleToggleComplete = useCallback(id => {
-    setCompletedSessions(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) { next.delete(id); showToast("Marked as pending", "info"); }
-      else { next.add(id); showToast("Session complete! ✓", "success"); }
-      return next;
-    });
-  }, []);
+    if (!isAdmin) return;
+    const adding = !completedSessions.has(id);
+    if (_fbSet) {
+      _fbSet(id, adding ? true : null); // Firebase pushes to all devices
+      showToast(adding ? "Session marked complete ✓ — syncing…" : "Unmarked — syncing…", adding ? "success" : "info");
+    } else {
+      // No Firebase — local update only
+      setCompletedSessions(prev => { const n = new Set(prev); adding ? n.add(id) : n.delete(id); return n; });
+    }
+  }, [isAdmin, completedSessions]);
 
   const handlePersonClick = useCallback(person => setSelectedPerson(person), []);
   const B = isDark ? DARK : LIGHT;
 
   return (
-    <ThemeCtx.Provider value={{ isDark, toggle }}>
+    <ThemeCtx.Provider value={{ isDark, toggle, isAdmin, setAdminMode }}>
       <div style={{ minHeight:"100vh", background:B.bg, position:"relative", transition:"background 0.4s ease" }}>
         <GlobalStyles isDark={isDark} />
         <SpiralBg isDark={isDark} />
