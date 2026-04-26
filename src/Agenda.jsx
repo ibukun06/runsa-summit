@@ -1919,8 +1919,24 @@ function FloatingActions({ completedCount, totalCount }) {
 //  MAIN AGENDA COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Agenda() {
-  const [isDark, setIsDark] = useState(true);
-  const toggle = useCallback(() => setIsDark(d => !d), []);
+  const [isDark, setIsDark] = useState(() => {
+    try { const s = localStorage.getItem("runsa-theme"); if (s !== null) return s === "dark"; } catch {}
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = e => {
+      // Only follow system if user hasn't manually chosen
+      try { if (localStorage.getItem("runsa-theme") !== null) return; } catch {}
+      setIsDark(e.matches);
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  const toggle = useCallback(() => setIsDark(d => {
+    try { localStorage.setItem("runsa-theme", !d ? "dark" : "light"); } catch {}
+    return !d;
+  }), []);
   const [activeSection, setActiveSection] = useState("hero");
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
