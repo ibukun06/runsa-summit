@@ -85,12 +85,20 @@ const PEOPLE = {
     bio: "Professor Shadrach Olufemi Akindele is a distinguished scholar and the fourth substantive Vice-Chancellor of Redeemer's University. A renowned Professor of Forestry, he began his academic career as a Teaching Assistant at the University of Ibadan in 1987, and moved to the Federal University of Technology, Akure (FUTA) as an Assistant Lecturer in 1988, rising to Full Professor in 2005.\n\nHe served as a Visiting Professor at both the University of British Columbia, Vancouver, Canada, and the University of Alberta, Edmonton — showcasing his dedication to research and passion for educational development. In university administration, he has served as Head of Department, Dean, Chairman of the Committee of Deans, Member of the University Governing Council, Director of a University Centre, and Chairman of several University Committees.\n\nAs Chief Patron and Vice Chancellor of Redeemer's University, Prof. Akindele's unwavering belief in student-led governance and institutional excellence has been the cornerstone of this entire initiative. His presence at the Awards Presentation honours the outstanding delegates of this historic gathering.",
     initials: "SA", category: "patron", featured: false,
   },
+  profAdesina: {
+    id: "prof-olanrewaju-adesina", name: "Prof. Olanrewaju Adesina",
+    role: "Dean, Faculty of Engineering, Redeemer's University", title: "Prof.",
+    institution: "Redeemer's University, Ede",
+    image: `${PA}/patron-dean.jpg`,
+    bio: "Prof. Olanrewaju Seun Adesina is an international scholar, Professor of Materials Engineering, corrosion consultant, and certified project and policy advisor. He serves as Dean of the Faculty of Engineering at Redeemer's University, and has held academic roles at Bowen University, Landmark University, and Tshwane University of Technology.\n\nA highly accomplished researcher, he has authored and co-authored over 120 peer-reviewed publications attracting more than 1,600 scholarly citations, earning prestigious grants and international recognition from the National Research Foundation (NRF), the European Commission, and the Council for Scientific and Industrial Research (CSIR).\n\nIn 2023, he was inducted into the Nigerian Young Academy (NYA). In 2024, he received Redeemer's University Researcher of the Year (STEM) award, and has been ranked among Nigeria's Top 100 Researchers by SciVal for three consecutive years (2023–2025). He was also awarded the STEM-Africa Award in 2025. His generous support as Dean of Engineering — whose world-class Sapetro Lecture Theatre hosts this historic summit — reflects his deep commitment to student development.",
+    initials: "OA", category: "patron", featured: false,
+  },
   sobadu: {
     id: "sobodu-oluwanifemi", name: "Rt. Hon. Sobodu Oluwanifemi Oladipupo",
     role: "Speaker, RUNSA Legislative Council", title: "Rt. Hon.",
     institution: "Redeemer's University, Ede",
     image: `${SP}/sobodu-oluwanifemi.jpg`,
-    bio: "An eloquent and visionary leader of the RUNSA Legislative Council. Rt. Hon. Sobodu Oluwanifemi brings unmatched oratory and institutional drive to student governance. His passion for democratic student representation and welfare reform has made him a standout figure in campus legislative circles. As the presiding Speaker of the Council, he officially welcomes all delegates and dignitaries to this landmark summit.",
+    bio: "An eloquent and visionary leader of the RUNSA Legislative Council. Rt. Hon. Sobodu Oluwanifemi Oladipupo brings unmatched oratory and institutional drive to student governance. His passion for democratic student representation and welfare reform has made him a standout figure in campus legislative circles. As the presiding Speaker of the Council, he leads the formal Recognition of Dignitaries — introducing and honouring every distinguished guest, patron, and principal officer gracing this landmark summit.",
     initials: "SO", category: "speaker", featured: true,
   },
   rtHonAdewale: {
@@ -269,22 +277,22 @@ const SESSIONS = [
     cat: "ceremonial", people: ["akinolaBoluwatife"],
   },
   {
-    id: "anthems", start: "09:50", end: "09:57",
+    id: "welcome", start: "09:50", end: "09:55",
+    title: "Welcome Address",
+    desc: "The official welcome address to all delegates, distinguished guests, and honoured patrons of the inaugural RUNSA Legislative Summit — delivered by the Dean of the Faculty of Engineering, Redeemer's University.",
+    cat: "ceremonial", people: ["profAdesina"],
+  },
+  {
+    id: "anthems", start: "09:55", end: "10:02",
     title: "National & School Anthem",
     desc: "Solemn rendition of the Nigerian National Anthem followed by the Redeemer's University School Anthem — a reminder of our roots and our shared aspiration.",
     cat: "ceremonial", people: [],
   },
   {
-    id: "welcome", start: "09:57", end: "10:02",
-    title: "Welcome Address",
-    desc: "The official welcome address to all delegates, distinguished guests, and honoured patrons of the inaugural RUNSA Legislative Summit — delivered by the Speaker of the Legislative Council.",
-    cat: "ceremonial", people: ["sobadu"],
-  },
-  {
     id: "recognition", start: "10:02", end: "10:09",
     title: "Recognition of Dignitaries",
     desc: "Formal introduction and recognition of all distinguished guests, dignitaries, and principal officers gracing this summit with their presence and support.",
-    cat: "ceremonial", people: [],
+    cat: "ceremonial", people: ["sobadu"],
   },
   {
     id: "speaker-1", start: "10:09", end: "10:34",
