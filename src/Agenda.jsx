@@ -43,8 +43,9 @@ const LIGHT = {
 //                              chief-whip.jpg/.png (Hon. Oluwafemi Ibukunoluwa)
 //  /public/patrons/         → patron-vc.jpg/.png (Prof. Shedrach), patron-dean.jpg/.png (Prof. Adesina)
 //  /public/gallery/         → gallery-1.jpg/.png … gallery-12.jpg/.png (PNG gives clearer quality)
-//  /public/institutions/    → ui-logo.png, lasu-logo.png, bu-logo.png, au-logo.png,
-//                              jabu-logo.png, uniosun-logo.png, yabatech-logo.png, oau-logo.png
+//  /public/institutions/    → ui-logo.png, lasu-logo.png, au-logo.png,
+//                              jabu-logo.png, jabu-law-logo.png, uniosun-logo.png, yabatech-logo.png, oau-logo.png,
+//                              kings-logo.png
 //  /public/council-logo.png → RUNSA Legislative Council official logo (replaces "LS" text in nav/footer)
 //  All images: JPG or PNG supported. PNG recommended for logos and clearer photos. Max 400KB each.
 const SP = "/speakers";
@@ -1487,9 +1488,10 @@ function VoteOfThanksSection({ onPersonClick }) {
   const externalInstitutions = [
     { name:"Students' Representative Council", parent:"University of Ibadan Students' Union", short:"UI",       logo:`${INST}/ui-logo.png` },
     { name:"Students' Parliament Council",     parent:"Lagos State University, Ojo",          short:"LASU",     logo:`${INST}/lasu-logo.png` },
-    { name:"Student Legislative Council",      parent:"Babcock University, Ilisan-Remo",      short:"BU",       logo:`${INST}/bu-logo.png` },
     { name:"Student Legislative Council",      parent:"Adeleke University, Ede",              short:"AU",       logo:`${INST}/au-logo.png` },
-    { name:"SRC, Students' Union & Law Council",parent:"Joseph Ayo Babalola University",     short:"JABU",     logo:`${INST}/jabu-logo.png` },
+    { name:"Students' Representative Council", parent:"Joseph Ayo Babalola University, Ikeji-Arakeji", short:"JABU", logo:`${INST}/jabu-logo.png` },
+    { name:"Law Students' Society",            parent:"Joseph Ayo Babalola University, Ikeji-Arakeji", short:"JABU LAW", logo:`${INST}/jabu-law-logo.png` },
+    { name:"Students' Council",               parent:"Kings University, Ode-Omu",            short:"KINGS",    logo:`${INST}/kings-logo.png` },
     { name:"Student Representative Council",   parent:"Osun State University",               short:"UNIOSUN",  logo:`${INST}/uniosun-logo.png` },
     { name:"Senate Council, Students' Union",  parent:"Yaba College of Technology",           short:"YabaTech",logo:`${INST}/yabatech-logo.png` },
     { name:"Students' Representative Council (SRC), Great Ife Students' Union", parent:"Obafemi Awolowo University", short:"OAU", logo:`${INST}/oau-logo.png` },
